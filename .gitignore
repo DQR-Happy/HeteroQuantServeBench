@@ -1,0 +1,67 @@
+# Build
+build/
+cmake-build-*/
+out/
+dist/
+*.o
+*.a
+*.so
+*.d
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+credentials*
+secrets/
+
+# SSH keys must never enter the repository
+id_rsa*
+id_ed25519*
+
+# Models and large artifacts
+models/
+artifacts/
+datasets/
+checkpoints/
+*.safetensors
+*.gguf
+*.onnx
+*.engine
+*.plan
+*.pt
+*.pth
+*.bin
+
+# Profiling files
+*.ncu-rep
+*.nsys-rep
+*.qdrep
+
+# Generated logs
+*.log
+
+# Raw transient benchmark data
+benchmarks/raw/*
+!benchmarks/raw/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
