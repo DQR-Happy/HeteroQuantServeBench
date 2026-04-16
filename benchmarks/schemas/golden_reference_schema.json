@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hqsb/schemas/golden_reference_v1",
+  "title": "HQSB Golden Reference Schema",
+  "description": "Schema for golden numerical reference outputs used in model-level regression testing when replacing PyTorch operators with custom CUDA/Triton kernels.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "model",
+    "input_tokens",
+    "generated_tokens",
+    "first_token",
+    "timestamp"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version identifier",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "timestamp": {
+      "type": "number",
+      "description": "Unix timestamp of golden reference generation"
+    },
+    "model": {
+      "type": "object",
+      "required": ["id", "source", "dtype", "sha256_manifest"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Model identifier (e.g., Qwen/Qwen3-1.7B)",
+          "examples": ["Qwen/Qwen3-1.7B"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Model source",
+          "enum": ["modelscope", "huggingface"]
+        },
+        "dtype": {
+          "type": "string",
+          "description": "Weight precision",
+          "enum": ["float16", "float32", "bfloat16"]
+        },
+        "sha256_manifest": {
+          "type": "string",
+          "description": "Path to SHA256 manifest file for model files"
+        },
+        "config_hash": {
+          "type": "string",
+          "description": "SHA256 hash of model config.json"
+        }
+      }
+    },
+    "input_tokens": {
+      "type": "integer",
+      "description": "Input sequence length in tokens",
+      "minimum": 1
+    },
+    "generated_tokens": {
+      "type": "array",
+      "description": "Complete list of generated token IDs",
+      "items": { "type": "integer" }
+    },
+    "input_token_ids": {
+      "type": "array",
+      "description": "Input token IDs for reproducibility",
+      "items": { "type": "integer" }
+    },
+    "first_token": {
+      "type": "object",
+      "required": ["token_id", "top_k_token_ids", "top_k_logits", "logits_l2_norm"],
+      "properties": {
+        "token_id": {
+          "type": "integer",
+          "description": "Selected first token ID (argmax)"
+        },
+        "top_k_token_ids": {
+          "type": "array",
+          "description": "Top-K token IDs (default: top-32)",
+          "items": { "type": "integer" },
+          "maxItems": 128
+        },
+        "top_k_logits": {
+          "type": "array",
+          "description": "Top-K logit values corresponding to top_k_token_ids",
+          "items": { "type": "number" },
+          "maxItems": 128
+        },
+        "logits_l2_norm": {
+          "type": "number",
+          "description": "L2 norm of full vocabulary logits at first token position"
+        }
+      }
+    },
+    "software": {
+      "type": "object",
+      "description": "Software versions used to generate this reference",
+      "properties": {
+        "torch": { "type": "string" },
+        "cuda": { "type": "string" },
+        "transformers": { "type": "string" },
+        "modelscope": { "type": "string" }
+      }
+    },
+    "hardware": {
+      "type": "object",
+      "description": "Hardware used to generate this reference",
+      "properties": {
+        "device": { "type": "string" },
+        "compute_capability": {
+          "type": "array",
+          "items": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

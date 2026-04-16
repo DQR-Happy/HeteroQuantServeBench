@@ -1,0 +1,23 @@
+Timestamp: 2026-08-12T09:51:06+08:00
+
+CUDA:
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2024 NVIDIA Corporation
+Built on Tue_Oct_29_23:53:06_PDT_2024
+Cuda compilation tools, release 12.6, V12.6.85
+Build cuda_12.6.r12.6/compiler.35059454_0
+
+Python:
+Python 3.10.12
+
+PyTorch:
+2.5.0a0+872d972e41.nv24.08
+
+Transformers:
+5.8.0
+
+ModelScope:
+1.29.0
+
+Device:
+Orin

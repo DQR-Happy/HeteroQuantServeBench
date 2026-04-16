@@ -42,6 +42,9 @@ Options parse_options(int argc, char** argv) {
         std::cerr << "Missing value for " << name << std::endl;
         std::exit(EXIT_FAILURE);
       }
+
+      // TODO(cli): Validate that argv[i + 1] is not another flag (e.g., starting with '-')
+      // to handle missing option values before flags and prevent downstream string argument pollution.
       return argv[++i];
     };
 

@@ -1,0 +1,64 @@
+# HQSB Benchmark Configuration: Jetson Orin Nano Super + Qwen3-1.7B FP16
+#
+# This file defines the benchmark parameters for the Phase 2 baseline
+# measurement on Jetson Orin Nano Super.
+#
+# Hardware: NVIDIA Jetson Orin Nano Super 8GB (sm_87)
+# Model: Qwen/Qwen3-1.7B FP16 via ModelScope
+# Backend: modelscope-transformers (eager attention)
+# Batch size: 1
+
+benchmark:
+
+  # Model identifier (ModelScope namespace)
+  model: Qwen/Qwen3-1.7B
+
+  # Model source: "modelscope" | "huggingface"
+  model_source: modelscope
+
+  # Execution backend
+  backend: modelscope-transformers
+
+  # Weight precision
+  dtype: float16
+
+  # Attention implementation
+  attention_backend: eager
+
+  # Inference batch size
+  batch_size: 1
+
+  # Warmup before timed runs
+  warmup: true
+
+  # Number of repeated measurements per workload case
+  repetitions: 3
+
+# Workload definitions: fixed input-sequence-length (ISL) and
+# output-sequence-length (OSL) combinations covering prefill-bound,
+# decode-bound, and balanced scenarios.
+workloads:
+
+  - name: tiny
+    input_tokens: 32
+    output_tokens: 16
+
+  - name: short
+    input_tokens: 128
+    output_tokens: 32
+
+  - name: balanced
+    input_tokens: 512
+    output_tokens: 128
+
+  - name: long_prefill
+    input_tokens: 2048
+    output_tokens: 32
+
+  - name: decode_heavy
+    input_tokens: 128
+    output_tokens: 256
+
+  - name: long_balanced
+    input_tokens: 2048
+    output_tokens: 128

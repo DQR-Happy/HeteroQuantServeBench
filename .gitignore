@@ -68,3 +68,6 @@ Thumbs.db
 
 # Reports
 reports/
+
+# Scripts
+/scripts/common/
