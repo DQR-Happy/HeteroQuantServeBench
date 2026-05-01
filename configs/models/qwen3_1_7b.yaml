@@ -1,0 +1,33 @@
+# HQSB Model Configuration: Qwen3-1.7B (FP16)
+#
+# This file defines the model source, local path, dtype, attention backend,
+# and loading parameters for the Qwen3-1.7B baseline benchmark.
+#
+# Model: Qwen/Qwen3-1.7B
+# Source: ModelScope (https://www.modelscope.cn/models/Qwen/Qwen3-1.7B)
+# Architecture: Qwen3ForCausalLM
+
+model:
+  source: modelscope
+  id: Qwen/Qwen3-1.7B
+
+  # Local filesystem path (expanded via os.path.expanduser)
+  local_path: ~/models/hqsb/Qwen3-1.7B
+
+  # Data type for model weights and computation
+  dtype: float16
+
+  # Attention implementation: "eager" (native PyTorch), "sdpa", "flash_attention_2"
+  attention_backend: eager
+
+  # Do not execute remote code from model repository
+  trust_remote_code: false
+
+  # Require all model files to be present locally (offline-safe)
+  local_files_only: true
+
+  # Batch size for inference (fixed at 1 for baseline)
+  batch_size: 1
+
+  # Device placement: 0 = first CUDA device
+  device: 0

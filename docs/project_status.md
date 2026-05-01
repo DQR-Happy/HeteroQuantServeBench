@@ -1,0 +1,222 @@
+# HQSB 项目现状报告（Project Status）
+
+> 生成时间：2026-08-16
+> 基线 Commit：`4dda6f8`（`refactor docs into staged roadmap and architecture spec`）
+> 当前阶段：S01（核心契约与工程质量体系）—— 已完成
+
+本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
+定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
+详见 [`evidence_ledger.md`](evidence_ledger.md)。
+
+---
+
+## 1. 项目是什么
+
+HeteroQuantServeBench（HQSB）是一个面向 **GPU（NVIDIA CUDA）/ NPU（Huawei Ascend
+C/CANN）/ 边缘与云端** 环境的 LLM 推理优化实验与工程平台。它统一管理模型制品、
+工作负载、算子、量化、运行时、服务、通信、编译与跨硬件 benchmark，使每一次优化
+都能从 Kernel 追踪到模型、服务和硬件收益。
+
+核心原则：**Profile before optimize；correctness before performance；evidence
+before claim。**
+
+顶层架构见 [`architecture/顶层架构.md`](architecture/顶层架构.md)。
+
+---
+
+## 2. 当前阶段判定
+
+| 判定项 | 结论 |
+|---|---|
+| 当前所处阶段 | **S01（核心契约与工程质量体系）** |
+| 判定依据 | S00 已完成验收；`hqsb/core` 契约/注册/配置/错误/日志体系已落地并通过测试 |
+| 前序阶段 | S00（现状审计与基线恢复）—— 已完成 |
+
+S01 建立了后续所有模型、算子、量化、Backend、Serving、Benchmark 共同依赖的稳定
+Contract（C1–C7）、注册机制、统一配置/错误/日志体系、版本化 schema 与迁移、
+Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
+
+---
+
+## 3. 完整 Inventory
+
+### 3.1 `hqsb/`（Python 包）
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `__init__.py` | 包元信息（v0.1.0） | Implemented |
+| `models/loader.py` | `load_qwen3`：local-only 加载、dtype/attention、OOM fallback、资源释放 | Verified |
+| `models/manifest.py` | SHA256 manifest 解析 + `verify_model_files` | **本次新增**，Implemented |
+| `models/__init__.py` | 导出 `load_qwen3` | Implemented |
+| `benchmark/metrics.py` | percentile / latency_summary / numerical_diff_summary | Implemented |
+| `benchmark/model_core.py` | model-core 三阶段 benchmark（prefill/first-token/decode） | Verified |
+| `benchmark/workload.py` | 固定 token 长度 workload 生成 | Implemented |
+| `benchmark/resource_monitor.py` | `TegrastatsMonitor` 后台采集 | Implemented |
+| `benchmark/tegrastats_parser.py` | tegrastats 行解析 + 功率/能量积分 | Implemented |
+| `benchmark/cli.py` | `positive_int` / `non_negative_int` argparse 校验 | Implemented |
+| `benchmark/engine.py` | backend-interface benchmark engine → BenchmarkResult | **S01 新增**，Implemented |
+| `benchmark/__init__.py` | 导出 benchmark API | Implemented |
+| `core/errors.py` | 错误分类 + exit code（1–9） | **S01 新增**，Implemented |
+| `core/ids.py` | run/trace/span ID 生成 | **S01 新增**，Implemented |
+| `core/logging.py` | JSON lines 结构化日志 + trace context | **S01 新增**，Implemented |
+| `core/contracts/` | C1–C7 版本化 schema + Backend ABC | **S01 新增**，Implemented |
+| `core/schema/` | SchemaVersion + 迁移框架 + legacy 迁移 | **S01 新增**，Implemented |
+| `core/config/` | 分层配置加载 + hash | **S01 新增**，Implemented |
+| `core/registry/` | 插件注册表 + RegistryHub | **S01 新增**，Implemented |
+| `backends/dummy.py` | DummyBackend 参考实现（C4） | **S01 新增**，Implemented |
+| `quant/` `serving/` | 空目录（S04–S08 规划占位） | Planned |
+
+### 3.2 `ops/`（算子）
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `cuda/common/cuda_check.cuh` | 公共 CUDA 错误检查宏 | Implemented |
+| `cuda/device_query/` | 设备信息查询（.cu + CMakeLists） | Verified |
+| `cuda/rmsnorm/` | RMSNorm V0（FP32 shared-mem reduction） | Verified |
+| `triton/` `ascend/` | 空目录（.gitkeep） | Planned |
+
+### 3.3 `benchmarks/`
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `schemas/golden_reference_schema.json` | golden 数值回归 JSON Schema | Implemented |
+| `scripts/run_model_core.py` | 单 workload model-core runner | Verified |
+| `scripts/run_jetson_baseline.py` | 六 workload 编排 | Verified |
+| `scripts/generate_golden.py` | golden 生成器 | Implemented |
+| `scripts/summarize_baseline.py` | CSV 汇总 | Implemented |
+| `workloads/golden/` | 4 份 golden（isl32/128/512/2048 × osl32） | legacy（未进回归门禁） |
+| `raw/` `normalized/` | 空（.gitkeep） | Planned |
+
+### 3.4 `configs/`
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `models/qwen3_1_7b.yaml` | Qwen3-1.7B 模型配置 | Implemented |
+| `benchmarks/jetson_qwen3_fp16.yaml` | Jetson FP16 benchmark 配置 | Implemented |
+| `environment/jetson_python_lock.txt` | Python 全量锁（含 ROS/Jupyter 等非必要包） | Implemented |
+| `environment/jetson_runtime.txt` | 关键运行版本清单 | Implemented |
+| `operators/rmsnorm_v0.json` | RMSNorm C3 OperatorSpec 迁移示例 | **S01 新增**，Implemented |
+| `backends/` `quantization/` | 空（.gitkeep） | Planned |
+
+### 3.5 `scripts/`
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `models/download_qwen3_modelscope.py` | 模型下载 | Implemented |
+| `models/verify_qwen3.py` | 模型架构/配置校验 | Implemented |
+| `models/verify_qwen3_hashes.py` | SHA256 快照校验 CLI（退出码 0/1/2） | **本次新增**，Implemented |
+| `models/smoke_qwen3.py` | Qwen 加载+生成 smoke | Verified |
+| `models/dump_model_manifest.py` | 生成模型 manifest JSON | Implemented |
+| `migrate_legacy.py` | legacy golden/result → 新 schema 迁移 CLI | **S01 新增**，Implemented |
+| `check_docs.py` | 文档相对链接完整性检查 | **S01 新增**，Implemented |
+| `bench/run_jetson_baseline.sh` | Jetson CUDA baseline 一键脚本 | Implemented |
+| `env/collect_jetson_env.sh` | 环境采集脚本 | Implemented |
+| `common/git_commit.sh` | 本地 git 历史改写辅助（**已 gitignore，勿入库**） | 本地工具，见 §6 |
+
+### 3.6 `tests/`
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `conftest.py` | sys.path 注入，保证 `import hqsb` 可用 | **本次新增** |
+| `unit/test_metrics.py` | percentile/summary/数值误差 | **本次新增** |
+| `unit/test_tegrastats_parser.py` | 行解析 + 能量积分 | **本次新增** |
+| `unit/test_manifest.py` | manifest 解析 + 完整性校验 | **本次新增** |
+| `unit/test_workload.py` | 固定长度 workload | **本次新增** |
+| `unit/test_loader.py` | 路径/目录校验负向路径 | **S00 新增** |
+| `unit/test_cli.py` | CLI 参数校验 | **S00 新增** |
+| `unit/core/` | errors/ids/logging/contracts/schema/config/registry/dummy/engine/migration/dependency 共 12 模块 | **S01 新增** |
+| `property/test_percentile_property.py` | 百分位不变量属性测试 | **S01 新增** |
+| `correctness/` `integration/` `test_vectors/` | 空（.gitkeep） | Planned |
+
+### 3.7 `docs/` 与 `reports/`
+
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `architecture/顶层架构.md` | 顶层架构 + C1–C7 Contract | Implemented |
+| `stages/S00–S15.md` | 16 个阶段路线图 | Implemented |
+| `benchmark/` | methodology / metric_definitions / manifest | Implemented |
+| `hardware/jetson_environment.md` | Jetson 环境清单 | Implemented |
+| `architecture/module_ownership.md` | 依赖图 + 模块 ownership | **S01 新增** |
+| `templates/` | ADR / 实验 / 优化日志 / handoff 模板 | **S01 新增** |
+| `project_status.md` / `evidence_ledger.md` | 本报告 + 证据台账 | Implemented |
+| `reports/S01_开发报告.md` / `S01_阶段验收报告.md` | S01 交付与验收 | **S01 新增** |
+| `reports/` | raw 运行证据（**gitignored，仅本机保留**） | runtime-verified |
+
+---
+
+## 4. 阶段完成度映射
+
+| 阶段 | 名称 | 状态 |
+|---|---|---|
+| S00 | 现状审计与基线恢复 | **已完成（验收通过）** |
+| S01 | 核心契约与工程质量 | **已完成（验收通过）** |
+| S02 | 模型基线与全栈 Profiling | 约一半源码存在（loader/benchmark/golden 有，缺 PyTorch Profiler/Nsight/roofline；S01 已迁移到新 schema） |
+| S03 | CUDA 算子性能工程 | 仅 RMSNorm V0 + device query，未成算子库/多版本/dispatcher/profiler |
+| S04–S15 | Triton / 量化 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
+
+> 结论：S01 将 S00 审计到的 legacy 产物（golden/result/RMSNorm metadata）迁移到
+> 版本化 schema，并建立了 `hqsb/core` 契约地基。S02 的模型基线、golden 补全与
+> 全栈 Profiling 尚未开展。
+
+---
+
+## 5. S00 补齐内容（已完成）
+
+1. **哈希校验能力**（负向：hash 不符 → 可诊断非零退出）
+   - `hqsb/models/manifest.py`：manifest 解析 + `verify_model_files`
+   - `scripts/models/verify_qwen3_hashes.py`：退出码 0（通过）/1（操作错误）/2（校验失败）
+   - `hqsb/models/loader.py` 新增 `verify_manifest` 可选参数，加载前做 artifact integrity gate
+2. **CLI 非法参数校验**：`hqsb/benchmark/cli.py` 提供 `positive_int`，
+   `run_model_core.py` / `generate_golden.py` 改用 `type=positive_int` 并抽取 `build_parser()`
+3. **CPU 最小单元测试**：`tests/unit/` 7 个模块 + `conftest.py`
+4. **`.gitignore` 宽泛匹配修复**：`models/`、`reports/` 锚定为 `/models/`、`/reports/`
+5. **README 状态矩阵与三条 smoke 复现路径**
+6. **项目现状报告 + 证据台账 + S00 验收报告**
+
+---
+
+## 6. S01 补齐内容（已完成）
+
+1. **`hqsb/core` 稳定地基**
+   - `errors.py`：统一错误分类 + exit code（Usage=2/Config=3/Schema=4/Registry=5/Backend=6/Capability=7/Artifact=8/Benchmark=9）
+   - `ids.py` / `logging.py`：run/trace/span ID + JSON lines 结构化日志
+   - `contracts/`：C1 ModelArtifact / C2 WorkloadSpec / C3 OperatorSpec / C4 Backend+Capability / C5 QuantArtifact / C6 BenchmarkResult / C7 TraceEvent（pydantic 版本化 schema，`extra="forbid"`）
+   - `schema/`：SchemaVersion + 显式迁移框架 + legacy 迁移（`migrate_any`）
+   - `config/`：分层配置加载（defaults < file < env < CLI）+ 确定性 SHA256 hash
+   - `registry/`：`Registry` + `RegistryHub`（backends/operators/quantizers/monitors/reporters）
+2. **Backend 参考实现与 engine**：`hqsb/backends/dummy.py`（C4 参考实现，确定性输出）
+   + `hqsb/benchmark/engine.py`（backend 接口编排 → BenchmarkResult）
+3. **legacy 迁移**：`scripts/migrate_legacy.py` + `configs/operators/rmsnorm_v0.json`
+   （model-core result → C6、golden → C6、RMSNorm → C3）
+4. **工程化**：`pyproject.toml`（打包 + 可选依赖组 benchmark/serving/ascend/dev）
+   + `.github/workflows/ci.yml`（CPU CI 3.10–3.12）+ pytest markers
+5. **文档模板与检查**：`docs/templates/`（ADR/实验/优化日志/handoff）
+   + `scripts/check_docs.py` + `docs/architecture/module_ownership.md`
+6. **测试**：12 个 core 测试模块 + property 测试；全量 **166 passed**
+
+---
+
+## 7. 风险与注意事项
+
+- **`scripts/common/git_commit.sh`**：包含 `git rebase --root` 与
+  `git push origin main --force`，会改写历史并强推。已被 `.gitignore` 排除，属
+  本机工具；**不应提交**，若需团队协作应改为无强推的安全流程。
+- **顶层 `/reports/` 被 `.gitignore` 忽略**（已锚定，仅忽略 raw 数据）：raw 证据
+  仅存于本机，未纳入版本控制。跨机器审计需依赖 artifact 索引或另行归档。
+- **`configs/environment/jetson_python_lock.txt`** 是全量系统 pip 冻结（含 ROS、
+  Jupyter 等无关包），非项目最小依赖集；已在 `pyproject.toml` 建立按依赖组划分的
+  可选依赖，但 Jetson 专用 torch wheel 仍需按硬件 pin（S02 处理）。
+- **golden 数据仅 4 份**（osl 均为 32），与六 workload 基线不对齐；已迁移到 C6
+  schema，S02 补全六 workload golden。
+- **ruff / mypy** 本机未安装（CI 会安装），本机可 `pip install -e ".[dev]"` 补装。
+
+---
+
+## 8. 下一步（S02 输入）
+
+S01 完成后进入 S02（模型基线与全栈 Profiling）：
+- 实现 `PyTorchBackend`，将 `hqsb/benchmark/model_core.py` 归入 Backend 接口
+- 补全六 workload golden（当前 4/6），接入回归门禁
+- PyTorch Profiler / Nsight Systems / roofline 分析，产出模型级热点证据
+
+S01 handoff 与验收见 [`reports/S01_阶段验收报告.md`](reports/S01_阶段验收报告.md)。

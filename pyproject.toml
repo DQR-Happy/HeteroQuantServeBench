@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hqsb"
+version = "0.1.0"
+description = "Heterogeneous quantization, kernel optimization, serving, and benchmarking platform for CUDA and Ascend C/CANN backends."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "HQSB Team" }]
+
+# Core (CPU) dependencies only. Hardware/runtime adapters are optional
+# extras so a clean CPU environment can install and test the contracts,
+# config, registry, and benchmark engine without pulling torch/CUDA/CANN.
+dependencies = [
+    "pydantic>=2.0",
+    "PyYAML>=5.4",
+]
+
+[project.optional-dependencies]
+# Model-core benchmarking and the PyTorch reference backend (S02).
+# torch on Jetson is a vendor wheel; pin via configs/environment lock files.
+benchmark = [
+    "torch>=2.0",
+    "transformers>=4.40",
+    "modelscope>=1.20",
+    "psutil>=5.9",
+]
+# Serving control plane (S08).
+serving = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "httpx>=0.27",
+]
+# Ascend/CANN backend (S09).
+ascend = [
+    "torch-npu",
+]
+# Development tooling: lint, type-check, test.
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.8",
+]
+
+[tool.setuptools.packages.find]
+include = ["hqsb*"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+markers = [
+    "unit: pure-Python unit tests (no GPU, no model weights)",
+    "property: property-based tests over generated inputs",
+    "correctness: numerical/reference correctness tests",
+    "integration: multi-module integration tests",
+    "e2e: end-to-end tests (may require model weights)",
+    "performance: timing/benchmark regression tests",
+    "hardware: tests requiring GPU/NPU hardware (self-hosted/nightly)",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true

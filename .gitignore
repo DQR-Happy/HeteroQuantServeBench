@@ -17,6 +17,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+*.egg-info/
 
 # IDE
 .vscode/
@@ -36,8 +37,9 @@ secrets/
 id_rsa*
 id_ed25519*
 
-# Models and large artifacts
-models/
+# Models and large artifacts (top-level weights only; hqsb/models and
+# scripts/models are Python source and MUST be tracked)
+/models/
 artifacts/
 datasets/
 checkpoints/
@@ -66,8 +68,9 @@ benchmarks/raw/*
 .DS_Store
 Thumbs.db
 
-# Reports
-reports/
+# Reports (top-level raw benchmark data only; docs/reports is documentation
+# and MUST be tracked)
+/reports/
 
 # Scripts
 /scripts/common/

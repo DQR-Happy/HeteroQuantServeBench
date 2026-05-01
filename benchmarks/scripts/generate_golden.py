@@ -31,6 +31,7 @@ import time
 
 import torch
 
+from hqsb.benchmark.cli import positive_int
 from hqsb.benchmark.workload import make_fixed_token_input
 from hqsb.models.loader import load_qwen3
 
@@ -118,27 +119,21 @@ def generate_golden_reference(
     }
 
 
-def main() -> None:
-    """Parse arguments and generate golden reference."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser for the golden generator."""
     parser = argparse.ArgumentParser(
         description="Generate golden numerical reference for model regression",
     )
     parser.add_argument(
-        "--input-tokens", type=int, required=True,
-        help="Input sequence length",
+        "--input-tokens", type=positive_int, required=True,
+        help="Input sequence length (>= 1)",
     )
     parser.add_argument(
-        "--output-tokens", type=int, required=True,
-        help="Output sequence length",
+        "--output-tokens", type=positive_int, required=True,
+        help="Output sequence length (>= 1)",
     )
     parser.add_argument(
-        "--top-k", type=int, default=32,
+        "--top-k", type=positive_int, default=32,
         help="Number of top logits to record (default: 32)",
     )
     parser.add_argument(
@@ -149,7 +144,18 @@ def main() -> None:
         "--output", required=True,
         help="Output JSON file path",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    """Parse arguments and generate golden reference."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    args = build_parser().parse_args()
 
     model_path = os.path.expanduser(args.model_path)
 

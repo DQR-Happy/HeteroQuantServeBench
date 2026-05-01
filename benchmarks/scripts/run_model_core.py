@@ -30,6 +30,7 @@ import psutil
 import torch
 import transformers
 
+from hqsb.benchmark.cli import positive_int
 from hqsb.benchmark.metrics import latency_summary
 from hqsb.benchmark.model_core import benchmark_model_core
 from hqsb.benchmark.resource_monitor import TegrastatsMonitor
@@ -96,24 +97,22 @@ def _compute_determinism(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def main() -> None:
-    """Parse arguments, load model, run benchmark, and write results."""
-    _setup_logging()
-
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the argument parser for the model-core runner."""
     parser = argparse.ArgumentParser(
         description="HQSB Model-Core Benchmark Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--input-tokens", type=int, required=True,
-        help="Input sequence length (ISL) in tokens",
+        "--input-tokens", type=positive_int, required=True,
+        help="Input sequence length (ISL) in tokens (>= 1)",
     )
     parser.add_argument(
-        "--output-tokens", type=int, required=True,
-        help="Output sequence length (OSL) in tokens",
+        "--output-tokens", type=positive_int, required=True,
+        help="Output sequence length (OSL) in tokens (>= 1)",
     )
     parser.add_argument(
-        "--repetitions", type=int, default=3,
+        "--repetitions", type=positive_int, default=3,
         help="Number of benchmark repetitions (default: 3)",
     )
     parser.add_argument(
@@ -129,10 +128,17 @@ def main() -> None:
         help="Skip tegrastats monitoring (for non-Jetson platforms)",
     )
     parser.add_argument(
-        "--warmup-output-tokens", type=int, default=8,
+        "--warmup-output-tokens", type=positive_int, default=8,
         help="Output tokens for warmup run (default: 8)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    """Parse arguments, load model, run benchmark, and write results."""
+    _setup_logging()
+
+    args = build_parser().parse_args()
 
     model_path = os.path.expanduser(args.model_path)
 
