@@ -11,8 +11,11 @@ arrive in later stages (S02/S07/S09).
 """
 
 from hqsb.backends.dummy import DummyBackend, make_dummy_backend
+from hqsb.backends.pytorch import PyTorchBackend, make_pytorch_backend
 
 __all__ = [
     "DummyBackend",
     "make_dummy_backend",
+    "PyTorchBackend",
+    "make_pytorch_backend",
 ]

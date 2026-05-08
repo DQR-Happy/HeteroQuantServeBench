@@ -2,7 +2,7 @@
 
 > 生成时间：2026-08-16
 > 基线 Commit：`4dda6f8`
-> 当前阶段：S01（已完成）
+> 当前阶段：S02（已完成）
 
 每个声明（claim）按证据强度分级：
 
@@ -89,7 +89,28 @@ PyTorch 2.5.0a0+nv24.08, CUDA 12.6, Transformers 5.8.0, ModelScope 1.29.0）。
 
 ---
 
-## 4. 审计检查结果
+## 4. S02 声明台账
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S2-1 | Roofline/Amdahl 数学正确 | test-verified | `hqsb/benchmark/roofline.py`；`tests/unit/core/test_roofline.py` |
+| S2-2 | golden/determinism/首错位定位正确 | test-verified | `hqsb/benchmark/correctness.py`；`test_correctness.py` |
+| S2-3 | YAML 六 workload 单一事实源加载 | test-verified | `hqsb/benchmark/workload_config.py`；`test_workload_config.py` |
+| S2-4 | KV cache/权重字节核算正确 | test-verified | `hqsb/benchmark/memory.py`；`test_memory.py` |
+| S2-5 | operator 表提取（新旧 PyTorch 字段名） | test-verified | `hqsb/benchmark/profiling.py`；`test_profiling.py` |
+| S2-6 | PyTorchBackend 契约合规（无权重） | test-verified | `hqsb/backends/pytorch.py`；`test_pytorch_backend.py` |
+| S2-7 | Jetson 协议防御式表面 | test-verified | `hqsb/hardware/jetson.py`；`test_jetson.py` |
+| S2-8 | FP16 Reference Runtime 端到端可用 | runtime-verified | `reports/dev/llm/s02_smoke_tiny.json`（decode 9.28 tok/s, correctness=true） |
+| S2-9 | KV cache 画像（28 layers, 8 kv_heads, 114688 B/token） | runtime-verified | `s02_smoke_tiny.json` + `baseline_report.md` §4 |
+| S2-10 | 权重 3.44GB 为内存绝对大头 | runtime-verified | `s02_smoke_tiny.json`（model_weight_bytes=3,441,149,952） |
+| S2-11 | Decode GEMM 主导（~78%） | runtime-verified | `reports/dev/profiler/s02/hotspot_summary.json`（真实 CUDA trace） |
+| S2-12 | Prefill GEMM ~48%、elementwise ~35–40% | runtime-verified | `reports/dev/profiler/s02/hotspot_summary.json` |
+| S2-13 | Hotspot Decision 来自 Profile（非拍脑袋） | runtime-verified | `hotspot_analysis.json` + `pytorch_profile_report.md` §4 |
+| S2-14 | 全量测试 238 passed | runtime-verified | `pytest -q` 输出 |
+
+---
+
+## 5. 审计检查结果
 
 - **manifest 自引用修复**：原 `model_sha256_manifest.txt` 含自引用行
   （`./model_sha256_manifest.txt`），其哈希无法自洽；已移除该行，实测模型快照
@@ -105,4 +126,4 @@ PyTorch 2.5.0a0+nv24.08, CUDA 12.6, Transformers 5.8.0, ModelScope 1.29.0）。
 - **绝对路径**：默认配置使用 `~/models/hqsb/Qwen3-1.7B`（经 `~` 展开），未硬编码
   机器专属绝对路径；历史 result JSON 内的 `local_path` 为运行时记录，不属默认配置。
 - **高风险本地脚本**：`scripts/common/git_commit.sh` 含 `--force` 强推，已被
-  gitignore，见 `project_status.md` §6。
+  gitignore，见 `project_status.md` §8。

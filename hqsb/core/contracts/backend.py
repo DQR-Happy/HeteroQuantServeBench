@@ -14,7 +14,7 @@ benchmark engine is responsible for turning that output into a
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
@@ -62,12 +62,19 @@ class GenerationSample(VersionedModel):
 
 
 class GenerationOutput(VersionedModel):
-    """Raw output of a backend's ``generate`` call."""
+    """Raw output of a backend's ``generate`` call.
+
+    ``backend_metrics`` carries *per-run* backend/environment accounting
+    (KV-cache size, model weight bytes, RSS/swap, load time, CUDA memory
+    snapshot) that is constant across repetitions and therefore reported
+    once rather than per sample.
+    """
 
     SCHEMA_VERSION = "1.0.0"
 
     samples: List[GenerationSample] = Field(default_factory=list)
     trace_events: List[TraceEvent] = Field(default_factory=list)
+    backend_metrics: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Backend(ABC):

@@ -133,6 +133,7 @@ class BenchmarkEngine:
         git_commit: Optional[str] = None,
         git_dirty: Optional[bool] = None,
         check_capabilities: bool = True,
+        load_artifact: bool = True,
     ) -> BenchmarkResult:
         """Execute ``workload`` against the configured backend.
 
@@ -145,6 +146,10 @@ class BenchmarkEngine:
             check_capabilities: When True, verify the backend's declared
                 capabilities cover the workload's dtype/batch before running
                 (raises :class:`CapabilityError` otherwise).
+            load_artifact: When True (default), call ``backend.load(artifact)``
+                before running. Set False when the caller has already loaded
+                the artifact (e.g. reuse across many workloads) to avoid
+                redundant loads.
 
         Returns:
             A fully-populated :class:`BenchmarkResult`.
@@ -157,7 +162,7 @@ class BenchmarkEngine:
             self._assert_capabilities(workload, artifact)
 
         try:
-            if artifact is not None:
+            if artifact is not None and load_artifact:
                 self.backend.load(artifact)
             self.backend.warmup(workload)
             output = self.backend.generate(workload, None)
@@ -170,6 +175,8 @@ class BenchmarkEngine:
 
         samples = output.samples
         summary = _summarize(samples)
+        if output.backend_metrics:
+            summary["backend_metrics"] = output.backend_metrics
         correctness = _determinism_correctness(samples)
         resource = self._aggregate_resource(samples)
 

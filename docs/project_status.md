@@ -2,7 +2,7 @@
 
 > 生成时间：2026-08-16
 > 基线 Commit：`4dda6f8`（`refactor docs into staged roadmap and architecture spec`）
-> 当前阶段：S01（核心契约与工程质量体系）—— 已完成
+> 当前阶段：S02（模型基线与全栈 Profiling）—— 已完成
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -28,13 +28,13 @@ before claim。**
 
 | 判定项 | 结论 |
 |---|---|
-| 当前所处阶段 | **S01（核心契约与工程质量体系）** |
-| 判定依据 | S00 已完成验收；`hqsb/core` 契约/注册/配置/错误/日志体系已落地并通过测试 |
-| 前序阶段 | S00（现状审计与基线恢复）—— 已完成 |
+| 当前所处阶段 | **S02（模型基线与全栈 Profiling）** |
+| 判定依据 | S01 已完成验收；`PyTorchBackend` + 全栈 Profiling + Hotspot Decision 已落地 |
+| 前序阶段 | S00（现状审计）→ S01（核心契约）—— 均已完成 |
 
-S01 建立了后续所有模型、算子、量化、Backend、Serving、Benchmark 共同依赖的稳定
-Contract（C1–C7）、注册机制、统一配置/错误/日志体系、版本化 schema 与迁移、
-Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
+S02 建立了可信的 Qwen3-1.7B FP16 Reference Runtime（`PyTorchBackend`，C4 契约），
+刻画了 Prefill/Decode 的算子与内存热点，并用真实 Profiler + Roofline/Amdahl
+产出 S03 的 Hotspot Decision（GEMM 主导）。详见 §6（S02 补齐内容）。
 
 ---
 
@@ -55,6 +55,11 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
 | `benchmark/tegrastats_parser.py` | tegrastats 行解析 + 功率/能量积分 | Implemented |
 | `benchmark/cli.py` | `positive_int` / `non_negative_int` argparse 校验 | Implemented |
 | `benchmark/engine.py` | backend-interface benchmark engine → BenchmarkResult | **S01 新增**，Implemented |
+| `benchmark/roofline.py` | Roofline/Amdahl + 热点分类 | **S02 新增**，Implemented |
+| `benchmark/correctness.py` | golden/determinism/首错位定位 | **S02 新增**，Implemented |
+| `benchmark/workload_config.py` | YAML workload 单一事实源 | **S02 新增**，Implemented |
+| `benchmark/memory.py` | KV cache/权重/RSS/swap 核算 | **S02 新增**，Implemented |
+| `benchmark/profiling.py` | PyTorch Profiler operator 表提取 | **S02 新增**，Implemented |
 | `benchmark/__init__.py` | 导出 benchmark API | Implemented |
 | `core/errors.py` | 错误分类 + exit code（1–9） | **S01 新增**，Implemented |
 | `core/ids.py` | run/trace/span ID 生成 | **S01 新增**，Implemented |
@@ -64,6 +69,8 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
 | `core/config/` | 分层配置加载 + hash | **S01 新增**，Implemented |
 | `core/registry/` | 插件注册表 + RegistryHub | **S01 新增**，Implemented |
 | `backends/dummy.py` | DummyBackend 参考实现（C4） | **S01 新增**，Implemented |
+| `backends/pytorch.py` | PyTorchBackend（C4，FP16 Qwen3 reference） | **S02 新增**，Implemented |
+| `hardware/jetson.py` | Jetson 实验协议（温度/冷却/电源模式） | **S02 新增**，Implemented |
 | `quant/` `serving/` | 空目录（S04–S08 规划占位） | Planned |
 
 ### 3.2 `ops/`（算子）
@@ -109,9 +116,14 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
 | `models/dump_model_manifest.py` | 生成模型 manifest JSON | Implemented |
 | `migrate_legacy.py` | legacy golden/result → 新 schema 迁移 CLI | **S01 新增**，Implemented |
 | `check_docs.py` | 文档相对链接完整性检查 | **S01 新增**，Implemented |
+| `bench/run_s02_baseline.py` | S02 contract-native baseline orchestrator | **S02 新增**，Implemented |
+| `bench/profile_model.py` | PyTorch Profiler 采集 runner | **S02 新增**，Implemented |
+| `bench/analyze_hotspots.py` | Roofline/Amdahl hotspot 决策分析 | **S02 新增**，Implemented |
+| `bench/nsys_profile.sh` | Nsight Systems 采集 runner | **S02 新增**，Implemented |
+| `bench/ncu_profile.sh` | Nsight Compute 采集 runner | **S02 新增**，Implemented |
 | `bench/run_jetson_baseline.sh` | Jetson CUDA baseline 一键脚本 | Implemented |
 | `env/collect_jetson_env.sh` | 环境采集脚本 | Implemented |
-| `common/git_commit.sh` | 本地 git 历史改写辅助（**已 gitignore，勿入库**） | 本地工具，见 §6 |
+| `common/git_commit.sh` | 本地 git 历史改写辅助（**已 gitignore，勿入库**） | 本地工具，见 §8 |
 
 ### 3.6 `tests/`
 
@@ -125,6 +137,13 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
 | `unit/test_loader.py` | 路径/目录校验负向路径 | **S00 新增** |
 | `unit/test_cli.py` | CLI 参数校验 | **S00 新增** |
 | `unit/core/` | errors/ids/logging/contracts/schema/config/registry/dummy/engine/migration/dependency 共 12 模块 | **S01 新增** |
+| `unit/core/test_roofline.py` | Roofline/Amdahl 数学 | **S02 新增** |
+| `unit/core/test_correctness.py` | golden/determinism/首错位 | **S02 新增** |
+| `unit/core/test_workload_config.py` | YAML workload 单一事实源 | **S02 新增** |
+| `unit/core/test_memory.py` | KV cache/权重字节核算 | **S02 新增** |
+| `unit/core/test_profiling.py` | operator 表提取（新旧字段名） | **S02 新增** |
+| `unit/core/test_pytorch_backend.py` | PyTorchBackend 契约合规 | **S02 新增** |
+| `unit/core/test_jetson.py` | Jetson 协议防御式表面 | **S02 新增** |
 | `property/test_percentile_property.py` | 百分位不变量属性测试 | **S01 新增** |
 | `correctness/` `integration/` `test_vectors/` | 空（.gitkeep） | Planned |
 
@@ -140,6 +159,10 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
 | `templates/` | ADR / 实验 / 优化日志 / handoff 模板 | **S01 新增** |
 | `project_status.md` / `evidence_ledger.md` | 本报告 + 证据台账 | Implemented |
 | `reports/S01_开发报告.md` / `S01_阶段验收报告.md` | S01 交付与验收 | **S01 新增** |
+| `reports/S02_开发报告.md` / `S02_阶段验收报告.md` | S02 交付与验收 | **S02 新增** |
+| `reports/baseline_report.md` | S02 baseline（六 workload + KV cache 画像） | **S02 新增** |
+| `reports/pytorch_profile_report.md` | PyTorch Profiler hotspot 证据 | **S02 新增** |
+| `reports/nsys_report.md` / `ncu_report.md` | Nsight Systems / Compute 分析 | **S02 新增** |
 | `reports/` | raw 运行证据（**gitignored，仅本机保留**） | runtime-verified |
 
 ---
@@ -150,13 +173,14 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
 |---|---|---|
 | S00 | 现状审计与基线恢复 | **已完成（验收通过）** |
 | S01 | 核心契约与工程质量 | **已完成（验收通过）** |
-| S02 | 模型基线与全栈 Profiling | 约一半源码存在（loader/benchmark/golden 有，缺 PyTorch Profiler/Nsight/roofline；S01 已迁移到新 schema） |
+| S02 | 模型基线与全栈 Profiling | **已完成（验收通过）** |
 | S03 | CUDA 算子性能工程 | 仅 RMSNorm V0 + device query，未成算子库/多版本/dispatcher/profiler |
 | S04–S15 | Triton / 量化 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
 
-> 结论：S01 将 S00 审计到的 legacy 产物（golden/result/RMSNorm metadata）迁移到
-> 版本化 schema，并建立了 `hqsb/core` 契约地基。S02 的模型基线、golden 补全与
-> 全栈 Profiling 尚未开展。
+> 结论：S02 已建立 `PyTorchBackend`（C4 契约）作为 FP16 Reference Runtime，
+> 用真实 PyTorch Profiler 刻画 Prefill/Decode 热点（GEMM 主导：decode ~78%、
+> prefill ~48%），并通过 Roofline/Amdahl 产出 S03 的 Hotspot Decision。S03
+> 聚焦 CUTLASS/低比特 GEMM + epilogue fusion，RMSNorm 作为 elementwise 教学闭环。
 
 ---
 
@@ -196,7 +220,26 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
 
 ---
 
-## 7. 风险与注意事项
+## 7. S02 补齐内容（已完成）
+
+1. **FP16 Reference Runtime**：`hqsb/backends/pytorch.py`（`PyTorchBackend`，C4 契约）
+   - 幂等 `load` / `warmup` / `generate`（repetitions 次 model-core pass）/ `health`/`metrics`/`close`
+   - `generate` 产出 `GenerationOutput`，`backend_metrics` 含 KV cache/权重/RSS/swap/CUDA 内存
+2. **分析模块**：
+   - `roofline.py`：Roofline 模型 + Amdahl 定律 + 热点分类/排序 + Orin FP16 预设
+   - `correctness.py`：token hash / 序列对比（首错位定位）/ logits 容差 / determinism / golden 对比
+   - `workload_config.py`：YAML 六 workload 单一事实源 → `WorkloadSpec`
+   - `memory.py`：KV cache 字节核算 / 权重字节 / RSS/swap / CUDA 快照
+   - `profiling.py`：`profile_model_core` + operator 表提取（兼容新旧 PyTorch 字段名）
+3. **Jetson 实验协议**：`hqsb/hardware/jetson.py`（温度/冷却/电源模式/平台探测）
+4. **计时与内存修正**：`model_core.py` 保存 raw ITL + KV cache + 权重/RSS；`GenerationOutput` 扩展 `backend_metrics`；`engine.run` 增加 `load_artifact`；`loader.py` Jetson 内存决策
+5. **脚本**：`run_s02_baseline.py`、`profile_model.py`、`analyze_hotspots.py`、`nsys_profile.sh`、`ncu_profile.sh`
+6. **测试**：7 个新测试模块；全量 **238 passed**
+7. **真实硬件证据**：端到端 smoke（decode 9.28 tok/s、KV cache 4.59MB、权重 3.44GB）+ 真实 CUDA Profiler（decode GEMM ~78%、prefill GEMM ~48%）→ S03 Hotspot Decision
+
+---
+
+## 8. 风险与注意事项
 
 - **`scripts/common/git_commit.sh`**：包含 `git rebase --root` 与
   `git push origin main --force`，会改写历史并强推。已被 `.gitignore` 排除，属
@@ -205,18 +248,24 @@ Python 打包、测试金字塔与 CI。详见 §5（S01 补齐内容）。
   仅存于本机，未纳入版本控制。跨机器审计需依赖 artifact 索引或另行归档。
 - **`configs/environment/jetson_python_lock.txt`** 是全量系统 pip 冻结（含 ROS、
   Jupyter 等无关包），非项目最小依赖集；已在 `pyproject.toml` 建立按依赖组划分的
-  可选依赖，但 Jetson 专用 torch wheel 仍需按硬件 pin（S02 处理）。
+  可选依赖，但 Jetson 专用 torch wheel 仍需按硬件 pin。
 - **golden 数据仅 4 份**（osl 均为 32），与六 workload 基线不对齐；已迁移到 C6
-  schema，S02 补全六 workload golden。
+  schema。`correctness.py` 已就绪，S03 算子验证将补全/复用 golden 门禁。
+- **profiling 需 root**：CUPTI 采集需 `sudo` + `kernel.perf_event_paranoid=0`
+  （已文档化在 `pytorch_profile_report.md` / `nsys_report.md`）。
+- **Nsight Systems / Compute 未在本次会话实际采集**：脚本与报告已就绪，需夜间/
+  无交互时段以 root 运行；Jetson L4T 下 ncu 部分 metric 可能受限。
 - **ruff / mypy** 本机未安装（CI 会安装），本机可 `pip install -e ".[dev]"` 补装。
 
 ---
 
-## 8. 下一步（S02 输入）
+## 9. 下一步（S03 输入）
 
-S01 完成后进入 S02（模型基线与全栈 Profiling）：
-- 实现 `PyTorchBackend`，将 `hqsb/benchmark/model_core.py` 归入 Backend 接口
-- 补全六 workload golden（当前 4/6），接入回归门禁
-- PyTorch Profiler / Nsight Systems / roofline 分析，产出模型级热点证据
+S02 完成后进入 S03（CUDA 算子性能工程）：
+- 依据 Hotspot Decision：**CUTLASS/低比特(int4/int8) GEMM + epilogue fusion**
+  为主攻方向，**RMSNorm** 作为 elementwise/reduction 教学闭环
+- 每个候选给 correctness（对比 golden/reference）、performance（shape 矩阵
+  加速比）、stop criteria（退化 shape 检测）三要素
+- 用 `configs/operators/*.json`（C3 OperatorSpec）登记算子元数据
 
-S01 handoff 与验收见 [`reports/S01_阶段验收报告.md`](reports/S01_阶段验收报告.md)。
+S02 handoff 与验收见 [`reports/S02_阶段验收报告.md`](reports/S02_阶段验收报告.md)。

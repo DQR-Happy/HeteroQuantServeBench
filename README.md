@@ -10,9 +10,9 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-当前阶段为 **S01（核心契约与工程质量体系）**，已完成。`hqsb/core` 提供了稳定的
-C1–C7 Contract、注册机制、统一配置/错误/日志体系、版本化 schema 与迁移、Python
-打包与测试金字塔。
+当前阶段为 **S02（模型基线与全栈 Profiling）**，已完成。`PyTorchBackend` 提供了
+FP16 Qwen3-1.7B Reference Runtime，并用真实 Profiler + Roofline/Amdahl 刻画了
+Prefill/Decode 热点（GEMM 主导），为 S03 算子工程提供数据支撑。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -34,7 +34,7 @@ pip install -e ".[benchmark]" # 附加 torch/transformers/modelscope（S02）
 ### 1. CPU 单元测试（无需 GPU / 模型权重）
 
 ```bash
-python3 -m pytest -q                 # 全量（含 S00/S01，166 passed）
+python3 -m pytest -q                 # 全量（含 S00/S01/S02，238 passed）
 python3 -m pytest -m unit -q         # 纯单元测试
 python3 -m pytest -m property -q     # 属性/不变量测试
 ```
@@ -100,10 +100,17 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | Schema 版本化 + legacy 迁移 | Implemented | `hqsb/core/schema/` | `tests/unit/core/test_migration.py` |
 | Dummy backend（C4 参考实现） | Implemented | `hqsb/backends/dummy.py` | `tests/unit/core/test_dummy_backend.py` |
 | backend-interface benchmark engine | Implemented | `hqsb/benchmark/engine.py` | `tests/unit/core/test_dummy_backend.py` |
-| CPU 单元测试 | Implemented | `tests/` | `pytest -q`（166 passed） |
+| PyTorchBackend（FP16 Reference Runtime） | Verified | `hqsb/backends/pytorch.py` | `reports/dev/llm/s02_smoke_tiny.json`（decode 9.28 tok/s） |
+| Roofline/Amdahl 分析 | Implemented | `hqsb/benchmark/roofline.py` | `tests/unit/core/test_roofline.py` |
+| golden/determinism/首错位对比 | Implemented | `hqsb/benchmark/correctness.py` | `tests/unit/core/test_correctness.py` |
+| YAML workload 单一事实源 | Implemented | `hqsb/benchmark/workload_config.py` | `tests/unit/core/test_workload_config.py` |
+| KV cache/内存核算 | Implemented | `hqsb/benchmark/memory.py` | `tests/unit/core/test_memory.py` |
+| PyTorch Profiler 采集 | Verified | `hqsb/benchmark/profiling.py` | `reports/dev/profiler/s02/hotspot_summary.json` |
+| Jetson 实验协议 | Implemented | `hqsb/hardware/jetson.py` | `tests/unit/core/test_jetson.py` |
+| CPU 单元测试 | Implemented | `tests/` | `pytest -q`（238 passed） |
 | QuantLab（RTN/GPTQ/AWQ/SmoothQuant） | Planned | `hqsb/quant/` | — |
 | KernelLab（Triton/Ascend C） | Planned | `ops/triton/`、`ops/ascend/` | — |
-| Runtime adapters（PyTorch/vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（仅 dummy） | S02/S07 |
+| Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
 | ServeFabric（OpenAI-compatible gateway） | Planned | `hqsb/serving/` | — |
 | BenchLab（跨硬件统一 benchmark） | Planned | `benchmarks/` | — |
 

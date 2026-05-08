@@ -139,18 +139,30 @@ def load_qwen3(
             verification.describe(),
         )
 
-    # On Jetson, use "auto" device_map with offloading to survive
-    # the 8 GB unified memory constraint, then move fully to GPU.
+    # On Jetson (8 GB unified memory), the ~3.4 GB FP16 model plus KV cache
+    # and activations can exceed available memory. Decide the placement
+    # strategy up-front from the reported free device memory so we do NOT
+    # pay a slow OOM + disk-offload retry: use ``auto`` (with a memory
+    # budget) directly when headroom is tight.
     if device_map is None:
         if torch.cuda.is_available():
-            # Try direct GPU load first; fall back to auto if OOM
-            device_map = {"": 0}
+            free_bytes, _total_bytes = torch.cuda.mem_get_info()
+            if free_bytes < 6 * (1024**3):
+                device_map = "auto"
+            else:
+                device_map = {"": 0}
         else:
             device_map = "cpu"
 
     if offload_folder is None:
         offload_folder = "/tmp/hqsb_offload"
     os.makedirs(offload_folder, exist_ok=True)
+
+    # ``max_memory`` is honored only for the string device_map strategies;
+    # it is harmless (ignored) when ``device_map`` is an explicit dict.
+    max_memory = (
+        {0: "6GB", "cpu": "8GB"} if device_map == "auto" else None
+    )
 
     logger.info("Loading model from: %s", model_path)
     logger.info("  dtype: %s", dtype)
@@ -166,9 +178,9 @@ def load_qwen3(
     )
 
     # Load model with memory-efficient strategy.
-    # On Jetson (8 GB unified memory), the 3.4 GB model + KV cache
-    # can exceed available RAM. We use offload_folder to spill to disk
-    # during loading, then move fully to GPU.
+    # On Jetson, device_map="auto" splits layers across GPU/CPU using the
+    # memory budget, then we move everything back to GPU in ``model.eval``
+    # path (weights stay in unified memory).
     try:
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
@@ -178,13 +190,13 @@ def load_qwen3(
             local_files_only=True,
             attn_implementation=attention_backend,
             offload_folder=offload_folder,
+            max_memory=max_memory,
         )
     except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
         if "out of memory" in str(e).lower() and device_map != "auto":
             logger.warning(
                 "Direct GPU load OOM, retrying with device_map='auto' + offloading"
             )
-            # Retry with auto device map (may split across CPU/GPU)
             device_map = "auto"
             model = AutoModelForCausalLM.from_pretrained(
                 model_path,
