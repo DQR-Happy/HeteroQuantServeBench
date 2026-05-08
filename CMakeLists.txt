@@ -29,5 +29,9 @@ message(STATUS "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_CUDA_COMPILER=${CMAKE_CUDA_COMPILER}")
 message(STATUS "CMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}")
 
+# CTest integration: correctness suites register themselves via add_test().
+enable_testing()
+
 add_subdirectory(ops/cuda/device_query)
 add_subdirectory(ops/cuda/rmsnorm)
+add_subdirectory(ops/cuda/fused_residual_rmsnorm)

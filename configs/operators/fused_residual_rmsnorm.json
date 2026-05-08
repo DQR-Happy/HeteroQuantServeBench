@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "name": "fused_residual_rmsnorm",
+  "semantic_version": "1.0.0",
+  "inputs": [
+    {
+      "name": "hidden",
+      "dtype": "float32|float16",
+      "shape": [-1, -1],
+      "layout": "contiguous"
+    },
+    {
+      "name": "residual",
+      "dtype": "float32|float16",
+      "shape": [-1, -1],
+      "layout": "contiguous"
+    },
+    {
+      "name": "weight",
+      "dtype": "float32|float16",
+      "shape": [-1],
+      "layout": "contiguous"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "y",
+      "dtype": "float32|float16",
+      "shape": [-1, -1],
+      "layout": "contiguous"
+    }
+  ],
+  "device": "cuda",
+  "stream": "stream-aware",
+  "workspace_bytes": 0,
+  "deterministic": true,
+  "tolerance": 0.02,
+  "implementation": "v1_vectorized",
+  "fallback": "v0_shared"
+}
