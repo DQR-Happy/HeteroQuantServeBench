@@ -28,6 +28,11 @@ benchmark = [
     "modelscope>=1.20",
     "psutil>=5.9",
 ]
+# Triton DSL kernels (S04). Optional: the CPU/CUDA core must stay importable
+# without triton; the capability probe detects it at runtime.
+triton = [
+    "triton>=3.0",
+]
 # Serving control plane (S08).
 serving = [
     "fastapi>=0.110",
@@ -47,7 +52,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["hqsb*"]
+include = ["hqsb*", "ops*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

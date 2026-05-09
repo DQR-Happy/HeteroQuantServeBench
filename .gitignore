@@ -74,3 +74,6 @@ Thumbs.db
 
 # Scripts
 /scripts/common/
+
+# External third-party dependencies (fetched on demand; see third_party/README.md)
+/third_party/cutlass/

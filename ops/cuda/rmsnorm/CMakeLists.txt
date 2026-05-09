@@ -26,6 +26,33 @@ target_compile_options(
   $<$<COMPILE_LANGUAGE:CUDA>:-O3;-lineinfo>
 )
 
+# Shared library exposing a stable C ABI for the Python dispatcher (S04).
+# This is the *only* mechanism Python uses to reach the CUDA kernels: a thin
+# ``ctypes`` binding loads ``libhqsb_rmsnorm.so`` and calls the unmangled
+# ``hqsb_rmsnorm_forward_c`` symbol.
+add_library(hqsb_rmsnorm_shared SHARED
+  src/rmsnorm_reference.cu
+  src/rmsnorm_v0.cu
+  src/rmsnorm_v1.cu
+  src/rmsnorm_v2.cu
+  src/rmsnorm_dispatcher.cu
+  src/rmsnorm_c_api.cu
+)
+
+target_include_directories(
+  hqsb_rmsnorm_shared
+  PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_compile_options(
+  hqsb_rmsnorm_shared
+  PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:-O3;-lineinfo>
+)
+
 # ── Correctness test ──────────────────────────────────────────────────
 
 add_executable(hqsb_rmsnorm_test tests/test_rmsnorm.cu)
