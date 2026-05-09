@@ -2,7 +2,7 @@
 
 > 生成时间：2026-08-16
 > 基线 Commit：`4dda6f8`
-> 当前阶段：S02（已完成）
+> 当前阶段：S03（已完成）
 
 每个声明（claim）按证据强度分级：
 
@@ -110,7 +110,26 @@ PyTorch 2.5.0a0+nv24.08, CUDA 12.6, Transformers 5.8.0, ModelScope 1.29.0）。
 
 ---
 
-## 5. 审计检查结果
+## 5. S03 声明台账
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S3-1 | RMSNorm V0/V1/V2 correctness（33 checks） | runtime-verified | `ops/cuda/rmsnorm/tests/test_rmsnorm.cu`；`ctest` 1/2 passed |
+| S3-2 | Fused residual+rmsnorm correctness（15 checks） | runtime-verified | `ops/cuda/fused_residual_rmsnorm/tests/test_fused_residual_rmsnorm.cu`；`ctest` 2/2 passed |
+| S3-3 | 5 项数值对比指标（max/mean/RMSE/cosine/L2rel） | test-verified | `ops/cuda/common/test_metrics.h` |
+| S3-4 | dispatcher dtype/shape 路由 + 不支持组合 fallback | test-verified | `rmsnorm_dispatcher.cu`；`test_dispatcher_selection` + `test_invalid_arguments` |
+| S3-5 | V2 float4 显著加速（+56%~142% vs V0） | runtime-verified | `hqsb_rmsnorm_bench` 输出（`S03_benchmark_report.md` §1） |
+| S3-6 | FP16 half2 退化（32-bit 事务） | runtime-verified | `hqsb_rmsnorm_bench` FP16 33.73 GB/s vs FP32 87 GB/s |
+| S3-7 | 小 hidden V2 退化（负载不均） | runtime-verified | hidden=100：V1 21.67 vs V2 19.10 GB/s |
+| S3-8 | block=1024 occupancy 崩塌 | runtime-verified | block sweep：V2 67.51 GB/s @ occupancy=1 |
+| S3-9 | fused V1 无收益（RAW 依赖） | runtime-verified | `hqsb_fused_residual_rmsnorm_bench` V0~V1≈65 GB/s |
+| S3-10 | 无隐藏分配/stream-aware API | source-only + test-verified | `hqsb/rmsnorm.h` 契约 + correctness 通过 |
+| S3-11 | memcheck host 泄漏 0 bytes | runtime-verified | `compute-sanitizer --leak-check full` 输出 |
+| S3-12 | 对齐陷阱修复（FP16 奇数 hidden / FP32 非 4 倍数） | test-verified | `rmsnorm_v2.cu` scalar-tail 回退 + `test_fp16_non_aligned_fallback` |
+
+---
+
+## 6. 审计检查结果
 
 - **manifest 自引用修复**：原 `model_sha256_manifest.txt` 含自引用行
   （`./model_sha256_manifest.txt`），其哈希无法自洽；已移除该行，实测模型快照

@@ -10,9 +10,10 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-当前阶段为 **S02（模型基线与全栈 Profiling）**，已完成。`PyTorchBackend` 提供了
-FP16 Qwen3-1.7B Reference Runtime，并用真实 Profiler + Roofline/Amdahl 刻画了
-Prefill/Decode 热点（GEMM 主导），为 S03 算子工程提供数据支撑。
+当前阶段为 **S03（CUDA 算子性能工程）**，已完成。`ops/cuda` 已重构为工业级算子
+库：RMSNorm 多版本（V0 shared / V1 warp shuffle / V2 vectorized）+ dispatcher +
+reference + correctness 测试 + benchmark，以及第二热点 fused residual+rmsnorm。
+V2 实现 +56%~142% 加速，三个真实退化与 fused 无收益均已被硬件指标解释。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -39,18 +40,27 @@ python3 -m pytest -m unit -q         # 纯单元测试
 python3 -m pytest -m property -q     # 属性/不变量测试
 ```
 
-### 2. CUDA device query 与 RMSNorm baseline
+### 2. CUDA 算子库（RMSNorm 多版本 + fused + correctness + benchmark）
 
 ```bash
 cmake -S . -B build/jetson-release -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=87
 cmake --build build/jetson-release --parallel
 
-build/jetson-release/bin/hqsb_device_query
-build/jetson-release/bin/hqsb_rmsnorm_baseline --rows 512 --hidden 1024
+# correctness（CTest 集成）
+ctest --test-dir build/jetson-release --output-on-failure
+
+# benchmark：RMSNorm V0/V1/V2 扫参
+build/jetson-release/bin/hqsb_rmsnorm_bench \
+  --rows 512 --hidden 2048 --dtype fp32 --variant all
+
+# benchmark：fused residual+rmsnorm
+build/jetson-release/bin/hqsb_fused_residual_rmsnorm_bench \
+  --rows 512 --hidden 2048 --dtype fp32 --variant all
 ```
 
-RMSNorm baseline 会在输出末尾打印 `correctness=PASS`（`max_abs_error <= 5e-4`）。
+算子库公共 API 见 `ops/cuda/rmsnorm/include/hqsb/rmsnorm.h`，V0/V1/V2 性能数据
+与退化分析见 `docs/reports/S03_benchmark_report.md`。
 
 ### 3. Qwen3-1.7B model-core smoke
 
@@ -107,9 +117,12 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | KV cache/内存核算 | Implemented | `hqsb/benchmark/memory.py` | `tests/unit/core/test_memory.py` |
 | PyTorch Profiler 采集 | Verified | `hqsb/benchmark/profiling.py` | `reports/dev/profiler/s02/hotspot_summary.json` |
 | Jetson 实验协议 | Implemented | `hqsb/hardware/jetson.py` | `tests/unit/core/test_jetson.py` |
+| RMSNorm 算子库（V0/V1/V2 + dispatcher） | Verified | `ops/cuda/rmsnorm/` | `ctest`（33 checks）；V2 +56%~142% |
+| Fused residual+rmsnorm 算子 | Verified | `ops/cuda/fused_residual_rmsnorm/` | `ctest`（15 checks） |
+| CUDA 测试框架 + 数值指标 | Implemented | `ops/cuda/common/{test_util,test_metrics}.h` | CTest 集成 |
 | CPU 单元测试 | Implemented | `tests/` | `pytest -q`（238 passed） |
 | QuantLab（RTN/GPTQ/AWQ/SmoothQuant） | Planned | `hqsb/quant/` | — |
-| KernelLab（Triton/Ascend C） | Planned | `ops/triton/`、`ops/ascend/` | — |
+| KernelLab（Triton/CUTLASS/Ascend C） | Planned | `ops/triton/`、`ops/ascend/` | S04 |
 | Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
 | ServeFabric（OpenAI-compatible gateway） | Planned | `hqsb/serving/` | — |
 | BenchLab（跨硬件统一 benchmark） | Planned | `benchmarks/` | — |

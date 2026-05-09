@@ -2,7 +2,7 @@
 
 > 生成时间：2026-08-16
 > 基线 Commit：`4dda6f8`（`refactor docs into staged roadmap and architecture spec`）
-> 当前阶段：S02（模型基线与全栈 Profiling）—— 已完成
+> 当前阶段：S03（CUDA 算子性能工程）—— 已完成
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -28,13 +28,14 @@ before claim。**
 
 | 判定项 | 结论 |
 |---|---|
-| 当前所处阶段 | **S02（模型基线与全栈 Profiling）** |
-| 判定依据 | S01 已完成验收；`PyTorchBackend` + 全栈 Profiling + Hotspot Decision 已落地 |
-| 前序阶段 | S00（现状审计）→ S01（核心契约）—— 均已完成 |
+| 当前所处阶段 | **S03（CUDA 算子性能工程）** |
+| 判定依据 | S02 已完成验收；`ops/cuda` 重构为算子库（RMSNorm V0/V1/V2 + fused + dispatcher）并通过测试 |
+| 前序阶段 | S00（现状审计）→ S01（核心契约）→ S02（模型基线/Profiling）—— 均已完成 |
 
-S02 建立了可信的 Qwen3-1.7B FP16 Reference Runtime（`PyTorchBackend`，C4 契约），
-刻画了 Prefill/Decode 的算子与内存热点，并用真实 Profiler + Roofline/Amdahl
-产出 S03 的 Hotspot Decision（GEMM 主导）。详见 §6（S02 补齐内容）。
+S03 将 S00 的单文件 RMSNorm baseline 重构为工业级 CUDA Operator Lab：多版本、
+stream-aware 无隐藏分配 C/C++ API、dispatcher、CPU reference、correctness 测试
+与 benchmark，并对第二热点（Residual+RMSNorm fusion）做同深度处理。详见 §7
+（S03 补齐内容）。
 
 ---
 
@@ -78,8 +79,11 @@ S02 建立了可信的 Qwen3-1.7B FP16 Reference Runtime（`PyTorchBackend`，C4
 | 路径 | 内容 | 状态 |
 |---|---|---|
 | `cuda/common/cuda_check.cuh` | 公共 CUDA 错误检查宏 | Implemented |
+| `cuda/common/test_util.h` | 轻量断言测试框架 | **S03 新增**，Implemented |
+| `cuda/common/test_metrics.h` | 5 项数值对比指标 | **S03 新增**，Implemented |
 | `cuda/device_query/` | 设备信息查询（.cu + CMakeLists） | Verified |
-| `cuda/rmsnorm/` | RMSNorm V0（FP32 shared-mem reduction） | Verified |
+| `cuda/rmsnorm/` | **RMSNorm 算子库**：V0 shared / V1 warp shuffle / V2 vectorized + dispatcher + reference + test + bench | **S03 重构**，Verified（CTest 通过） |
+| `cuda/fused_residual_rmsnorm/` | **第二热点算子**：fused residual+rmsnorm（V0/V1）+ test + bench | **S03 新增**，Verified（CTest 通过） |
 | `triton/` `ascend/` | 空目录（.gitkeep） | Planned |
 
 ### 3.3 `benchmarks/`
@@ -102,7 +106,10 @@ S02 建立了可信的 Qwen3-1.7B FP16 Reference Runtime（`PyTorchBackend`，C4
 | `benchmarks/jetson_qwen3_fp16.yaml` | Jetson FP16 benchmark 配置 | Implemented |
 | `environment/jetson_python_lock.txt` | Python 全量锁（含 ROS/Jupyter 等非必要包） | Implemented |
 | `environment/jetson_runtime.txt` | 关键运行版本清单 | Implemented |
-| `operators/rmsnorm_v0.json` | RMSNorm C3 OperatorSpec 迁移示例 | **S01 新增**，Implemented |
+| `operators/rmsnorm_v0.json` | RMSNorm C3 OperatorSpec（V0） | **S01 新增**，Implemented |
+| `operators/rmsnorm_v1.json` | RMSNorm C3 OperatorSpec（V1） | **S03 新增**，Implemented |
+| `operators/rmsnorm_v2.json` | RMSNorm C3 OperatorSpec（V2） | **S03 新增**，Implemented |
+| `operators/fused_residual_rmsnorm.json` | fused residual+rmsnorm C3 OperatorSpec | **S03 新增**，Implemented |
 | `backends/` `quantization/` | 空（.gitkeep） | Planned |
 
 ### 3.5 `scripts/`
@@ -174,13 +181,14 @@ S02 建立了可信的 Qwen3-1.7B FP16 Reference Runtime（`PyTorchBackend`，C4
 | S00 | 现状审计与基线恢复 | **已完成（验收通过）** |
 | S01 | 核心契约与工程质量 | **已完成（验收通过）** |
 | S02 | 模型基线与全栈 Profiling | **已完成（验收通过）** |
-| S03 | CUDA 算子性能工程 | 仅 RMSNorm V0 + device query，未成算子库/多版本/dispatcher/profiler |
-| S04–S15 | Triton / 量化 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
+| S03 | CUDA 算子性能工程 | **已完成（验收通过）** |
+| S04 | Triton / CUTLASS / Kernel DSL | 未开始（RMSNorm 教学闭环可作为 Triton 对照） |
+| S05–S15 | 量化 / 框架集成 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
 
-> 结论：S02 已建立 `PyTorchBackend`（C4 契约）作为 FP16 Reference Runtime，
-> 用真实 PyTorch Profiler 刻画 Prefill/Decode 热点（GEMM 主导：decode ~78%、
-> prefill ~48%），并通过 Roofline/Amdahl 产出 S03 的 Hotspot Decision。S03
-> 聚焦 CUTLASS/低比特 GEMM + epilogue fusion，RMSNorm 作为 elementwise 教学闭环。
+> 结论：S03 已完成 RMSNorm V0→V1→V2 多版本 + dispatcher + reference + 测试 +
+> benchmark，显著加速（V2 +56%~142%）与三个真实退化均可用硬件指标解释。第二
+> 热点（fused residual+rmsnorm）完成多版本与 RAW 依赖退化分析。GEMM 主热点按
+> "不替代 cuBLAS/CUTLASS" 约定留待 S04（Triton/CUTLASS DSL）与 S05（低比特量化）。
 
 ---
 
@@ -239,7 +247,24 @@ S02 建立了可信的 Qwen3-1.7B FP16 Reference Runtime（`PyTorchBackend`，C4
 
 ---
 
-## 8. 风险与注意事项
+## 8. S03 补齐内容（已完成）
+
+1. **RMSNorm 算子库重构**（`ops/cuda/rmsnorm/`，include/src/tests/bench）
+   - 公共 API `hqsb/rmsnorm.h`：stream-aware、无隐藏分配、无 Python 依赖
+   - V0 shared reduction（S00 baseline 提取）→ V1 warp shuffle → V2 float4/half2 vectorized
+   - dispatcher（dtype/shape 选择 + 不支持组合明确 fallback）
+   - CPU FP64 reference（独立于 GPU kernel）
+2. **第二热点算子**（`ops/cuda/fused_residual_rmsnorm/`）：fused residual+rmsnorm V0/V1
+3. **测试框架**：`common/test_util.h`（轻量断言）+ `common/test_metrics.h`（5 项数值对比）
+4. **correctness 测试**：rmsnorm 33 checks + fused 15 checks，CTest 2/2 passed
+5. **benchmark**：device event + host submit+sync 双口径，block 扫参，occupancy 查询
+6. **性能结论**：V2 +56%（block=256）~+142%（block=512）；三个真实退化（FP16 half2 / 小 hidden / block=1024）；fused V1 无收益（RAW 依赖）
+7. **C3 OperatorSpec**：`rmsnorm_v1/v2.json`、`fused_residual_rmsnorm.json`
+8. **文档**：Optimization Logs、`S03_benchmark_report.md`、开发报告、验收报告
+
+---
+
+## 9. 风险与注意事项
 
 - **`scripts/common/git_commit.sh`**：包含 `git rebase --root` 与
   `git push origin main --force`，会改写历史并强推。已被 `.gitignore` 排除，属
@@ -250,22 +275,25 @@ S02 建立了可信的 Qwen3-1.7B FP16 Reference Runtime（`PyTorchBackend`，C4
   Jupyter 等无关包），非项目最小依赖集；已在 `pyproject.toml` 建立按依赖组划分的
   可选依赖，但 Jetson 专用 torch wheel 仍需按硬件 pin。
 - **golden 数据仅 4 份**（osl 均为 32），与六 workload 基线不对齐；已迁移到 C6
-  schema。`correctness.py` 已就绪，S03 算子验证将补全/复用 golden 门禁。
+  schema。`correctness.py` 已就绪，算子级 golden 门禁待 S05/S06 接入。
 - **profiling 需 root**：CUPTI 采集需 `sudo` + `kernel.perf_event_paranoid=0`
   （已文档化在 `pytorch_profile_report.md` / `nsys_report.md`）。
-- **Nsight Systems / Compute 未在本次会话实际采集**：脚本与报告已就绪，需夜间/
-  无交互时段以 root 运行；Jetson L4T 下 ncu 部分 metric 可能受限。
+- **Nsight Systems / Compute 未在本次会话实际采集**：脚本已就绪，Jetson L4T 下
+  ncu 部分 metric 受限；已用 Roofline + benchmark 双口径 + occupancy 作为替代证据。
+- **compute-sanitizer GPU debug 受 L4T 限制**：host 泄漏检查通过（0 bytes leaked），
+  GPU debug 需 datacenter GPU。
 - **ruff / mypy** 本机未安装（CI 会安装），本机可 `pip install -e ".[dev]"` 补装。
 
 ---
 
-## 9. 下一步（S03 输入）
+## 10. 下一步（S04 输入）
 
-S02 完成后进入 S03（CUDA 算子性能工程）：
-- 依据 Hotspot Decision：**CUTLASS/低比特(int4/int8) GEMM + epilogue fusion**
-  为主攻方向，**RMSNorm** 作为 elementwise/reduction 教学闭环
-- 每个候选给 correctness（对比 golden/reference）、performance（shape 矩阵
-  加速比）、stop criteria（退化 shape 检测）三要素
-- 用 `configs/operators/*.json`（C3 OperatorSpec）登记算子元数据
+S03 完成后进入 S04（Triton / CUTLASS / Kernel DSL）：
+- RMSNorm 已有 CUDA 多版本 baseline + dispatcher，可作为 Triton 对照的
+  correctness/performance 参考
+- GEMM 主热点（decode ~78%）按约定不自研通用 GEMM，改用 CUTLASS/Triton 建立
+  对照并优化 layout/epilogue/shape selection
+- FP16 half8（float4 装 8 个 half）与 fused 寄存器驻留优化作为 S04 可选的
+  Kernel DSL 教学案例
 
-S02 handoff 与验收见 [`reports/S02_阶段验收报告.md`](reports/S02_阶段验收报告.md)。
+S03 handoff 与验收见 [`reports/S03_阶段验收报告.md`](reports/S03_阶段验收报告.md)。
