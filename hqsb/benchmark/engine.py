@@ -33,19 +33,14 @@ from hqsb.benchmark.metrics import latency_summary
 
 
 def _model_artifact_hash(artifact: Optional[ModelArtifact]) -> Optional[str]:
-    """Compute a stable hash over an artifact's identity + file hashes."""
+    """Compute a stable hash over an artifact's identity + file hashes.
+
+    Delegates to :meth:`ModelArtifact.identity_hash` so the benchmark engine
+    and every other consumer agree on one canonical artifact digest.
+    """
     if artifact is None:
         return None
-    payload = {
-        "model_id": artifact.model_id,
-        "source": artifact.source,
-        "revision": artifact.revision,
-        "architecture": artifact.architecture,
-        "dtype": artifact.dtype,
-        "file_hashes": artifact.file_hashes,
-    }
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return artifact.identity_hash()
 
 
 def _workload_hash(workload: WorkloadSpec) -> str:
