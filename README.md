@@ -10,10 +10,11 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-当前阶段为 **S03（CUDA 算子性能工程）**，已完成。`ops/cuda` 已重构为工业级算子
-库：RMSNorm 多版本（V0 shared / V1 warp shuffle / V2 vectorized）+ dispatcher +
-reference + correctness 测试 + benchmark，以及第二热点 fused residual+rmsnorm。
-V2 实现 +56%~142% 加速，三个真实退化与 fused 无收益均已被硬件指标解释。
+当前阶段为 **S04（Triton、CUTLASS/CuTe 与 Kernel DSL）**，已完成。实测 Triton
+3.7.1 在 Jetson sm_87 可用，实现 Triton RMSNorm/GEMM + 统一 dispatcher/
+capability（CUDA/Triton/cuBLAS/CUTLASS 按 arch/dtype/shape/依赖选择，未安装 DSL
+走明确 fallback）。CUDA vs Triton 与 cuBLAS vs Triton 的性能权衡见
+`docs/reports/S04_comparison_report.md`。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -120,9 +121,14 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | RMSNorm 算子库（V0/V1/V2 + dispatcher） | Verified | `ops/cuda/rmsnorm/` | `ctest`（33 checks）；V2 +56%~142% |
 | Fused residual+rmsnorm 算子 | Verified | `ops/cuda/fused_residual_rmsnorm/` | `ctest`（15 checks） |
 | CUDA 测试框架 + 数值指标 | Implemented | `ops/cuda/common/{test_util,test_metrics}.h` | CTest 集成 |
-| CPU 单元测试 | Implemented | `tests/` | `pytest -q`（238 passed） |
-| QuantLab（RTN/GPTQ/AWQ/SmoothQuant） | Planned | `hqsb/quant/` | — |
-| KernelLab（Triton/CUTLASS/Ascend C） | Planned | `ops/triton/`、`ops/ascend/` | S04 |
+| 后端能力检测（Triton 实测编译 probe） | Implemented | `ops/capability.py` | `tests/unit/ops/test_capability.py` |
+| CUDA shared lib ctypes 绑定 | Implemented | `ops/cuda_bridge.py` | `tests/unit/ops/test_cuda_bridge.py` |
+| 统一 dispatcher（CUDA/Triton/cuBLAS/CUTLASS fallback） | Implemented | `ops/dispatcher.py` | `tests/unit/ops/test_dispatcher.py` |
+| Triton RMSNorm（reference + autotune） | Verified | `ops/triton/rmsnorm.py` | FP16 hidden=1024 反超 CUDA 36% |
+| Triton GEMM（reference + autotune） | Verified | `ops/triton/gemm.py` | 窄矩阵反超 cuBLAS |
+| CPU 单元测试 | Implemented | `tests/` | `pytest -q`（270 passed） |
+| QuantLab（RTN/GPTQ/AWQ/SmoothQuant） | Planned | `hqsb/quant/` | S05 |
+| KernelLab（CUTLASS/Ascend C） | Planned | `ops/ascend/`（CUTLASS 待网络恢复） | S05/S09 |
 | Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
 | ServeFabric（OpenAI-compatible gateway） | Planned | `hqsb/serving/` | — |
 | BenchLab（跨硬件统一 benchmark） | Planned | `benchmarks/` | — |

@@ -1,8 +1,8 @@
 # HQSB Evidence Ledger（证据台账 / Claim Ledger）
 
-> 生成时间：2026-08-16
+> 生成时间：2026-08-17
 > 基线 Commit：`4dda6f8`
-> 当前阶段：S03（已完成）
+> 当前阶段：S04（已完成）
 
 每个声明（claim）按证据强度分级：
 
@@ -129,7 +129,31 @@ PyTorch 2.5.0a0+nv24.08, CUDA 12.6, Transformers 5.8.0, ModelScope 1.29.0）。
 
 ---
 
-## 6. 审计检查结果
+## 6. S04 声明台账
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S4-1 | Triton 3.7.1 在 sm_87 可用（实测编译运行） | runtime-verified | `/tmp/triton_probe.py`：最小 kernel max_err=0.0 |
+| S4-2 | CUTLASS 4.7.0 在 sm_87 可用（第三方 headers + FP16 GEMM） | runtime-verified | `third_party/cutlass`；`hqsb_cutlass_gemm_bench` 正确性 max_err ~0.03 |
+| S4-3 | 能力检测永不抛异常 + 缓存 | test-verified | `tests/unit/ops/test_capability.py` |
+| S4-4 | dispatcher 四层策略（capability/arch/shape/fallback） | test-verified | `tests/unit/ops/test_dispatcher.py`（15 用例） |
+| S4-5 | CUDA vs Triton RMSNorm 正确性一致（同阈值） | test-verified | `test_triton_rmsnorm.py` + `test_cuda_bridge.py::test_cross_backend_consistency` |
+| S4-6 | Triton RMSNorm 部分列丢失 bug 修复（循环覆盖整行） | test-verified | `rmsnorm.py` loop；hidden=2048 BLOCK=1024 正确 |
+| S4-7 | Triton `tl.dot` TF32 降精度修复（input_precision=ieee） | test-verified | `gemm.py`；FP32 GEMM 精确对比通过 |
+| S4-8 | FP16 RMSNorm 短 kernel 测量波动（两次 run 相反，不具可复现性） | runtime-verified | `bench_s04.py` 两次完整 run 结果相反（诚实修正） |
+| S4-9 | FP32 RMSNorm CUDA V2 领先（稳定） | runtime-verified | `bench_s04.py`：0.19–0.22 vs 0.23–0.28 ms（两次一致） |
+| S4-10 | GEMM 四方对照（CUTLASS 1×2048×2048 反超 cuBLAS ~2×） | runtime-verified | `bench_s04.py`：cutlass 0.12 vs cublas 0.24 |
+| S4-11 | autotune 非全局常量（edge 设备选 BLOCK 非最优） | runtime-verified | `bench_s04.py`：triton_optimized 慢于 triton_reference |
+| S4-12 | Triton IR 元数据（RMSNorm 34 regs / GEMM 128 regs，0 spills） | runtime-verified | `dump_triton_ir.py` + `reports/dev/s04/ir/metadata.json` |
+| S4-13 | 全量测试 270 passed（新增 32） | runtime-verified | `pytest -q` 输出 |
+| S4-14 | TileLang 0.1.13 在 sm_87 可用（elementwise add 实测） | runtime-verified | `ops/_tilelang_probe.py`：max_err=0.0 |
+| S4-15 | 三个 DSL（Triton/CUTLASS/TileLang）能力检测全通过 | runtime-verified | `detect_capabilities()`：三者为 True，notes 为空 |
+| S4-16 | CUTLASS GEMM 正确性（对照 host FP32 参考） | runtime-verified | `bench_cutlass_gemm.cu`：max_err ~0.03（FP16 精度内） |
+| S4-17 | HIP/ROCm/OpenCL 迁移路径已记录 | source-only | `docs/architecture/portable_kernel_backends.md` |
+
+---
+
+## 7. 审计检查结果
 
 - **manifest 自引用修复**：原 `model_sha256_manifest.txt` 含自引用行
   （`./model_sha256_manifest.txt`），其哈希无法自洽；已移除该行，实测模型快照

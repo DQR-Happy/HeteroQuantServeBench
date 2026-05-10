@@ -1,8 +1,8 @@
 # HQSB 项目现状报告（Project Status）
 
-> 生成时间：2026-08-16
+> 生成时间：2026-08-17
 > 基线 Commit：`4dda6f8`（`refactor docs into staged roadmap and architecture spec`）
-> 当前阶段：S03（CUDA 算子性能工程）—— 已完成
+> 当前阶段：S04（Triton、CUTLASS/CuTe 与 Kernel DSL）—— 已完成
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -28,14 +28,14 @@ before claim。**
 
 | 判定项 | 结论 |
 |---|---|
-| 当前所处阶段 | **S03（CUDA 算子性能工程）** |
-| 判定依据 | S02 已完成验收；`ops/cuda` 重构为算子库（RMSNorm V0/V1/V2 + fused + dispatcher）并通过测试 |
-| 前序阶段 | S00（现状审计）→ S01（核心契约）→ S02（模型基线/Profiling）—— 均已完成 |
+| 当前所处阶段 | **S04（Triton、CUTLASS/CuTe 与 Kernel DSL）** |
+| 判定依据 | S03 已完成验收；`ops` 增加 Triton/cuBLAS 对照 + 统一 dispatcher/capability 并通过测试 |
+| 前序阶段 | S00 → S01 → S02 → S03 —— 均已完成 |
 
-S03 将 S00 的单文件 RMSNorm baseline 重构为工业级 CUDA Operator Lab：多版本、
-stream-aware 无隐藏分配 C/C++ API、dispatcher、CPU reference、correctness 测试
-与 benchmark，并对第二热点（Residual+RMSNorm fusion）做同深度处理。详见 §7
-（S03 补齐内容）。
+S04 实测环境能力（**Triton 3.7.1 / CUTLASS 4.7.0 / TileLang 0.1.13 三个 DSL 在
+sm_87 全部可用**、cuBLAS 可用），实现 Triton RMSNorm/GEMM、CUTLASS GEMM 对照、
+CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 benchmark
+证明 CUDA/Triton/cuBLAS/CUTLASS 的性能权衡。详见 §8（S04 补齐内容）。
 
 ---
 
@@ -84,7 +84,16 @@ stream-aware 无隐藏分配 C/C++ API、dispatcher、CPU reference、correctnes
 | `cuda/device_query/` | 设备信息查询（.cu + CMakeLists） | Verified |
 | `cuda/rmsnorm/` | **RMSNorm 算子库**：V0 shared / V1 warp shuffle / V2 vectorized + dispatcher + reference + test + bench | **S03 重构**，Verified（CTest 通过） |
 | `cuda/fused_residual_rmsnorm/` | **第二热点算子**：fused residual+rmsnorm（V0/V1）+ test + bench | **S03 新增**，Verified（CTest 通过） |
-| `triton/` `ascend/` | 空目录（.gitkeep） | Planned |
+| `cuda/rmsnorm/src/rmsnorm_c_api.cu` | `extern "C"` 稳定 C ABI + shared lib（ctypes 绑定） | **S04 新增**，Verified |
+| `cuda/cutlass_gemm/` | CUTLASS FP16 GEMM 对照（默认 tensor-op 配置） | **S04 追加**，Verified |
+| `capability.py` | 统一能力检测（Triton/CUTLASS/TileLang 实测 probe + cuBLAS + CUDA lib） | **S04 新增**，Implemented |
+| `_tilelang_probe.py` | TileLang 最小 kernel 复现（无 future annotations） | **S04 追加**，Verified |
+| `cuda_bridge.py` | ctypes 绑定 CUDA shared lib | **S04 新增**，Implemented |
+| `dispatcher.py` | 统一 dispatcher（capability→arch→shape→fallback） | **S04 新增**，Implemented |
+| `triton/rmsnorm.py` | Triton RMSNorm（reference + autotune） | **S04 新增**，Verified |
+| `triton/gemm.py` | Triton GEMM（reference + autotune，`input_precision=ieee`） | **S04 新增**，Verified |
+| `ascend/` | 空目录（.gitkeep） | Planned |
+| `third_party/` | 外部依赖目录（cutlass gitignore，README 记录获取方式） | **S04 追加** |
 
 ### 3.3 `benchmarks/`
 
@@ -182,13 +191,15 @@ stream-aware 无隐藏分配 C/C++ API、dispatcher、CPU reference、correctnes
 | S01 | 核心契约与工程质量 | **已完成（验收通过）** |
 | S02 | 模型基线与全栈 Profiling | **已完成（验收通过）** |
 | S03 | CUDA 算子性能工程 | **已完成（验收通过）** |
-| S04 | Triton / CUTLASS / Kernel DSL | 未开始（RMSNorm 教学闭环可作为 Triton 对照） |
-| S05–S15 | 量化 / 框架集成 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
+| S04 | Triton / CUTLASS / Kernel DSL | **已完成（验收通过）** |
+| S05 | 量化与低精度推理 | 未开始（S04 已产出 GEMM 窄矩阵结论，S05 进入 int4/int8 量化） |
+| S06–S15 | 框架集成 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
 
-> 结论：S03 已完成 RMSNorm V0→V1→V2 多版本 + dispatcher + reference + 测试 +
-> benchmark，显著加速（V2 +56%~142%）与三个真实退化均可用硬件指标解释。第二
-> 热点（fused residual+rmsnorm）完成多版本与 RAW 依赖退化分析。GEMM 主热点按
-> "不替代 cuBLAS/CUTLASS" 约定留待 S04（Triton/CUTLASS DSL）与 S05（低比特量化）。
+> 结论：S04 实测环境能力（Triton 3.7.1 / CUTLASS 4.7.0 / TileLang 0.1.13 三个
+> DSL 在 sm_87 全部可用），实现 Triton RMSNorm/GEMM + CUTLASS GEMM 对照 + 统一
+> dispatcher/capability。CUDA vs Triton 的 FP32 差异已用访存事务宽度解释
+> （float4 领先，稳定）；GEMM 四方对照证明"没有万能最快的后端"（CUTLASS 默认
+> 配置已具竞争力，decode 窄矩阵是 cuBLAS 薄弱区）。
 
 ---
 
@@ -264,7 +275,37 @@ stream-aware 无隐藏分配 C/C++ API、dispatcher、CPU reference、correctnes
 
 ---
 
-## 9. 风险与注意事项
+## 9. S04 补齐内容（已完成）
+
+1. **环境能力实测**（推翻"Jetson 不支持 Triton"默认假设）
+   - `ops/capability.py`：Triton/CUTLASS/TileLang 实测编译 probe（非仅 import）、
+     cuBLAS、CUDA shared lib 定位，永不抛异常 + `lru_cache`
+   - 结论：三个 DSL 在 sm_87 **全部可用**——Triton 3.7.1（最小 kernel
+     max_err=0.0）、CUTLASS 4.7.0（FP16 GEMM max_err~0.03）、TileLang 0.1.13
+     （elementwise add max_err=0.0）。CUTLASS 初因 GitHub 443 超时无法获取，
+     网络恢复后已补齐（见第 8 点）
+2. **CUDA shared lib + ctypes 绑定**：`rmsnorm_c_api.cu`（`extern "C"`）+ 
+   `ops/cuda_bridge.py`（`rmsnorm_forward`），让 Python 统一 dispatcher 能调 S03 CUDA kernel
+3. **Triton 实现**：`ops/triton/rmsnorm.py`（reference + autotune）、
+   `ops/triton/gemm.py`（tiled GEMM reference + autotune，`input_precision="ieee"`）
+4. **统一 dispatcher**：`ops/dispatcher.py`（capability→arch→shape/dtype→fallback 四层策略）
+5. **脚本**：`bench_s04.py`（四方对照）、`dump_triton_ir.py`（TTGIR/LLIR/PTX + 寄存器元数据）
+6. **测试**：`tests/unit/ops/` 5 文件，全量 **270 passed**（新增 32）
+7. **性能结论**（详见 `S04_comparison_report.md`）
+   - FP32 RMSNorm：CUDA V2 领先（float4，稳定）
+   - FP16 RMSNorm：短 kernel 测量波动，不具可复现性（诚实记录）
+   - GEMM 四方对照：CUTLASS 默认配置已具竞争力，窄矩阵（M=1）是 cuBLAS 薄弱区
+   - autotune 在 edge 设备非最优 → 证明 auto-tuning 非全局常量
+8. **网络恢复后补全（本阶段追加）**：
+   - **CUTLASS 4.7.0**：`third_party/cutlass`（gitignore）+ `hqsb_cutlass_gemm_bench`
+     FP16 GEMM 对照（`OpClassTensorOp + Sm80`，正确性 max_err ~0.03）
+   - **TileLang 0.1.13**：`ops/_tilelang_probe.py`（elementwise add 实测 max_err=0.0）
+   - **capability 扩展**：三个 DSL（Triton/CUTLASS/TileLang）全部实测可用
+   - **HIP/ROCm/OpenCL L2 技术说明**：`architecture/portable_kernel_backends.md`
+
+---
+
+## 10. 风险与注意事项
 
 - **`scripts/common/git_commit.sh`**：包含 `git rebase --root` 与
   `git push origin main --force`，会改写历史并强推。已被 `.gitignore` 排除，属
@@ -286,14 +327,13 @@ stream-aware 无隐藏分配 C/C++ API、dispatcher、CPU reference、correctnes
 
 ---
 
-## 10. 下一步（S04 输入）
+## 11. 下一步（S05 输入）
 
-S03 完成后进入 S04（Triton / CUTLASS / Kernel DSL）：
-- RMSNorm 已有 CUDA 多版本 baseline + dispatcher，可作为 Triton 对照的
-  correctness/performance 参考
-- GEMM 主热点（decode ~78%）按约定不自研通用 GEMM，改用 CUTLASS/Triton 建立
-  对照并优化 layout/epilogue/shape selection
-- FP16 half8（float4 装 8 个 half）与 fused 寄存器驻留优化作为 S04 可选的
-  Kernel DSL 教学案例
+S04 完成后进入 S05（量化与低精度推理）：
+- S04 已产出关键结论：decode 窄矩阵（M=1）GEMM cuBLAS 非最优，CUTLASS/Triton 可
+  反超；FP16 访存事务宽度是 RMSNorm 的关键变量
+- S05 进入 int4/int8 量化：RTN/GPTQ/AWQ/SmoothQuant，利用 S04 的 Triton/CUTLASS
+  GEMM 基础实现低比特 kernel（`hqsb/quant/` + `ops/triton` 低比特 GEMM）
+- CUTLASS tile profiling 与多架构验证待云端环境补（S04 已用默认配置，未扫 tile）
 
-S03 handoff 与验收见 [`reports/S03_阶段验收报告.md`](reports/S03_阶段验收报告.md)。
+S04 handoff 与验收见 [`reports/S04_阶段验收报告.md`](reports/S04_阶段验收报告.md)。
