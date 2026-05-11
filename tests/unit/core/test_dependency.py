@@ -66,6 +66,7 @@ class TestCoreDependencyRules:
             "hqsb", "pydantic", "yaml", "typing", "abc", "enum", "json",
             "hashlib", "os", "sys", "time", "uuid", "re", "contextvars",
             "logging", "functools", "random", "dataclasses", "collections",
+            "glob", "importlib", "platform", "subprocess", "pathlib",
             "__future__",
         }
         for path in _python_files(_CORE_DIR):

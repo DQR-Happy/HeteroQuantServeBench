@@ -50,6 +50,20 @@ from hqsb.core.contracts import (
 from hqsb.core.schema import SchemaVersion, migrate_document
 from hqsb.core.config import ConfigLoader, config_hash, deep_merge
 from hqsb.core.registry import Registry, RegistryHub
+from hqsb.core.fingerprint import (
+    CommitSection,
+    ConfigSection,
+    DeviceSection,
+    FingerprintSections,
+    ModelSection,
+    OsSection,
+    PowerSection,
+    PythonSection,
+    RunFingerprint,
+    VolatileObservations,
+    compute_run_fingerprint,
+    diff_sections,
+)
 
 __all__ = [
     # errors
@@ -104,4 +118,17 @@ __all__ = [
     # registry
     "Registry",
     "RegistryHub",
+    # fingerprint
+    "CommitSection",
+    "ConfigSection",
+    "DeviceSection",
+    "FingerprintSections",
+    "ModelSection",
+    "OsSection",
+    "PowerSection",
+    "PythonSection",
+    "RunFingerprint",
+    "VolatileObservations",
+    "compute_run_fingerprint",
+    "diff_sections",
 ]
