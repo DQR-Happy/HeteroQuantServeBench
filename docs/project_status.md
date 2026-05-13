@@ -261,7 +261,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 ## 8. S03 补齐内容（已完成）
 
 1. **RMSNorm 算子库重构**（`ops/cuda/rmsnorm/`，include/src/tests/bench）
-   - 公共 API `hqsb/rmsnorm.h`：stream-aware、无隐藏分配、无 Python 依赖
+   - 公共 API `ops/cuda/rmsnorm/include/hqsb/rmsnorm.h`：stream-aware、无隐藏分配、无 Python 依赖
    - V0 shared reduction（S00 baseline 提取）→ V1 warp shuffle → V2 float4/half2 vectorized
    - dispatcher（dtype/shape 选择 + 不支持组合明确 fallback）
    - CPU FP64 reference（独立于 GPU kernel）
@@ -290,7 +290,8 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
    `ops/triton/gemm.py`（tiled GEMM reference + autotune，`input_precision="ieee"`）
 4. **统一 dispatcher**：`ops/dispatcher.py`（capability→arch→shape/dtype→fallback 四层策略）
 5. **脚本**：`bench_s04.py`（四方对照）、`dump_triton_ir.py`（TTGIR/LLIR/PTX + 寄存器元数据）
-6. **测试**：`tests/unit/ops/` 5 文件，全量 **270 passed**（新增 32）
+6. **测试**：`tests/unit/ops/` 5 文件，全量 **270 passed**（新增 32；S04 结束口径，
+   E00-06 @ e4a031c 复跑当前 HEAD 全量为 **340 passed**，见 §9 末）
 7. **性能结论**（详见 `S04_comparison_report.md`）
    - FP32 RMSNorm：CUDA V2 领先（float4，稳定）
    - FP16 RMSNorm：短 kernel 测量波动，不具可复现性（诚实记录）
@@ -302,6 +303,17 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
    - **TileLang 0.1.13**：`ops/_tilelang_probe.py`（elementwise add 实测 max_err=0.0）
    - **capability 扩展**：三个 DSL（Triton/CUTLASS/TileLang）全部实测可用
    - **HIP/ROCm/OpenCL L2 技术说明**：`architecture/portable_kernel_backends.md`
+9. **S00 E00-06 审计复验（2026-09-04, HEAD `e4a031c`）**：
+   - 全量 `pytest -q` 复跑 **340 passed**（19.22 s，exit 0），log
+     `docs/stage_experiments/S00/E00-06/raw/rerun/s2_14_s4_13_pytest.stdout`
+   - capability 复验：CUDA(8,7) / Triton 3.7.1 / CUTLASS 4.7.0 / TileLang 0.1.13 /
+     cuBLAS 全部可用，notes 为空，`.../rerun/s4_capability.json`
+   - compute-sanitizer host 泄漏 0 bytes（PASS 35 checks），
+     `.../rerun/s3_11_compute_sanitizer.stdout`
+   - CPU wheel `pip wheel . --no-deps` 构建成功，`.../rerun/s1_10_pip_wheel.stdout`
+   - 审计修正：README/ledger 中过时的“238/270 passed”已按当前 HEAD 口径更新或降级；
+     `hqsb/rmsnorm.h` 修正为 `ops/cuda/rmsnorm/include/hqsb/rmsnorm.h`；S03 历史绝对
+     数字以 tracked `docs/reports/S0x_*_report.md` 为准（电源/频率不同时复跑不可比）。
 
 ---
 

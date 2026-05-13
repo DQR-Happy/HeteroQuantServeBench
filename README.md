@@ -36,7 +36,7 @@ pip install -e ".[benchmark]" # 附加 torch/transformers/modelscope（S02）
 ### 1. CPU 单元测试（无需 GPU / 模型权重）
 
 ```bash
-python3 -m pytest -q                 # 全量（含 S00/S01/S02，238 passed）
+python3 -m pytest -q                 # 全量（E00-06 复跑 HEAD e4a031c：340 passed）
 python3 -m pytest -m unit -q         # 纯单元测试
 python3 -m pytest -m property -q     # 属性/不变量测试
 ```
@@ -126,7 +126,7 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | 统一 dispatcher（CUDA/Triton/cuBLAS/CUTLASS fallback） | Implemented | `ops/dispatcher.py` | `tests/unit/ops/test_dispatcher.py` |
 | Triton RMSNorm（reference + autotune） | Verified | `ops/triton/rmsnorm.py` | FP16 hidden=1024 反超 CUDA 36% |
 | Triton GEMM（reference + autotune） | Verified | `ops/triton/gemm.py` | 窄矩阵反超 cuBLAS |
-| CPU 单元测试 | Implemented | `tests/` | `pytest -q`（270 passed） |
+| CPU 单元测试 | Implemented | `tests/` | `pytest -q`（E00-06 复跑 e4a031c：340 passed） |
 | QuantLab（RTN/GPTQ/AWQ/SmoothQuant） | Planned | `hqsb/quant/` | S05 |
 | KernelLab（CUTLASS/Ascend C） | Planned | `ops/ascend/`（CUTLASS 待网络恢复） | S05/S09 |
 | Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
