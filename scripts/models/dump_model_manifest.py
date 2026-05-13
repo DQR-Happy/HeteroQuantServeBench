@@ -16,10 +16,15 @@ import os
 
 from modelscope import AutoConfig
 
+# Portable default model path (expanded via os.path.expanduser at load time).
+# Kept in `~` form in the emitted manifest so the repo never records a
+# machine-specific absolute path (E00-07 security boundary).
+_DEFAULT_MODEL_PATH = "~/models/hqsb/Qwen3-1.7B"
+
 
 def main() -> None:
     """Generate and print the model manifest JSON."""
-    model_path = os.path.expanduser("~/models/hqsb/Qwen3-1.7B")
+    model_path = os.path.expanduser(_DEFAULT_MODEL_PATH)
 
     if not os.path.isdir(model_path):
         print(json.dumps({
@@ -54,7 +59,7 @@ def main() -> None:
         "hidden_act": getattr(config, "hidden_act", None),
         "tie_word_embeddings": getattr(config, "tie_word_embeddings", None),
         "head_dim": getattr(config, "head_dim", None),
-        "local_path": model_path,
+        "local_path": _DEFAULT_MODEL_PATH,
     }
 
     print(json.dumps(manifest, indent=2, ensure_ascii=False))

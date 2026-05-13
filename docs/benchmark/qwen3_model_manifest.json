@@ -15,5 +15,5 @@
   "hidden_act": "silu",
   "tie_word_embeddings": true,
   "head_dim": 128,
-  "local_path": "/home/jetson/models/hqsb/Qwen3-1.7B"
+  "local_path": "~/models/hqsb/Qwen3-1.7B"
 }

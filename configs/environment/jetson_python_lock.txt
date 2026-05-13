@@ -1,3 +1,10 @@
+# Jetson Python environment: full `pip freeze` snapshot (taken on the dev Jetson,
+# kept for environment provenance / restoration records).
+# NOTE (E00-07 security boundary): two entries below (onnxruntime-gpu, torchaudio)
+# were installed on the Jetson from LOCAL aarch64 builds. Their original
+# `file:///<home>/...` absolute sources are intentionally NOT committed. To
+# reproduce, follow docs/hardware/jetson_environment.md and
+# configs/environment/jetson_runtime.txt; wheel sha256 is kept inline.
 absl-py==2.1.0
 accelerate==1.14.0
 action-msgs==1.2.1
@@ -278,7 +285,7 @@ omegaconf==2.3.0
 onboard==1.4.1
 onnx==1.17.0
 onnxruntime==1.22.1
-onnxruntime-gpu @ file:///home/jetson/Downloads/onnxruntime_gpu-1.20.0-cp310-cp310-linux_aarch64.whl#sha256=0c418beb3326027d83acc283372ae42ebe9df12f71c3a8c2e9743a4e323443a4
+onnxruntime-gpu==1.20.0  # Jetson local aarch64 wheel install; wheel sha256=0c418beb3326027d83acc283372ae42ebe9df12f71c3a8c2e9743a4e323443a4 (no public linux_aarch64 wheel)
 onnxslim==0.1.47
 openai==1.99.9
 opencv-contrib-python==4.10.0.84
@@ -502,7 +509,7 @@ toolz==1.0.0
 topic-monitor==0.20.5
 torch @ https://developer.download.nvidia.cn/compute/redist/jp/v61/pytorch/torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl#sha256=6f75fd2d2ef840ede1a90dbcf40a5458214bee26cc803fa510cda2e8978d972a
 torch-complex==0.4.4
-torchaudio @ file:///home/jetson/audio
+torchaudio==2.5.1a0+1661daf  # Jetson local source-tree install (no public linux_aarch64 wheel)
 torchvision @ https://github.com/ultralytics/assets/releases/download/v0.0.0/torchvision-0.20.0a0+afc54f7-cp310-cp310-linux_aarch64.whl#sha256=e7c1f76f2eb085eff8284cc71f0198d79b6bd1360646b7298f0a2b7103096dc0
 tornado==6.4.2
 tqdm==4.67.1
