@@ -92,6 +92,22 @@ class SchemaVersionError(SchemaError):
     """A schema document has a missing, malformed, or future version."""
 
 
+class UnsupportedSchemaVersionError(SchemaVersionError):
+    """A payload declares a schema version newer than this implementation.
+
+    Refusing forward-incompatible input is intentional: guessing a future
+    schema would silently reinterpret fields the current code cannot know.
+    """
+
+
+class SchemaMigrationRequiredError(SchemaVersionError):
+    """A payload declares an older schema version and must be migrated.
+
+    The payload is refused until a registered migration lifts it to the
+    current schema version; no field is silently dropped or default-filled.
+    """
+
+
 class RegistryError(HqsbError):
     """A registry operation failed (duplicate, conflict, missing, unload)."""
 

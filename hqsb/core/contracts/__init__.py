@@ -23,11 +23,17 @@ from hqsb.core.contracts.result import (
     ResourceUsage,
 )
 from hqsb.core.contracts.trace import TraceEvent, TraceEventType
+from hqsb.core.contracts.registry import (
+    ContractEntry,
+    load_contract_registry,
+    registry_checks,
+)
 
 __all__ = [
     "Backend",
     "BackendCapability",
     "BenchmarkResult",
+    "ContractEntry",
     "CorrectnessReport",
     "EnvironmentInfo",
     "GenerationOutput",
@@ -41,4 +47,6 @@ __all__ = [
     "TraceEventType",
     "VersionedModel",
     "WorkloadSpec",
+    "load_contract_registry",
+    "registry_checks",
 ]
