@@ -119,6 +119,28 @@ class Backend(ABC):
     def close(self) -> None:
         """Release all resources held by the backend."""
 
+    # ── Version identity (E01-03 §5) ──────────────────────────────────
+    # Three distinct version notions must not be collapsed:
+    #   schema_version  : the C4 data/interface protocol version this
+    #                     backend implements (drives dispatch compatibility)
+    #   backend_version : this backend implementation's own version
+    #   package_version : the install package version carrying the backend
+
+    @property
+    def schema_version(self) -> str:
+        """The C4 interface protocol version this backend implements."""
+        return "1.0.0"
+
+    @property
+    def backend_version(self) -> str:
+        """This backend implementation's own version."""
+        return "1.0.0"
+
+    @property
+    def package_version(self) -> Optional[str]:
+        """The install package version carrying this backend (None if n/a)."""
+        return None
+
     # Optional streaming hook; concrete backends may override.
     def stream(self, workload: object, inputs: object):
         """Yield tokens as they are generated (optional)."""

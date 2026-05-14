@@ -38,6 +38,7 @@ class Registry(Generic[_T]):
     def __init__(self, kind: str = "entry") -> None:
         self.kind = kind
         self._entries: Dict[str, _T] = {}
+        self._versions: Dict[str, Optional[str]] = {}
 
     def register(
         self,
@@ -61,15 +62,22 @@ class Registry(Generic[_T]):
             DuplicateRegistrationError: If ``name`` is taken by a different
                 object and ``replace`` is False.
         """
-        existing = self._entries.get(name)
-        if existing is not None and not replace:
-            if existing is obj:
-                return  # idempotent re-register of the same object
+        if name in self._entries and not replace:
+            existing_version = self._versions.get(name)
+            if existing_version == version:
+                if self._entries[name] is obj:
+                    return  # idempotent re-register of the same object+version
+                raise DuplicateRegistrationError(
+                    f"duplicate {self.kind} registration for name {name!r}"
+                    + (f" (version {version})" if version else "")
+                )
             raise DuplicateRegistrationError(
-                f"duplicate {self.kind} registration for name {name!r}"
-                + (f" (version {version})" if version else "")
+                f"duplicate {self.kind} registration for name {name!r}: "
+                f"version {version!r} conflicts with registered "
+                f"version {existing_version!r}"
             )
         self._entries[name] = obj
+        self._versions[name] = version
 
     def get(self, name: str) -> _T:
         """Return the entry registered under ``name``.
@@ -95,6 +103,7 @@ class Registry(Generic[_T]):
                 f"cannot unregister {self.kind} {name!r}: not registered"
             )
         del self._entries[name]
+        self._versions.pop(name, None)
 
     def __contains__(self, name: str) -> bool:
         return name in self._entries
