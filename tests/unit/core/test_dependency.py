@@ -67,7 +67,7 @@ class TestCoreDependencyRules:
             "hashlib", "os", "sys", "time", "uuid", "re", "contextvars",
             "logging", "functools", "random", "dataclasses", "collections",
             "glob", "importlib", "platform", "subprocess", "pathlib",
-            "__future__",
+            "types", "__future__",
         }
         for path in _python_files(_CORE_DIR):
             for module in _imported_modules(path):
@@ -78,7 +78,34 @@ class TestCoreDependencyRules:
 
     def test_core_package_is_importable_standalone(self):
         # Importing core must not transitively require torch or modelscope.
-        import hqsb.core  # noqa: F401
+        # The probe runs in a *fresh* interpreter so that earlier test modules
+        # importing torch in this process can never make the gate
+        # tautological (E01-05: replaces the former ``assert ... or True``).
+        import subprocess
         import sys
+        import textwrap
 
-        assert "torch" not in sys.modules or True
+        probe = textwrap.dedent(
+            """\
+            import sys
+            import hqsb.core  # noqa: F401
+            bad = [m for m in sys.modules
+                   if m == "torch" or m.startswith("torch.")
+                   or m == "modelscope" or m.startswith("modelscope.")]
+            print("BAD_IMPORTS=" + ",".join(bad))
+            """
+        )
+        env = dict(os.environ)
+        env["PYTHONPATH"] = _REPO_ROOT + os.pathsep + env.get("PYTHONPATH", "")
+        proc = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=_REPO_ROOT,
+        )
+        assert proc.returncode == 0, f"probe failed:\n{proc.stdout}\n{proc.stderr}"
+        tail = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
+        assert tail == "BAD_IMPORTS=", (
+            f"hqsb.core import transitively loaded forbidden modules: {tail}"
+        )
