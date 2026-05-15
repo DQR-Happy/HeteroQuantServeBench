@@ -4,6 +4,12 @@
 Converts a legacy golden or legacy result JSON file into a
 :class:`BenchmarkResult` document conforming to the C6 contract.
 
+Migration follows the E01-07 contract:
+* source version is identified and gated (future/older versions rejected);
+* field-level losses are attached to the C6 summary for auditability;
+* writes are transactional (temp file + atomic rename) so an interrupted
+  write never leaves a half-written migrated file.
+
 Usage:
     python scripts/migrate_legacy.py <input.json> <output.json>
 """
@@ -11,10 +17,30 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
+import tempfile
 
 from hqsb.core.errors import HqsbError
 from hqsb.core.schema.migrate import migrate_any
+
+
+def _write_atomic(text: str, output_path: str) -> None:
+    out_dir = os.path.dirname(os.path.abspath(output_path))
+    os.makedirs(out_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=".hqsb_migrate_", suffix=".tmp", dir=out_dir
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp_path, output_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def main() -> int:
@@ -40,11 +66,15 @@ def main() -> int:
         print(f"ERROR: invalid JSON: {exc}", file=sys.stderr)
         return 1
 
-    with open(output_path, "w", encoding="utf-8") as fh:
-        fh.write(result.model_dump_json(indent=2))
+    _write_atomic(result.model_dump_json(indent=2), output_path)
 
+    migration = result.summary.get("migration", {})
     print(f"Migrated {input_path} -> {output_path}")
     print(f"  run_id: {result.run_id}")
+    print(f"  source_family: {migration.get('source_family')}")
+    print(f"  source_version: {migration.get('source_version')} -> "
+          f"target {migration.get('target_schema')} v{migration.get('target_version')}")
+    print(f"  loss_summary: {migration.get('loss_summary')}")
     return 0
 
 
