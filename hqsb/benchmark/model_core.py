@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import torch
 
@@ -27,7 +27,7 @@ from hqsb.benchmark.memory import (
     process_rss_bytes,
     process_swap_bytes,
 )
-from hqsb.benchmark.metrics import latency_summary
+from hqsb.benchmark.metrics import latency_summary, model_core_timings
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,8 @@ def benchmark_model_core(
     model: Any,
     inputs: Dict[str, torch.Tensor],
     output_tokens: int,
+    *,
+    capture_logits: bool = False,
 ) -> Dict[str, Any]:
     """Run a single model-core benchmark pass.
 
@@ -100,6 +102,11 @@ def benchmark_model_core(
         inputs: Dictionary with ``input_ids`` and ``attention_mask``
             tensors, each of shape ``(1, input_length)``.
         output_tokens: Number of tokens to generate. Must be >= 1.
+        capture_logits: When True, also capture the first-token full
+            logits vector and its top-K tokens (``first_token_logits`` and
+            ``first_token_topk``) for determinism/numerical comparison
+            (E02-01). Capturing happens *after* the timed selection so it
+            never contaminates ``first_token_selection_ms``.
 
     Returns:
         Dictionary with keys:
@@ -118,6 +125,10 @@ def benchmark_model_core(
             - ``peak_cuda_allocated_mb``: Peak allocated CUDA memory (MiB).
             - ``peak_cuda_reserved_mb``: Peak reserved CUDA memory (MiB).
             - ``generated_token_ids``: List of generated token IDs.
+            - ``first_token_logits``: (only if ``capture_logits``) Full
+              first-token logits vector over the vocabulary.
+            - ``first_token_topk``: (only if ``capture_logits``) Top-K
+              first-token ``{token_id, logit}`` entries.
             - ``kv_cache``: KV-cache accounting dict (shape/bytes).
             - ``model_weight_bytes``: Total model weight bytes.
             - ``process_rss_bytes``: Process RSS in bytes.
@@ -162,7 +173,10 @@ def benchmark_model_core(
 
     first_token_start = time.perf_counter()
 
-    next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+    # Last-position logits over the vocab: these are the logits for the
+    # *first* output token, produced by the prefill forward pass.
+    last_logits = outputs.logits[:, -1, :]  # shape (batch, vocab)
+    next_token = last_logits.argmax(dim=-1, keepdim=True)
     past_key_values = outputs.past_key_values
 
     if device.type == "cuda":
@@ -172,9 +186,22 @@ def benchmark_model_core(
         time.perf_counter() - first_token_start
     ) * 1000.0
 
-    model_core_ttft_ms = prefill_forward_ms + first_token_selection_ms
-
     generated_tokens: List[int] = [int(next_token.item())]
+
+    # ── Optional first-token logits capture (E02-01) ──────────────
+    # Done *after* the timed selection so the extra tensor reads/topk never
+    # enter the reference ``first_token_selection_ms`` clock.
+
+    first_token_logits: Optional[List[float]] = None
+    first_token_topk: Optional[List[Dict[str, Any]]] = None
+    if capture_logits:
+        first_token_logits = [float(x) for x in last_logits[0].tolist()]
+        k = min(10, last_logits.shape[-1])
+        topk_values, topk_indices = torch.topk(last_logits[0], k=k)
+        first_token_topk = [
+            {"token_id": int(idx), "logit": float(val)}
+            for val, idx in zip(topk_values.tolist(), topk_indices.tolist())
+        ]
 
     # ── Phase 3: Decode ───────────────────────────────────────────
 
@@ -215,8 +242,12 @@ def benchmark_model_core(
 
     # ── Aggregate Metrics ─────────────────────────────────────────
 
-    decode_total_ms = sum(itl_ms)
-    model_core_e2e_ms = model_core_ttft_ms + decode_total_ms
+    phase = model_core_timings(
+        prefill_forward_ms, first_token_selection_ms, itl_ms
+    )
+    decode_total_ms = phase["decode_total_ms"]
+    model_core_ttft_ms = phase["model_core_ttft_ms"]
+    model_core_e2e_ms = phase["model_core_e2e_ms"]
 
     decode_tokens_count = max(output_tokens - 1, 0)
 
@@ -274,6 +305,10 @@ def benchmark_model_core(
         "process_rss_bytes": process_rss_bytes(),
         "process_swap_bytes": process_swap_bytes(),
     }
+
+    if capture_logits:
+        result["first_token_logits"] = first_token_logits
+        result["first_token_topk"] = first_token_topk
 
     logger.debug(
         "Benchmark complete: ISL=%d OSL=%d TTFT=%.2fms E2E=%.2fms "

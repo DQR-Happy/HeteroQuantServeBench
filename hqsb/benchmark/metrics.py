@@ -93,6 +93,35 @@ def latency_summary(values_ms: Sequence[float]) -> Dict[str, float]:
     }
 
 
+def model_core_timings(
+    prefill_forward_ms: float,
+    first_token_selection_ms: float,
+    itl_ms: Sequence[float],
+) -> Dict[str, float]:
+    """Single source of truth for model-core timing derivation (E02-01).
+
+    The reference clock convention defines exactly three derived quantities
+    from the three raw phase measurements:
+
+        decode_total_ms      = sum(itl_ms)
+        model_core_ttft_ms   = prefill_forward_ms + first_token_selection_ms
+        model_core_e2e_ms    = model_core_ttft_ms + decode_total_ms
+
+    This is the **only** implementation of that relationship. Both the
+    model-core engine and the benchmark engine must derive these values
+    through this function so the convention can never drift (S02 execution
+    step 3, E02-01 pass criterion "公式只有一个实现").
+    """
+    decode_total_ms = float(sum(itl_ms))
+    ttft_ms = float(prefill_forward_ms) + float(first_token_selection_ms)
+    e2e_ms = ttft_ms + decode_total_ms
+    return {
+        "decode_total_ms": decode_total_ms,
+        "model_core_ttft_ms": ttft_ms,
+        "model_core_e2e_ms": e2e_ms,
+    }
+
+
 def numerical_diff_summary(
     baseline: Sequence[float],
     optimized: Sequence[float],

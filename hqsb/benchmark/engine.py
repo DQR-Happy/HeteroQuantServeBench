@@ -29,7 +29,7 @@ from hqsb.core.contracts.result import (
 from hqsb.core.contracts.workload import WorkloadSpec
 from hqsb.core.errors import BackendError, CapabilityError
 from hqsb.core.ids import new_run_id
-from hqsb.benchmark.metrics import latency_summary
+from hqsb.benchmark.metrics import latency_summary, model_core_timings
 
 
 def _model_artifact_hash(artifact: Optional[ModelArtifact]) -> Optional[str]:
@@ -63,25 +63,26 @@ def _summarize(samples: List[GenerationSample]) -> Dict[str, Any]:
         return {}
 
     prefill_ms = [s.prefill_forward_ms for s in samples]
-    ttft_ms = [
-        s.prefill_forward_ms + s.first_token_selection_ms for s in samples
+    timings = [
+        model_core_timings(
+            s.prefill_forward_ms, s.first_token_selection_ms, s.itl_ms
+        )
+        for s in samples
     ]
+    ttft_ms = [t["model_core_ttft_ms"] for t in timings]
+    decode_total_ms = [t["decode_total_ms"] for t in timings]
+    e2e_ms = [t["model_core_e2e_ms"] for t in timings]
     itl_all = [lat for s in samples for lat in s.itl_ms]
 
     total_output_tokens = sum(s.output_tokens for s in samples)
-    total_e2e_ms = sum(
-        s.prefill_forward_ms + s.first_token_selection_ms + sum(s.itl_ms)
-        for s in samples
-    )
+    total_e2e_ms = sum(e2e_ms)
 
     return {
         "repetitions": len(samples),
         "prefill_forward_ms_mean": _mean(prefill_ms),
         "model_core_ttft_ms_mean": _mean(ttft_ms),
-        "decode_total_ms_mean": _mean([sum(s.itl_ms) for s in samples]),
-        "model_core_e2e_ms_mean": _mean(
-            [s.prefill_forward_ms + s.first_token_selection_ms + sum(s.itl_ms) for s in samples]
-        ),
+        "decode_total_ms_mean": _mean(decode_total_ms),
+        "model_core_e2e_ms_mean": _mean(e2e_ms),
         "decode_tokens_per_s": (
             total_output_tokens / (total_e2e_ms / 1000.0)
             if total_e2e_ms > 0

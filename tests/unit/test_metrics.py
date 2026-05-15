@@ -14,6 +14,7 @@ import pytest
 
 from hqsb.benchmark.metrics import (
     latency_summary,
+    model_core_timings,
     numerical_diff_summary,
     percentile,
 )
@@ -61,6 +62,38 @@ class TestLatencySummary:
 
     def test_empty_returns_empty_dict(self):
         assert latency_summary([]) == {}
+
+
+class TestModelCoreTimings:
+    """E02-01: the model-core clock convention must be a single function.
+
+    The derived quantities (decode_total / TTFT / E2E) are fixed by one
+    relationship and must be reproduced exactly here, so model_core and the
+    benchmark engine can never drift.
+    """
+
+    def test_decode_total_is_sum_of_itl(self):
+        timings = model_core_timings(100.0, 0.5, [2.0, 3.0, 4.0])
+        assert timings["decode_total_ms"] == pytest.approx(9.0)
+
+    def test_ttft_is_prefill_plus_selection(self):
+        timings = model_core_timings(100.0, 0.5, [2.0, 3.0, 4.0])
+        assert timings["model_core_ttft_ms"] == pytest.approx(100.5)
+
+    def test_e2e_is_ttft_plus_decode(self):
+        timings = model_core_timings(100.0, 0.5, [2.0, 3.0, 4.0])
+        assert timings["model_core_e2e_ms"] == pytest.approx(109.5)
+
+    def test_empty_itl(self):
+        timings = model_core_timings(50.0, 1.0, [])
+        assert timings["decode_total_ms"] == pytest.approx(0.0)
+        assert timings["model_core_ttft_ms"] == pytest.approx(51.0)
+        assert timings["model_core_e2e_ms"] == pytest.approx(51.0)
+
+    def test_single_step_e2e_equals_ttft_plus_one_itl(self):
+        # OSL=2 -> one decode step; E2E must be prefill+selection+that step.
+        timings = model_core_timings(200.0, 0.0, [10.0])
+        assert timings["model_core_e2e_ms"] == pytest.approx(210.0)
 
 
 class TestNumericalDiffSummary:
