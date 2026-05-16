@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 
 def percentile(values: Sequence[float], quantile: float) -> float:
@@ -119,6 +119,104 @@ def model_core_timings(
         "decode_total_ms": decode_total_ms,
         "model_core_ttft_ms": ttft_ms,
         "model_core_e2e_ms": e2e_ms,
+    }
+
+
+def _scalar_summary(values: Sequence[float]) -> Dict[str, float]:
+    """Aggregate a scalar series into ``{count, mean, p50, p95, min, max}``.
+
+    ``NaN`` entries are dropped before aggregation (they represent undefined
+    per-request metrics, e.g. TPOT for ``G == 1``), so ``count`` reports the
+    number of *valid* samples. An empty series yields ``NaN`` statistics with
+    ``count == 0``.
+    """
+    clean = [v for v in values if not math.isnan(v)]
+    if not clean:
+        return {
+            "count": 0,
+            "mean": float("nan"),
+            "p50": float("nan"),
+            "p95": float("nan"),
+            "min": float("nan"),
+            "max": float("nan"),
+        }
+    return {
+        "count": len(clean),
+        "mean": statistics.mean(clean),
+        "p50": percentile(clean, 0.50),
+        "p95": percentile(clean, 0.95),
+        "min": min(clean),
+        "max": max(clean),
+    }
+
+
+def request_summary(requests: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Aggregate per-request scaling metrics into a P50/P95 summary.
+
+    E02-03 requires request-level TTFT/TPOT/E2E and the three throughputs to
+    be reported *separately from* step-level ITL. Each request mapping must
+    provide the raw E02-01 clock fields: ``prefill_forward_ms``,
+    ``first_token_selection_ms``, ``raw_itl_ms`` (list of per-step ms),
+    ``input_tokens``, and ``output_tokens``.
+
+    The per-request derivations follow the single clock convention in
+    :func:`model_core_timings` and the E02-03 §5 metric definitions:
+
+        TTFT    = prefill_forward + selection
+        Tdecode = sum(ITL)
+        TPOT    = Tdecode / (G - 1),           G > 1
+        Tgen    = TTFT + Tdecode
+        prefill TPS   = I / prefill_forward
+        decode-tail   = (G - 1) / Tdecode
+        output TPS    = G / Tgen
+
+    Returns:
+        Dict with ``ttft_ms``, ``tpot_ms``, ``e2e_ms``,
+        ``prefill_tokens_per_s``, ``decode_tokens_per_s``,
+        ``output_tokens_per_s`` (each a :func:`_scalar_summary`), and
+        ``pooled_itl_ms`` (step-level :func:`latency_summary` across every
+        step of every request).
+    """
+    ttft: List[float] = []
+    tpot: List[float] = []
+    e2e: List[float] = []
+    prefill_tps: List[float] = []
+    decode_tps: List[float] = []
+    output_tps: List[float] = []
+    all_itl: List[float] = []
+
+    for req in requests:
+        timings = model_core_timings(
+            float(req["prefill_forward_ms"]),
+            float(req["first_token_selection_ms"]),
+            [float(x) for x in req["raw_itl_ms"]],
+        )
+        decode_total_ms = timings["decode_total_ms"]
+        g = int(req["output_tokens"])
+        i = int(req["input_tokens"])
+        prefill_ms = float(req["prefill_forward_ms"])
+        e2e_ms = timings["model_core_e2e_ms"]
+
+        ttft.append(timings["model_core_ttft_ms"])
+        e2e.append(e2e_ms)
+        tpot.append(decode_total_ms / (g - 1) if g > 1 else float("nan"))
+        prefill_tps.append(i / (prefill_ms / 1000.0) if prefill_ms > 0 else 0.0)
+        decode_tps.append(
+            (g - 1) / (decode_total_ms / 1000.0)
+            if decode_total_ms > 0 and g > 1
+            else 0.0
+        )
+        output_tps.append(g / (e2e_ms / 1000.0) if e2e_ms > 0 else 0.0)
+        all_itl.extend([float(x) for x in req["raw_itl_ms"]])
+
+    return {
+        "ttft_ms": _scalar_summary(ttft),
+        "tpot_ms": _scalar_summary(tpot),
+        "e2e_ms": _scalar_summary(e2e),
+        "prefill_tokens_per_s": _scalar_summary(prefill_tps),
+        "decode_tokens_per_s": _scalar_summary(decode_tps),
+        "output_tokens_per_s": _scalar_summary(output_tps),
+        "pooled_itl_ms": latency_summary(all_itl),
     }
 
 

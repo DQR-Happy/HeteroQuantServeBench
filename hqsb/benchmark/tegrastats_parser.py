@@ -41,6 +41,41 @@ _SWAP_PATTERN = re.compile(r"SWAP\s+(\d+)/(\d+)MB")
 
 _CPU_UTIL_PATTERN = re.compile(r"CPU\s+\[([^\]]+)\]")
 
+# CPU bracket entries look like ``45%@1497`` (utilization% @ frequency MHz).
+_CPU_FREQ_PATTERN = re.compile(r"@(\d+)")
+
+
+def extract_cpu_freqs_mhz(line: str) -> List[int]:
+    """Extract per-core CPU frequencies (MHz) from a tegrastats ``CPU [...]``.
+
+    Each core entry is ``<util>%@<freq>``; the frequencies are returned in
+    core order. An empty list means the line carried no CPU frequency data
+    (e.g. a truncated line or a JetPack variant that omits them).
+    """
+    match = _CPU_UTIL_PATTERN.search(line)
+    if not match:
+        return []
+    return [int(f) for f in _CPU_FREQ_PATTERN.findall(match.group(1))]
+
+
+def slice_records(
+    records: List[Dict[str, Any]],
+    begin_ns: int,
+    end_ns: int,
+) -> List[Dict[str, Any]]:
+    """Return records whose ``time_ns`` falls in the half-open ``[begin, end)``.
+
+    Pure window-slicing helper for aligning ``TegrastatsMonitor`` samples with
+    a host-monotonic measurement window (E02-03/E02-08 window alignment).
+    Records missing ``time_ns`` are excluded.
+    """
+    result: List[Dict[str, Any]] = []
+    for record in records:
+        ts = record.get("time_ns")
+        if isinstance(ts, int) and begin_ns <= ts < end_ns:
+            result.append(record)
+    return result
+
 
 def parse_tegrastats_line(line: str) -> Dict[str, Any]:
     """Parse a single tegrastats output line into structured metrics.

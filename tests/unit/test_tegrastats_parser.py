@@ -11,7 +11,9 @@ import pytest
 from hqsb.benchmark.tegrastats_parser import (
     compute_power_summary,
     compute_resource_summary,
+    extract_cpu_freqs_mhz,
     parse_tegrastats_line,
+    slice_records,
 )
 
 # A representative tegrastats line modeled on JetPack 6 Orin output.
@@ -53,6 +55,36 @@ class TestParseTegrastatsLine:
         result = parse_tegrastats_line("VDD_IN 7000mW")
         assert result["power_mw"] == 7000
         assert "power_avg_mw" not in result
+
+
+class TestExtractCpuFreqs:
+    def test_extracts_per_core_freqs(self):
+        line = "CPU [45%@1497,30%@1190,0%@729,0%@729,0%@729,0%@729]"
+        assert extract_cpu_freqs_mhz(line) == [1497, 1190, 729, 729, 729, 729]
+
+    def test_no_cpu_bracket(self):
+        assert extract_cpu_freqs_mhz("RAM 100/200MB") == []
+
+
+class TestSliceRecords:
+    def test_half_open_window(self):
+        records = [
+            {"time_ns": 0, "raw": "a"},
+            {"time_ns": 10, "raw": "b"},
+            {"time_ns": 20, "raw": "c"},
+            {"time_ns": 30, "raw": "d"},
+        ]
+        assert slice_records(records, 10, 30) == [
+            {"time_ns": 10, "raw": "b"},
+            {"time_ns": 20, "raw": "c"},
+        ]
+
+    def test_skips_missing_timestamp(self):
+        records = [{"raw": "a"}, {"time_ns": 5, "raw": "b"}]
+        assert slice_records(records, 0, 10) == [{"time_ns": 5, "raw": "b"}]
+
+    def test_empty_window(self):
+        assert slice_records([{"time_ns": 5, "raw": "b"}], 10, 20) == []
 
 
 class TestComputePowerSummary:
