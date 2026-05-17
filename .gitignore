@@ -80,3 +80,6 @@ Thumbs.db
 
 # Docs
 /docs
+
+# Local CodeBuddy conversation exports (private; never publish)
+/buddy_history/
