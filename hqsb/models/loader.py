@@ -66,7 +66,7 @@ def _validate_model_directory(model_path: str) -> None:
         )
 
 
-def _consolidate_to_device(model: Any) -> bool:
+def _consolidate_to_device(model: Any, *, force: bool = False) -> bool:
     """Move every parameter of ``model`` onto CUDA, but only if it provably fits.
 
     ``device_map="auto"`` may leave part of the model on CPU or on disk, which
@@ -78,6 +78,15 @@ def _consolidate_to_device(model: Any) -> bool:
     mid-migration OOM would leave some parameters on CUDA and others on the
     host — an inconsistent, silently-wrong model. Skipping up-front keeps the
     model in the coherent ``device_map="auto"`` state.
+
+    Args:
+        model: The model to move.
+        force: Skip the up-front budget check and always attempt the move. This
+            is correct for the host-staging path (``load_qwen3(cpu_staging=True)``),
+            where the weights are ordinary swappable CPU tensors: ``Module.to()``
+            then migrates tensor-by-tensor, so the transient peak is one tensor,
+            not the whole weight set. The budget check would otherwise be
+            misled by the free memory already consumed by the CPU copy.
 
     Returns:
         True if the model is fully on CUDA afterwards, False otherwise.
@@ -93,7 +102,7 @@ def _consolidate_to_device(model: Any) -> bool:
     free_bytes, _total = torch.cuda.mem_get_info()
     budget_bytes = memory_budget_bytes(free_bytes)
 
-    if weight_bytes > budget_bytes:
+    if not force and weight_bytes > budget_bytes:
         logger.warning(
             "Weights (%.2f GiB) exceed the safe GPU budget (%.2f GiB, from "
             "%.2f GiB free); keeping the device_map='auto' split. "
@@ -119,10 +128,24 @@ def _consolidate_to_device(model: Any) -> bool:
         return False
 
     logger.info(
-        "Consolidated %.2f GiB of weights onto CUDA (budget %.2f GiB)",
+        "Consolidated %.2f GiB of weights onto CUDA (budget %.2f GiB%s)",
         weight_bytes / (1024**3),
         budget_bytes / (1024**3),
+        ", forced" if force else "",
     )
+    if force:
+        # Host staging frees the CPU weight copies inside ``Model.to``; return
+        # those pages to the OS so inference has real headroom (glibc otherwise
+        # keeps them in its arena, which shows up as RSS on a unified-memory
+        # device and can trigger the OOM killer during long prefills).
+        try:
+            import ctypes
+            import gc
+
+            gc.collect()
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except (OSError, AttributeError):
+            pass
     return True
 
 
@@ -135,6 +158,7 @@ def load_qwen3(
     verify_manifest: str | None = None,
     strict_extra: bool = True,
     allow_extra: tuple = (),
+    cpu_staging: bool = False,
 ) -> Tuple:
     """Load a Qwen3-family model and tokenizer from a local ModelScope directory.
 
@@ -221,7 +245,15 @@ def load_qwen3(
     cpu_budget_bytes = host_memory_budget_bytes()
 
     if device_map is None:
-        device_map = "auto" if torch.cuda.is_available() else "cpu"
+        if cpu_staging and torch.cuda.is_available():
+            # Host staging: load all weights as ordinary (swappable) CPU
+            # tensors, then let ``_consolidate_to_device`` move them to CUDA.
+            # ``device_map="auto"`` stages through pinned host memory, whose
+            # peak (~2x the weight bytes, non-swappable) can OOM the 8 GiB
+            # unified-memory device even though the final 3.2 GiB fits.
+            device_map = "cpu"
+        else:
+            device_map = "auto" if torch.cuda.is_available() else "cpu"
 
     if offload_folder is None:
         offload_folder = "/tmp/hqsb_offload"
@@ -294,7 +326,7 @@ def load_qwen3(
     # pass pays host<->device copies for the offloaded layers — slower than a
     # pure-GPU model while saving no device memory in practice.
     if torch.cuda.is_available():
-        _consolidate_to_device(model)
+        _consolidate_to_device(model, force=cpu_staging)
 
     # Ensure all CUDA operations from loading are complete
     if torch.cuda.is_available():
