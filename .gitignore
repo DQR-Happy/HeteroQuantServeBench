@@ -83,3 +83,9 @@ Thumbs.db
 
 # Local CodeBuddy conversation exports (private; never publish)
 /buddy_history/
+
+# Codebuddy
+.codebuddy/
+
+# Codex
+AGENTS.md
