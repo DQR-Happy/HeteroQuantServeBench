@@ -24,7 +24,10 @@ import torch
 
 from hqsb.core.contracts import ModelArtifact, WorkloadSpec
 from hqsb.backends import PyTorchBackend
-from hqsb.benchmark.profiling import profile_model_core
+from hqsb.benchmark.profiling import (
+    cumulative_kernel_time_us,
+    profile_model_core,
+)
 from hqsb.benchmark.roofline import rank_hotspots
 from hqsb.benchmark.workload import make_fixed_token_input
 
@@ -70,8 +73,10 @@ def _profile_case(backend, tokenizer, model, name, isl, osl, output_dir):
     with open(os.path.join(output_dir, f"{name}_operators.json"), "w", encoding="utf-8") as fh:
         json.dump(table, fh, indent=2)
 
-    # Classify/rank top operators by self CUDA time.
-    total_cuda = sum(r["cuda_time_us"] for r in table) or 1.0
+    # Classify/rank top operators by self CUDA time. The denominator must be
+    # the kernel-scope total: summing every row would double-count (each GPU
+    # kernel is reported once under its host op and once as the kernel).
+    total_cuda = cumulative_kernel_time_us(table) or 1.0
     ranked = rank_hotspots(
         [
             {

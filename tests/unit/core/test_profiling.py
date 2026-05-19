@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from hqsb.benchmark.profiling import _norm_shapes, extract_operator_table
+from hqsb.benchmark.profiling import (
+    _norm_shapes,
+    attach_time_share,
+    cumulative_kernel_time_us,
+    extract_operator_table,
+    scope_totals_us,
+    split_by_scope,
+)
 from hqsb.core.errors import BenchmarkError
 
 
@@ -89,3 +96,77 @@ class TestExtractOperatorTable:
 
         with pytest.raises(BenchmarkError):
             extract_operator_table(BadProfiler())
+
+    def test_scope_distinguishes_kernel_from_cpu_op(self):
+        # Device kernels have no host self time (cpu == 0); host-side rows
+        # (ATen ops and CUDA runtime API calls) do.
+        prof = _FakeProfiler(
+            [
+                _FakeEvent("aten::mm", 1, 100.0, 50.0, 0, ((1, 128), (128, 128))),
+                _FakeEvent("ampere_fp16_gemm", 1, 0.0, 50.0, 0, ()),
+                _FakeEvent("cudaLaunchKernel", 1, 5.0, 0.0, 0, ()),
+            ]
+        )
+        table = {r["name"]: r for r in extract_operator_table(prof)}
+        assert table["aten::mm"]["scope"] == "cpu"
+        assert table["ampere_fp16_gemm"]["scope"] == "kernel"
+        assert table["cudaLaunchKernel"]["scope"] == "cpu"
+
+
+@pytest.mark.unit
+class TestCumulativeKernelTime:
+    """The op and kernel scopes must never be summed together."""
+
+    def test_counts_kernel_scope_only(self):
+        rows = [
+            {"name": "aten::mm", "cuda_time_us": 100.0, "scope": "cpu", "count": 1},
+            {"name": "gemm_kernel", "cuda_time_us": 100.0, "scope": "kernel", "count": 1},
+        ]
+        # Naive sum would be 200 (2x); the cumulative kernel work is 100.
+        assert cumulative_kernel_time_us(rows) == 100.0
+
+    def test_falls_back_to_all_rows_without_scope(self):
+        rows = [
+            {"name": "a", "cuda_time_us": 10.0},
+            {"name": "b", "cuda_time_us": 5.0},
+        ]
+        assert cumulative_kernel_time_us(rows) == 15.0
+
+    def test_empty_table_is_zero(self):
+        assert cumulative_kernel_time_us([]) == 0.0
+
+    def test_scope_totals_are_separate(self):
+        rows = [
+            {"name": "aten::mm", "cuda_time_us": 100.0, "scope": "cpu"},
+            {"name": "gemm_kernel", "cuda_time_us": 100.0, "scope": "kernel"},
+            {"name": "gemm2", "cuda_time_us": 30.0, "scope": "kernel"},
+        ]
+        totals = scope_totals_us(rows)
+        assert totals["cpu"] == 100.0
+        assert totals["kernel"] == 130.0
+
+
+@pytest.mark.unit
+class TestScopeSplitAndShare:
+    def test_split_by_scope(self):
+        rows = [
+            {"name": "aten::mm", "cuda_time_us": 100.0, "scope": "cpu"},
+            {"name": "gemm_kernel", "cuda_time_us": 100.0, "scope": "kernel"},
+            {"name": "aten::mul", "cuda_time_us": 50.0, "scope": "cpu"},
+        ]
+        ops, kernels = split_by_scope(rows)
+        assert [r["name"] for r in ops] == ["aten::mm", "aten::mul"]
+        assert [r["name"] for r in kernels] == ["gemm_kernel"]
+
+    def test_share_normalised_within_each_scope(self):
+        rows = [
+            {"name": "aten::mm", "cuda_time_us": 90.0, "scope": "cpu"},
+            {"name": "aten::mul", "cuda_time_us": 10.0, "scope": "cpu"},
+            {"name": "gemm_kernel", "cuda_time_us": 300.0, "scope": "kernel"},
+            {"name": "copy_kernel", "cuda_time_us": 100.0, "scope": "kernel"},
+        ]
+        out = {r["name"]: r["time_share"] for r in attach_time_share(rows)}
+        # cpu scope normalises by 100, kernel scope by 400 -> no cross-scope 2x.
+        assert out["aten::mm"] == pytest.approx(0.9)
+        assert out["gemm_kernel"] == pytest.approx(0.75)
+        assert out["copy_kernel"] == pytest.approx(0.25)

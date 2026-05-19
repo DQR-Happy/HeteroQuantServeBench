@@ -88,7 +88,22 @@ def extract_operator_table(prof: Any) -> List[Dict[str, Any]]:
 
     Each row contains the aggregated ``key`` (operator name), call count,
     self CPU time (µs), self device/CUDA time (µs), self device memory
-    (bytes), and up to 8 unique input shapes.
+    (bytes), up to 8 unique input shapes, and the row ``scope``.
+
+    Scope (important for time attribution)
+    --------------------------------------
+    Kineto reports the *same* GPU work once under the host-side operator that
+    launched it (e.g. ``aten::mm``, whose ``self_device_time_total`` is the
+    device time of its correlated kernels) and once as the device kernel
+    itself (e.g. ``ampere_fp16_s16816gemm...``). Summing ``cuda_time_us``
+    across both scopes therefore double-counts every kernel exactly twice.
+
+    Device kernels have no host self time, so ``self_cpu_time_total == 0``
+    identifies them; every host-side row (ATen ops and CUDA runtime API calls
+    such as ``cudaLaunchKernel``) has a positive self CPU time. The ``scope``
+    field is ``"kernel"`` for the former and ``"cpu"`` for the latter; a time
+    share must be taken within one scope (see :func:`total_device_time_us`),
+    never across both.
 
     Args:
         prof: A ``torch.profiler.profile`` result (after ``__exit__``).
@@ -105,22 +120,97 @@ def extract_operator_table(prof: Any) -> List[Dict[str, Any]]:
 
     rows: List[Dict[str, Any]] = []
     for event in key_averages:
+        cpu_time_us = float(getattr(event, "self_cpu_time_total", 0.0) or 0.0)
         rows.append(
             {
                 "name": event.key,
                 "count": int(event.count),
-                "cpu_time_us": float(
-                    getattr(event, "self_cpu_time_total", 0.0) or 0.0
-                ),
+                "cpu_time_us": cpu_time_us,
                 "cuda_time_us": _self_device_time_us(event),
                 "device_memory_bytes": int(
                     getattr(event, "self_device_memory_usage", 0) or 0
                 ),
                 "input_shapes": shapes_by_key.get(event.key, [])[:8],
+                "scope": "kernel" if cpu_time_us == 0.0 else "cpu",
             }
         )
 
     return sorted(rows, key=lambda r: r["cuda_time_us"], reverse=True)
+
+
+def cumulative_kernel_time_us(rows: List[Dict[str, Any]]) -> float:
+    """Return the *cumulative GPU kernel work time* of a table, in µs.
+
+    Sums ``cuda_time_us`` over the ``"kernel"`` scope only. This is **not** the
+    phase wall-clock time and must not be called the "total GPU time": when
+    kernels run on multiple streams and overlap, the sum of kernel durations
+    can exceed the wall-clock span of the phase. It is a conservative upper
+    bound on device work, used only to normalise per-scope time shares.
+
+    Falling back to summing every row when no kernel-scoped row exists keeps
+    the helper usable for hand-built tables (e.g. unit-test fixtures) and for
+    CPU-only runs where device times are all zero anyway.
+    """
+    kernels = [r for r in rows if r.get("scope") == "kernel"]
+    basis = kernels if kernels else rows
+    return float(sum(float(r.get("cuda_time_us", 0.0) or 0.0) for r in basis))
+
+
+def scope_totals_us(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Return ``{scope: cumulative cuda_time_us}`` for each scope in ``rows``.
+
+    ``"kernel"`` is the cumulative GPU kernel work; ``"cpu"`` is the same
+    kernels attributed to the host-side operators that launched them. They are
+    two views of the same device work and are *not* additive.
+    """
+    totals: Dict[str, float] = {}
+    for row in rows:
+        scope = str(row.get("scope", "unknown"))
+        totals[scope] = totals.get(scope, 0.0) + float(
+            row.get("cuda_time_us", 0.0) or 0.0
+        )
+    return totals
+
+
+def split_by_scope(
+    rows: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Split a table into ``(host_op_rows, device_kernel_rows)``."""
+    cpu_rows = [r for r in rows if r.get("scope") == "cpu"]
+    kernel_rows = [r for r in rows if r.get("scope") == "kernel"]
+    return cpu_rows, kernel_rows
+
+
+def attach_time_share(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Add ``time_share`` to every row, normalised **within each scope**.
+
+    Each scope is normalised by its own cumulative device time, so the shares
+    within one scope sum to 1.0. Shares from different scopes must never be
+    added together.
+    """
+    totals = scope_totals_us(rows)
+    result: List[Dict[str, Any]] = []
+    for row in rows:
+        scope = str(row.get("scope", "unknown"))
+        denom = totals.get(scope, 0.0) or 1.0
+        augmented = dict(row)
+        augmented["time_share"] = float(row.get("cuda_time_us", 0.0) or 0.0) / denom
+        result.append(augmented)
+    return result
+
+
+def export_chrome_trace(prof: Any, path: str) -> bool:
+    """Export a Chrome trace for later audit; return ``False`` on failure.
+
+    Failure is non-fatal: the aggregate tables remain valid, but the raw trace
+    that the E02-02 audit depends on would be missing, so callers should record
+    the boolean.
+    """
+    try:
+        prof.export_chrome_trace(path)
+        return True
+    except Exception:
+        return False
 
 
 def _run_profiled(
@@ -216,6 +306,11 @@ def profile_model_core(
 
 
 __all__ = [
+    "attach_time_share",
+    "cumulative_kernel_time_us",
+    "export_chrome_trace",
     "extract_operator_table",
     "profile_model_core",
+    "scope_totals_us",
+    "split_by_scope",
 ]
