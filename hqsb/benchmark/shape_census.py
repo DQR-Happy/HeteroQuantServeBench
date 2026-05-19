@@ -12,26 +12,35 @@ shapes — every value is read off live tensors during a real forward pass:
   strides, memory layouts, and contiguity. This is the "runtime hook"
   half and covers the *module* level (``model.layers.0.self_attn.q_proj``,
   etc.).
-* :func:`collect_shape_census` — runs one prefill pass and ``decode_steps``
-  decode passes under a fresh :class:`torch.profiler.profile` each, then
-  reuses :func:`hqsb.benchmark.profiling.extract_operator_table` to emit
-  per-phase *operator* tables. The operator self-device-time share is the
-  "耗时占比" (time share) column.
+* :func:`collect_shape_census` — runs one prefill pass and a pre-registered
+  set of *representative* decode steps (early / middle / late) under a fresh
+  :class:`torch.profiler.profile`, then reuses
+  :func:`hqsb.benchmark.profiling.extract_operator_table` to emit, per phase,
+  **two independent tables**: the ATen-op view and the device-kernel view.
+  Each table is normalised by its own scope, because Kineto reports the same
+  GPU work once per host op and once per device kernel.
 
-The two halves are kept separate on purpose: hooks give exact module-level
-shapes/dtypes/strides/contiguity (which the profiler's aggregated
-``key_averages`` loses per call), while the profiler gives the operator
-timing (which naive hook timing on nested modules would double count).
+Timing terminology (E02-02 rework): the per-scope sum of ``cuda_time_us`` is
+*cumulative GPU kernel work time*, **not** the phase wall-clock time — with
+multiple streams it can exceed the wall-clock span. It is used only to
+normalise shares within one scope.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 
-from hqsb.benchmark.profiling import extract_operator_table
+from hqsb.benchmark.correctness import hash_token_sequence
+from hqsb.benchmark.profiling import (
+    attach_time_share,
+    export_chrome_trace,
+    extract_operator_table,
+    split_by_scope,
+)
 
 # Cap on the number of distinct shapes/strides/layouts/dtypes recorded per
 # (module, phase, direction) so a pathological module cannot bloat the raw
@@ -238,15 +247,56 @@ class ShapeCensusCollector:
             bucket.append(value)
 
 
-def _with_time_share(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Attach ``time_share`` (self CUDA time / phase total) to operator rows."""
-    total = sum(float(r["cuda_time_us"]) for r in rows) or 1.0
-    result: List[Dict[str, Any]] = []
-    for row in rows:
-        augmented = dict(row)
-        augmented["time_share"] = float(row["cuda_time_us"]) / total
-        result.append(augmented)
-    return result
+def _new_profiler() -> torch.profiler.profile:
+    """Create the profiler used for census probes (shapes + CPU/CUDA time).
+
+    ``profile_memory`` stays off: memory accounting is E02-05's concern and
+    inflates profiler memory on the 8 GiB unified-memory device.
+    """
+    return torch.profiler.profile(
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        record_shapes=True,
+        profile_memory=False,
+        with_stack=False,
+    )
+
+
+def _default_probe_steps(total_steps: int) -> List[int]:
+    """Pre-registered representative decode steps: early, middle, late."""
+    if total_steps <= 0:
+        return []
+    steps = {1, total_steps}
+    if total_steps >= 3:
+        steps.add((total_steps + 1) // 2)
+    return sorted(s for s in steps if 1 <= s <= total_steps)
+
+
+def _aggregate_operator_tables(
+    tables: List[List[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """Sum per-step tables by ``(scope, name)`` and re-normalise by scope."""
+    merged: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for table in tables:
+        for row in table:
+            key = (str(row.get("scope")), str(row["name"]))
+            current = merged.get(key)
+            if current is None:
+                current = dict(row)
+                current["input_shapes"] = list(row.get("input_shapes", []))
+                merged[key] = current
+            else:
+                current["count"] += int(row["count"])
+                current["cuda_time_us"] += float(row["cuda_time_us"])
+                current["cpu_time_us"] += float(row["cpu_time_us"])
+                for shape in row.get("input_shapes", []):
+                    if shape not in current["input_shapes"] and len(
+                        current["input_shapes"]
+                    ) < 16:
+                        current["input_shapes"].append(shape)
+    return attach_time_share(list(merged.values()))
 
 
 @torch.inference_mode()
@@ -255,39 +305,51 @@ def collect_shape_census(
     inputs: Dict[str, torch.Tensor],
     output_tokens: int,
     *,
-    decode_profiled_steps: Optional[int] = None,
+    decode_probe_steps: Optional[List[int]] = None,
+    trace_dir: Optional[str] = None,
+    prefill_trace_max_isl: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Collect the module + operator shape census for one workload.
 
     Runs one full prefill forward (hook + profiler) and the *full* decode of
-    ``output_tokens - 1`` steps (hook only), so the module ``call_count`` is
-    the true runtime count (prefill 1, decode G-1). The PyTorch profiler only
-    covers the first ``decode_profiled_steps`` decode steps, which is enough
-    to obtain the per-step operator timing share without replaying the whole
-    generation under profiling overhead.
+    ``output_tokens - 1`` steps (hook only, so module ``call_count`` is the
+    true runtime count: prefill 1, decode G-1). The profiler covers only the
+    pre-registered representative decode steps (early / middle / late), never
+    the whole generation, so profiling overhead does not distort the call
+    counts.
+
+    Per phase it returns **two independent tables**: ``aten_ops`` (host-side
+    ``scope="cpu"``) and ``kernels`` (device ``scope="kernel"``); the two are
+    views of the same GPU work and must not be summed. Raw Chrome traces are
+    written under ``trace_dir`` when given, for the external audit.
 
     Args:
         model: HF causal LM in eval mode on the target device.
         inputs: ``input_ids``/``attention_mask`` tensors of shape ``(1, ISL)``.
         output_tokens: Configured OSL (G). Must be >= 1.
-        decode_profiled_steps: Number of decode steps covered by the profiler
-            (defaults to ``min(output_tokens - 1, 4)``, >= 1). The remaining
-            decode steps still run under the module hook for a full call-count
-            census.
+        decode_probe_steps: Explicit 1-based decode step indices to profile.
+            Defaults to early / middle / late (see :func:`_default_probe_steps`).
+        trace_dir: When set, export one Chrome trace per profiled region.
 
     Returns:
-        A dict with ``modules`` (module census), ``prefill_operators`` /
-        ``decode_operators`` (operator tables with ``time_share``), and the
-        measured ``decode_steps`` (full = G-1) / ``decode_steps_profiled`` /
-        ``input_len`` / ``output_tokens``.
+        A dict with ``modules`` (hook census), ``prefill``/``decode`` tables,
+        ``decode_probe_steps``, ``decode_steps`` (full = G-1), and the
+        instrumented ``generated_token_ids`` / ``sequence_sha256`` (for the
+        caller to compare against the un-instrumented reference).
     """
     if output_tokens < 1:
         raise ValueError(f"output_tokens must be >= 1, got {output_tokens}")
 
     full_decode_steps = output_tokens - 1
-    if decode_profiled_steps is None:
-        decode_profiled_steps = min(full_decode_steps, 4)
-    decode_profiled_steps = max(decode_profiled_steps, 1)
+    if decode_probe_steps is None:
+        probe_steps = _default_probe_steps(full_decode_steps)
+    else:
+        probe_steps = sorted({int(s) for s in decode_probe_steps})
+    probe_steps = [s for s in probe_steps if 1 <= s <= full_decode_steps]
+    probe_set = set(probe_steps)
+
+    if trace_dir:
+        os.makedirs(trace_dir, exist_ok=True)
 
     input_ids = inputs["input_ids"]
     attention_mask = inputs["attention_mask"]
@@ -297,20 +359,10 @@ def collect_shape_census(
     collector = ShapeCensusCollector()
     collector.attach(model)
 
-    # ── Prefill phase (hook + profiler) ────────────────────────────
+    # ── Prefill: full forward, hook + profiler, one trace ──────────────
     collector.set_phase("prefill")
-    profiler_prefill = torch.profiler.profile(
-        activities=[
-            torch.profiler.ProfilerActivity.CPU,
-            torch.profiler.ProfilerActivity.CUDA,
-        ],
-        record_shapes=True,
-        # Memory tracking is E02-05's concern and inflates profiler memory on
-        # the 8 GiB device; the census only needs shapes + device time.
-        profile_memory=False,
-        with_stack=False,
-    )
-    profiler_prefill.start()
+    profiler = _new_profiler()
+    profiler.start()
     outputs = model(
         input_ids=input_ids,
         attention_mask=attention_mask,
@@ -320,27 +372,29 @@ def collect_shape_census(
     past_key_values = outputs.past_key_values
     if device.type == "cuda":
         torch.cuda.synchronize()
-    profiler_prefill.stop()
-    prefill_operators = _with_time_share(extract_operator_table(profiler_prefill))
-    # Release the profiler's CUDA buffers before the (long) decode loop so the
-    # prefill profiling footprint does not linger across G-1 decode steps.
-    del profiler_prefill
+    profiler.stop()
+    prefill_rows = attach_time_share(extract_operator_table(profiler))
+    prefill_ops, prefill_kernels = split_by_scope(prefill_rows)
+    prefill_trace: Optional[str] = None
+    if trace_dir and (
+        prefill_trace_max_isl is None or input_len <= prefill_trace_max_isl
+    ):
+        candidate = os.path.join(trace_dir, "prefill_trace.json")
+        if export_chrome_trace(profiler, candidate):
+            prefill_trace = candidate
+    del profiler
 
-    # ── Decode phase (hook for all G-1 steps; profiler for the first few) ──
+    # ── Decode: all G-1 steps under the hook; profiler at probe steps ──
     collector.set_phase("decode")
-    profiler_decode = torch.profiler.profile(
-        activities=[
-            torch.profiler.ProfilerActivity.CPU,
-            torch.profiler.ProfilerActivity.CUDA,
-        ],
-        record_shapes=True,
-        profile_memory=False,
-        with_stack=False,
-    )
-    profiler_decode.start()
-    decode_operators: Optional[List[Dict[str, Any]]] = None
+    generated_tokens: List[int] = [int(next_token.item())]
+    per_step: Dict[str, Any] = {}
     current_length = input_len
     for step in range(1, output_tokens):
+        is_probe = step in probe_set
+        profiler = _new_profiler() if is_probe else None
+        if profiler is not None:
+            profiler.start()
+
         current_length += 1
         decode_mask = torch.ones(
             (1, current_length), dtype=torch.long, device=device
@@ -353,32 +407,58 @@ def collect_shape_census(
         )
         next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
         past_key_values = outputs.past_key_values
+        generated_tokens.append(int(next_token.item()))
 
-        if step == decode_profiled_steps:
+        if profiler is not None:
             if device.type == "cuda":
                 torch.cuda.synchronize()
-            profiler_decode.stop()
-            decode_operators = _with_time_share(extract_operator_table(profiler_decode))
-            del profiler_decode
-
-    # If the profiler was never stopped inside the loop (decode shorter than
-    # the profiled-step window), stop it now.
-    if decode_operators is None:
-        if device.type == "cuda":
-            torch.cuda.synchronize()
-        profiler_decode.stop()
-        decode_operators = _with_time_share(extract_operator_table(profiler_decode))
+            profiler.stop()
+            step_rows = attach_time_share(extract_operator_table(profiler))
+            step_ops, step_kernels = split_by_scope(step_rows)
+            entry: Dict[str, Any] = {
+                "step": step,
+                "context_len": current_length,
+                "aten_ops": step_ops,
+                "kernels": step_kernels,
+                "trace": None,
+            }
+            if trace_dir:
+                candidate = os.path.join(trace_dir, f"decode_step{step}_trace.json")
+                if export_chrome_trace(profiler, candidate):
+                    entry["trace"] = candidate
+            per_step[str(step)] = entry
+            del profiler
 
     collector.detach()
+
+    decode_ops_agg = _aggregate_operator_tables(
+        [per_step[str(s)]["aten_ops"] for s in probe_steps if str(s) in per_step]
+    )
+    decode_kernels_agg = _aggregate_operator_tables(
+        [per_step[str(s)]["kernels"] for s in probe_steps if str(s) in per_step]
+    )
 
     return {
         "input_len": input_len,
         "output_tokens": output_tokens,
         "decode_steps": full_decode_steps,
-        "decode_steps_profiled": min(decode_profiled_steps, full_decode_steps),
+        "decode_probe_steps": probe_steps,
+        "generated_token_ids": generated_tokens,
+        "sequence_sha256": hash_token_sequence(generated_tokens),
         "modules": collector.records(),
-        "prefill_operators": prefill_operators,
-        "decode_operators": decode_operators,
+        "prefill": {
+            "probe_scope": "full prefill forward",
+            "aten_ops": prefill_ops,
+            "kernels": prefill_kernels,
+            "trace": prefill_trace,
+        },
+        "decode": {
+            "probe_scope": f"representative decode steps {probe_steps}",
+            "probe_steps": probe_steps,
+            "per_step": per_step,
+            "aten_ops_cumulative_over_probe_steps": decode_ops_agg,
+            "kernels_cumulative_over_probe_steps": decode_kernels_agg,
+        },
     }
 
 
