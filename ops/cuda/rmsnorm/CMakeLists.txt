@@ -4,12 +4,55 @@
 # The library is a STATIC target so S04 (Triton) and S06 (framework) can link
 # against the same compiled kernels.
 
+# ── Build-arch provenance (consumed by the Python dispatcher) ──────────────
+#
+# The Python dispatcher (ops/dispatcher.py) must decide whether this
+# precompiled kernel is usable on the *runtime* device. Recording the arch
+# only in Python would be a second hard-coded constant that breaks on every
+# other platform, so the library carries its own build arch instead and
+# exposes it through the C ABI (``hqsb_rmsnorm_query_build_arch``).
+#
+# Accepts the CMake spellings "86", "86-real", "80;86" and "90a" style
+# suffixes; the first numeric entry wins. A value CMake cannot parse (e.g.
+# "native", "all") is exported as 0/0 = "unknown", which the dispatcher
+# treats as "cannot prove the binary is usable" -- never as a silent match.
+set(_hqsb_arch_entry "${CMAKE_CUDA_ARCHITECTURES}")
+list(GET _hqsb_arch_entry 0 _hqsb_arch_entry)
+string(REGEX REPLACE "[-+ ].*$" "" _hqsb_arch_entry "${_hqsb_arch_entry}")
+string(REGEX MATCH "^[0-9]+" _hqsb_arch_digits "${_hqsb_arch_entry}")
+
+if(_hqsb_arch_digits)
+  math(EXPR _hqsb_arch_major "${_hqsb_arch_digits} / 10")
+  math(EXPR _hqsb_arch_minor "${_hqsb_arch_digits} % 10")
+else()
+  set(_hqsb_arch_major 0)
+  set(_hqsb_arch_minor 0)
+  message(
+    WARNING
+    "Cannot parse CMAKE_CUDA_ARCHITECTURES='${CMAKE_CUDA_ARCHITECTURES}'; "
+    "exporting build arch 0.0 (unknown) to the dispatcher."
+  )
+endif()
+
+message(
+  STATUS
+  "hqsb_rmsnorm build arch = ${_hqsb_arch_major}.${_hqsb_arch_minor} "
+  "(from CMAKE_CUDA_ARCHITECTURES='${CMAKE_CUDA_ARCHITECTURES}')"
+)
+
 add_library(hqsb_rmsnorm STATIC
   src/rmsnorm_reference.cu
   src/rmsnorm_v0.cu
   src/rmsnorm_v1.cu
   src/rmsnorm_v2.cu
   src/rmsnorm_dispatcher.cu
+)
+
+target_compile_definitions(
+  hqsb_rmsnorm
+  PRIVATE
+  HQSB_RMSNORM_BUILD_ARCH_MAJOR=${_hqsb_arch_major}
+  HQSB_RMSNORM_BUILD_ARCH_MINOR=${_hqsb_arch_minor}
 )
 
 target_include_directories(
@@ -51,6 +94,15 @@ target_compile_options(
   hqsb_rmsnorm_shared
   PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:-O3;-lineinfo>
+)
+
+# The C ABI entry point ``hqsb_rmsnorm_query_build_arch`` reports these back
+# to Python so the dispatcher can gate on the real build arch.
+target_compile_definitions(
+  hqsb_rmsnorm_shared
+  PRIVATE
+  HQSB_RMSNORM_BUILD_ARCH_MAJOR=${_hqsb_arch_major}
+  HQSB_RMSNORM_BUILD_ARCH_MINOR=${_hqsb_arch_minor}
 )
 
 # ── Correctness test ──────────────────────────────────────────────────

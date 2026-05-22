@@ -51,4 +51,30 @@ int hqsb_rmsnorm_forward_c(const void* input,
   return static_cast<int>(err);
 }
 
+// Reports the compute capability this shared library was *compiled* for.
+//
+// The Python dispatcher (ops/dispatcher.py) needs the build arch to decide
+// whether the precompiled kernels may be used on the runtime device. Baking
+// that arch into Python would hard-code one platform and silently
+// mis-dispatch on every other, so the library owns the fact instead.
+//
+// Returns 0 and writes (major, minor) on success; 1 for a null out-pointer;
+// 2 when the build system did not record an arch (unknown -> the dispatcher
+// must not assume compatibility).
+int hqsb_rmsnorm_query_build_arch(int* major, int* minor) {
+  if (major == nullptr || minor == nullptr) {
+    return 1;
+  }
+#if defined(HQSB_RMSNORM_BUILD_ARCH_MAJOR) && \
+    defined(HQSB_RMSNORM_BUILD_ARCH_MINOR)
+  *major = HQSB_RMSNORM_BUILD_ARCH_MAJOR;
+  *minor = HQSB_RMSNORM_BUILD_ARCH_MINOR;
+  return 0;
+#else
+  *major = 0;
+  *minor = 0;
+  return 2;
+#endif
+}
+
 }  // extern "C"
