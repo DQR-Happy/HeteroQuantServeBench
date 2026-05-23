@@ -116,6 +116,27 @@ int main(int argc, char** argv) {
       ElementAccumulator(1), ElementAccumulator(0));
   CutlassGemm::Arguments args(problem_size, ref_a, ref_b, ref_c, ref_d, epilogue);
 
+  // Fail loudly if the kernel cannot run.
+  //
+  // The default Sm80 threadblock tile (128x256x64, 3 stages) stages about
+  // 144 KiB in shared memory. sm_80/sm_87 provide enough, but sm_86 (RTX
+  // 30-series) caps a block at 99 KiB, so the launch fails with
+  // cudaErrorInvalidValue and CUTLASS reports kErrorInternal. Ignoring the
+  // status here would emit a "median" measured on a kernel that never ran
+  // and a correctness error computed against untouched output memory -- a
+  // fabricated data point. Report the failure and exit non-zero instead; the
+  // orchestration layer treats a non-zero exit as "CUTLASS unavailable".
+  cutlass::Status status = gemm_op(args);
+  if (status != cutlass::Status::kSuccess) {
+    std::fprintf(stderr,
+                 "hqsb_cutlass_gemm_bench: CUTLASS GEMM did not run: %s "
+                 "(cudaError=%s). Refusing to report a timing/correctness "
+                 "pair from a kernel that never executed.\n",
+                 cutlassGetStatusString(status),
+                 cudaGetErrorString(cudaGetLastError()));
+    return 2;
+  }
+
   // Warmup.
   for (int i = 0; i < warmup; ++i) {
     gemm_op(args);
