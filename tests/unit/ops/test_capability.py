@@ -69,3 +69,16 @@ class TestDetectCapabilities:
         caps = detect_capabilities()
         if not caps.tilelang_available:
             assert any("TileLang" in n for n in caps.notes)
+
+    def test_cuda_lib_build_arch_is_exposed_or_explained(self):
+        # The dispatcher gates on the library's *real* build arch, so either
+        # the arch is reported or a note explains why it is not -- never a
+        # silent hard-coded assumption.
+        caps = detect_capabilities()
+        if not caps.cuda_rmsnorm_available:
+            return
+        if caps.cuda_rmsnorm_build_arch is None:
+            assert any("build arch" in n for n in caps.notes)
+        else:
+            major, minor = caps.cuda_rmsnorm_build_arch
+            assert major >= 1 and 0 <= minor <= 9

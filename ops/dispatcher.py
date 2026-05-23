@@ -25,10 +25,12 @@ from typing import Callable, Optional, Tuple
 
 from ops.capability import BackendCapabilities, detect_capabilities
 
-# The hand-written CUDA shared library is compiled for this arch (see
-# CMakeLists -DCMAKE_CUDA_ARCHITECTURES=87). If the runtime device differs,
-# the precompiled kernel is not usable and Triton JIT is preferred.
-_CUDA_LIB_ARCH = (8, 7)
+# The hand-written CUDA shared library is compiled for one specific compute
+# capability. That arch is *not* hard-coded here: the library itself exports
+# it via ``hqsb_rmsnorm_query_build_arch`` and
+# :class:`~ops.capability.BackendCapabilities.cuda_rmsnorm_build_arch` carries
+# it in. A runtime device that does not match the build arch falls back to
+# Triton's arch-agnostic JIT.
 
 # CUDA variant codes (mirror ops/cuda/rmsnorm/src/rmsnorm_c_api.cu).
 _VARIANT_CODE = {
@@ -92,8 +94,7 @@ class OperatorDispatcher:
         if cap.triton_available:
             return DispatchDecision(
                 "triton", "autotuned",
-                "Triton: CUDA shared lib unavailable or arch mismatch; "
-                "autotuned BLOCK_SIZE",
+                f"Triton: {self._cuda_skip_reason()}; autotuned BLOCK_SIZE",
             )
 
         # 3. torch reference (CPU/CUDA fallback, always present).
@@ -171,8 +172,39 @@ class OperatorDispatcher:
     # ── helpers ───────────────────────────────────────────────────────
 
     def _cuda_arch_matches(self) -> bool:
-        cap = self.capabilities.device_capability
-        return cap is not None and tuple(cap) == _CUDA_LIB_ARCH
+        """True when the precompiled CUDA kernels were built for this device.
+
+        Both sides are evidence, not assumptions: the device capability comes
+        from the runtime probe and the build arch comes from the shared
+        library's own C ABI. When either is missing the precompiled kernel is
+        *not* claimed to be usable (Triton JIT is preferred with a recorded
+        reason) — never a silent match.
+        """
+        device = self.capabilities.device_capability
+        build = self.capabilities.cuda_rmsnorm_build_arch
+        if device is None or build is None:
+            return False
+        return tuple(device) == tuple(build)
+
+    def _cuda_skip_reason(self) -> str:
+        """Human-readable reason the hand-written CUDA path was not taken."""
+        cap = self.capabilities
+        if not cap.cuda_rmsnorm_available:
+            return "CUDA shared lib unavailable"
+        device = cap.device_capability
+        build = cap.cuda_rmsnorm_build_arch
+        if build is None:
+            return (
+                "CUDA shared lib build arch unknown "
+                "(rebuild to export hqsb_rmsnorm_query_build_arch)"
+            )
+        if device is None:
+            return "runtime device capability unknown"
+        if tuple(device) != tuple(build):
+            dev = f"sm_{device[0]}{device[1]}"
+            lib = f"sm_{build[0]}{build[1]}"
+            return f"CUDA shared lib arch mismatch (lib built for {lib}, device is {dev})"
+        return "CUDA shared lib arch mismatch"
 
 
 def run_rmsnorm(x, weight, epsilon: float = 1e-5) -> Tuple:

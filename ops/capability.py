@@ -53,6 +53,11 @@ class BackendCapabilities:
     cuda_rmsnorm_available: bool
     cuda_rmsnorm_lib: Optional[str]
     notes: Tuple[str, ...] = field(default_factory=tuple)
+    # Compute capability the CUDA shared library was actually *compiled* for,
+    # read from the library's own C ABI. ``None`` means the build arch could
+    # not be determined, which callers must treat as "not proven usable"
+    # rather than as a match (see ``ops.dispatcher``).
+    cuda_rmsnorm_build_arch: Optional[Tuple[int, int]] = None
 
     def as_dict(self) -> dict:
         """Render as a JSON-serializable dict for reports."""
@@ -70,6 +75,11 @@ class BackendCapabilities:
             "cublas_available": self.cublas_available,
             "cuda_rmsnorm_available": self.cuda_rmsnorm_available,
             "cuda_rmsnorm_lib": self.cuda_rmsnorm_lib,
+            "cuda_rmsnorm_build_arch": (
+                list(self.cuda_rmsnorm_build_arch)
+                if self.cuda_rmsnorm_build_arch
+                else None
+            ),
             "notes": list(self.notes),
         }
 
@@ -150,7 +160,7 @@ def _detect_tilelang() -> Tuple[bool, Optional[str], str]:
     and run a 2-element add kernel.
     """
     if importlib.util.find_spec("tilelang") is None:
-        return False, None, "tilelang package not installed"
+        return False, None, "TileLang package not installed"
 
     try:
         import torch
@@ -204,6 +214,43 @@ def _find_cuda_rmsnorm_lib() -> Optional[str]:
     return None
 
 
+def _probe_cuda_lib_build_arch(
+    lib_path: str,
+) -> Tuple[Optional[Tuple[int, int]], str]:
+    """Read the compute capability the CUDA shared library was built for.
+
+    The dispatcher must not assume the precompiled kernels match the runtime
+    device, and it must not hard-code one platform either. The library exports
+    ``hqsb_rmsnorm_query_build_arch`` for exactly this purpose; when the symbol
+    is missing (an older build) the caller gets ``None`` plus an actionable
+    note instead of a guess.
+    """
+    try:
+        lib = ctypes.CDLL(lib_path)
+    except OSError as exc:
+        return None, f"CUDA RMSNorm shared library failed to load: {exc}"
+
+    fn = getattr(lib, "hqsb_rmsnorm_query_build_arch", None)
+    if fn is None:
+        return None, (
+            "CUDA RMSNorm shared library does not export its build arch; "
+            "rebuild it so arch-gated dispatch can verify compatibility"
+        )
+
+    fn.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+    fn.restype = ctypes.c_int
+    major = ctypes.c_int(0)
+    minor = ctypes.c_int(0)
+    rc = fn(ctypes.byref(major), ctypes.byref(minor))
+    if rc != 0:
+        return None, (
+            f"CUDA RMSNorm shared library could not report its build arch "
+            f"(hqsb_rmsnorm_query_build_arch rc={rc}); dispatcher will not "
+            f"assume the precompiled kernels match this device"
+        )
+    return (int(major.value), int(minor.value)), ""
+
+
 @lru_cache(maxsize=1)
 def detect_capabilities() -> BackendCapabilities:
     """Detect and cache the full backend capability snapshot."""
@@ -229,11 +276,16 @@ def detect_capabilities() -> BackendCapabilities:
 
     lib = _find_cuda_rmsnorm_lib()
     cuda_rmsnorm_available = cuda_available and lib is not None
+    build_arch: Optional[Tuple[int, int]] = None
     if cuda_available and lib is None:
         notes.append(
             "CUDA RMSNorm shared library not found; build it with "
-            "`cmake --build build/jetson-release`"
+            "`cmake --build build/<preset>` (or set HQSB_CUDA_RMSNORM_LIB)"
         )
+    elif lib is not None:
+        build_arch, arch_note = _probe_cuda_lib_build_arch(lib)
+        if arch_note:
+            notes.append(arch_note)
 
     return BackendCapabilities(
         cuda_available=cuda_available,
@@ -248,6 +300,7 @@ def detect_capabilities() -> BackendCapabilities:
         cuda_rmsnorm_available=cuda_rmsnorm_available,
         cuda_rmsnorm_lib=lib,
         notes=tuple(notes),
+        cuda_rmsnorm_build_arch=build_arch,
     )
 
 

@@ -35,7 +35,7 @@ class _CudaRmsnormBridge:
         if not capabilities.cuda_rmsnorm_available:
             raise CudaRmsnormUnavailable(
                 "CUDA RMSNorm shared library not available; "
-                "build it with `cmake --build build/jetson-release` "
+                "build it with `cmake --build build/<preset>` "
                 "(or set HQSB_CUDA_RMSNORM_LIB)"
             )
 
