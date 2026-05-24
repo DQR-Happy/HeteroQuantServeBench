@@ -1,0 +1,75 @@
+# HQSB Benchmark Configuration: Qwen3-1.7B FP16 (platform-neutral)
+#
+# This file defines the same six workload cases as
+# ``configs/benchmarks/jetson_qwen3_fp16.yaml`` but carries no
+# hardware-specific naming, so the identical matrix can be run on any CUDA
+# development host (e.g. an x86_64 RTX 3090) as well as on the Jetson Orin
+# edge device. The Jetson file is intentionally left untouched: it remains the
+# record of the edge baseline, while this file is the shared, platform-neutral
+# workload source.
+#
+# Workload shapes are copied verbatim from the Jetson config so the two
+# matrices can never drift:
+#   tiny         32 / 16
+#   short       128 / 32
+#   balanced    512 / 128
+#   long_prefill 2048 / 32
+#   decode_heavy 128 / 256
+#   long_balanced 2048 / 128
+#
+# Model: Qwen/Qwen3-1.7B FP16 (ModelScope), batch size 1, eager attention.
+
+benchmark:
+
+  # Model identifier (ModelScope namespace)
+  model: Qwen/Qwen3-1.7B
+
+  # Model source: "modelscope" | "huggingface"
+  model_source: modelscope
+
+  # Execution backend
+  backend: modelscope-transformers
+
+  # Weight precision
+  dtype: float16
+
+  # Attention implementation
+  attention_backend: eager
+
+  # Inference batch size
+  batch_size: 1
+
+  # Warmup before timed runs
+  warmup: true
+
+  # Number of repeated measurements per workload case
+  repetitions: 3
+
+# Workload definitions: fixed input-sequence-length (ISL) and
+# output-sequence-length (OSL) combinations covering prefill-bound,
+# decode-bound, and balanced scenarios.
+workloads:
+
+  - name: tiny
+    input_tokens: 32
+    output_tokens: 16
+
+  - name: short
+    input_tokens: 128
+    output_tokens: 32
+
+  - name: balanced
+    input_tokens: 512
+    output_tokens: 128
+
+  - name: long_prefill
+    input_tokens: 2048
+    output_tokens: 32
+
+  - name: decode_heavy
+    input_tokens: 128
+    output_tokens: 256
+
+  - name: long_balanced
+    input_tokens: 2048
+    output_tokens: 128
