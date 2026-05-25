@@ -66,6 +66,34 @@ _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 # Streaming read chunk size for hashing (1 MiB).
 _DEFAULT_CHUNK_BYTES = 1 << 20
 
+# ── Client-owned cache metadata (not artifact content) ───────────────────
+#
+# A ModelScope ``snapshot_download`` writes these next to the model files.
+# They are produced by the *client*, are not published by the model author,
+# and are not part of the model artifact:
+#
+# * ``.mv``  records the resolved revision and is deterministic
+#            (``Revision:master,CreatedAt:<epoch>``), so it is verified
+#            normally like any other declared file.
+# * ``.msc``  is a pickle of the client's local download index. Its bytes
+#            depend on the writing process: three identical
+#            ``snapshot_download(model_id, allow_patterns=[...])`` runs on
+#            RTX 3090 (modelscope 1.29.0) produced two different digests, so
+#            a declared digest for it can never be reproduced by a fresh
+#            download.
+#
+# The recorded manifest was generated *from* an existing snapshot rather than
+# the snapshot from the manifest, so its ``.msc`` entry is self-consistent
+# only for that one directory. Keeping it in the hash comparison would make
+# every fresh, byte-identical download fail the artifact gate.
+#
+# The declared digests stay in the manifest for provenance, but these paths
+# are *excluded from the comparison and reported explicitly* (see
+# ``VerificationResult.ignored_client_metadata``) instead of being silently
+# dropped -- an exclusion that is invisible to the report would be worse than
+# the failure it hides.
+CLIENT_CACHE_METADATA = (".msc",)
+
 # ── Reason codes (stable, machine-readable) ─────────────────────────────
 # The path_* codes above are owned by ``hqsb.core.artifact_path`` (single
 # source of truth, shared with the ModelArtifact contract) and re-exported
@@ -340,6 +368,11 @@ def _is_allowed(relative: str, allow_extra: Collection[str]) -> bool:
     return False
 
 
+def _is_client_cache_metadata(relative: str) -> bool:
+    """Whether ``relative`` is a client-owned cache file, not artifact content."""
+    return relative in CLIENT_CACHE_METADATA
+
+
 def _collect_present_files(model_root: str) -> List[str]:
     """List every regular file under ``model_root`` as a POSIX relative path."""
     present: List[str] = []
@@ -369,6 +402,10 @@ class VerificationResult:
         allowed_extra_files: Files that matched ``allow_extra`` and were
             therefore not treated as faults.
         strict_extra: Whether extra files make the result not-``ok``.
+        ignored_client_metadata: Declared paths that are client-owned cache
+            metadata (:data:`CLIENT_CACHE_METADATA`) and were therefore
+            excluded from the digest comparison. Reported rather than
+            dropped so the exclusion is always visible.
     """
 
     model_path: str
@@ -379,11 +416,17 @@ class VerificationResult:
     extra_files: List[str] = field(default_factory=list)
     allowed_extra_files: List[str] = field(default_factory=list)
     strict_extra: bool = True
+    ignored_client_metadata: List[str] = field(default_factory=list)
 
     @property
     def total_files(self) -> int:
         """Total number of files described by the manifest."""
         return len(self.entries)
+
+    @property
+    def compared_files(self) -> int:
+        """Declared files that actually took part in the digest comparison."""
+        return self.total_files - len(self.ignored_client_metadata)
 
     @property
     def verified_files(self) -> int:
@@ -392,6 +435,7 @@ class VerificationResult:
             self.total_files
             - len(self.missing_files)
             - len(self.mismatched_files)
+            - len(self.ignored_client_metadata)
         )
 
     @property
@@ -448,12 +492,18 @@ class VerificationResult:
 
     def describe(self) -> str:
         """Render a human-readable, single-line summary of the outcome."""
-        return (
+        summary = (
             f"{self.verified_files}/{self.total_files} verified, "
             f"{len(self.missing_files)} missing, "
             f"{len(self.mismatched_files)} mismatched, "
             f"{len(self.extra_files)} extra"
         )
+        if self.ignored_client_metadata:
+            summary += (
+                f", {len(self.ignored_client_metadata)} client-cache metadata "
+                f"excluded ({', '.join(sorted(self.ignored_client_metadata))})"
+            )
+        return summary
 
     def as_dict(self) -> Dict[str, object]:
         """Return a JSON-serializable view of the full outcome."""
@@ -462,6 +512,7 @@ class VerificationResult:
             "manifest_path": self.manifest_path,
             "manifest_sha256": self.manifest_sha256,
             "total_files": self.total_files,
+            "compared_files": self.compared_files,
             "verified_files": self.verified_files,
             "ok": self.ok,
             "strict_extra": self.strict_extra,
@@ -474,6 +525,7 @@ class VerificationResult:
             ],
             "extra_files": list(self.extra_files),
             "allowed_extra_files": list(self.allowed_extra_files),
+            "ignored_client_metadata": list(self.ignored_client_metadata),
             "describe": self.describe(),
         }
 
@@ -536,6 +588,12 @@ def verify_model_files(
     for entry in entries:
         relative = entry.normalized_path
         file_path = os.path.join(model_path, relative)
+
+        # Client-owned cache metadata: excluded from the comparison and
+        # reported instead. See CLIENT_CACHE_METADATA for the evidence.
+        if _is_client_cache_metadata(relative):
+            result.ignored_client_metadata.append(relative)
+            continue
 
         if not os.path.isfile(file_path):
             result.missing_files.append(relative)
@@ -615,6 +673,7 @@ def verify_or_raise(
 
 
 __all__ = [
+    "CLIENT_CACHE_METADATA",
     "MANIFEST_REASON_CODES",
     "ManifestEntry",
     "ManifestError",

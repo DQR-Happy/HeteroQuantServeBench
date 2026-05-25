@@ -684,26 +684,41 @@ def main() -> int:
                                   "distinct_logits_hashes": 0, "ok": False}
     records = [json.loads(l) for l in lines if l.strip()]
     if records:
+        # Agreement is only meaningful between *successful* runs. When every
+        # subprocess failed, the extracted hashes are all ``None``, the sets
+        # collapse to size 1, and a naive comparison would report "agreement"
+        # for a run that produced nothing at all.
+        successful = [
+            r for r in records if r.get("exit_code") == 0 and r.get("parsed")
+        ]
         out_hashes = {
-            r.get("result", {}).get("output_token_ids_sha256") for r in records
+            r.get("result", {}).get("output_token_ids_sha256") for r in successful
         }
         logits_hashes = {
             r.get("result", {}).get("first_logits", {}).get("logits_sha256")
-            for r in records
+            for r in successful
         }
         token_counts = {
-            r.get("result", {}).get("actual_output_tokens") for r in records
+            r.get("result", {}).get("actual_output_tokens") for r in successful
         }
         frozen_repro = {
-            r.get("frozen_input_reproducible_by_tokenizer") for r in records
+            r.get("frozen_input_reproducible_by_tokenizer") for r in successful
         }
+        hashes_are_real = bool(successful) and None not in out_hashes and None not in logits_hashes
         agreement = {
             "n_runs": len(records),
+            "n_successful_runs": len(successful),
             "distinct_output_hashes": len(out_hashes),
             "distinct_logits_hashes": len(logits_hashes),
             "distinct_actual_token_counts": len(token_counts),
             "frozen_input_reproducible_by_tokenizer_all": frozen_repro == {True},
-            "ok": len(out_hashes) == 1 and len(logits_hashes) == 1 and len(token_counts) == 1,
+            "ok": (
+                len(successful) == len(records)
+                and hashes_are_real
+                and len(out_hashes) == 1
+                and len(logits_hashes) == 1
+                and len(token_counts) == 1
+            ),
         }
     (out_dir / "cross_process_agreement.json").write_text(
         json.dumps(agreement, indent=2, ensure_ascii=False), encoding="utf-8"
