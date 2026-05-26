@@ -2,7 +2,8 @@
 
 > 生成时间：2026-08-17
 > 基线 Commit：`4dda6f8`
-> 当前阶段：S04（已完成）
+> 当前阶段：S04（已完成；§10 于 2026-09-18 追加跨架构补验）
+> 追加章节：§10（RTX 3090 / sm_86 跨架构补验，2026-09-18）
 
 每个声明（claim）按证据强度分级：
 
@@ -211,3 +212,56 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 与 §7 的关系：§7 对“绝对路径”的审计口径是“默认配置”（YAML/CLI），仍成立；E00-07
 把口径扩大到**全部 tracked 内容**（含环境锁与归档 manifest），并就地修正了发现的
 3 处机器专属路径。
+
+---
+
+## 10. S04 跨架构补验（RTX 3090 / sm_86，2026-09-18）
+
+> 背景：S04 首次验收（2026-08-17）登记了「仅在 sm_87 运行、多架构未验证」的例外
+> （`S04_阶段验收报告.md` §3.3）。本节在第二架构（RTX 3090, sm_86, 82 SM）上补验
+> 并关闭该例外。
+>
+> **证据性质声明**：本节证据来自 **RTX 3090 开发机**，标注为 `development` /
+> `smoke` / `cross-architecture validation` / `exploratory benchmark`。
+> **不是 Jetson 正式实验结论**，未写入 `reports/jetson/**`，未计算跨硬件 speedup。
+> 完整流水线：`reports/dev/rtx3090/20260918_021649/RTX3090_ACCEPTANCE_REPORT.md`；
+> 归档 run：`reports/dev/rtx3090/20260917_193004/verdict.json`。
+>
+> 与 §6 的关系：§6 的 S4-* 条目全部为 sm_87 口径，**原文保持不变**；本节条目为
+> sm_86 口径与跨架构结论，两者不可混用。
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S4-18 | 共享库自报编译架构：新增 C ABI `hqsb_rmsnorm_query_build_arch`，CMake 从 `CMAKE_CUDA_ARCHITECTURES` 解析后经编译宏注入；sm_86 构建返回 `(8,6)`、sm_87 构建返回 `(8,7)` | runtime-verified | `ops/cuda/rmsnorm/CMakeLists.txt`、`ops/cuda/rmsnorm/src/rmsnorm_c_api.cu`；`nm -D` 确认符号导出；SM87 独立构建实测返回 `(8,7)`（日志 `.../gate4_capability/sm87_archcheck.log`） |
+| S4-19 | dispatcher 不再硬编码架构：`_CUDA_LIB_ARCH=(8,7)` 已删除，改为「设备实测能力 vs 库自报架构」比较，任一侧未知即不宣称可用 | test-verified + runtime-verified | `ops/dispatcher.py`；`tests/unit/ops/test_dispatcher.py` 新增 5 个双向跨架构用例；sm_86 实跑选出 `cuda/v2_vectorized`（max_abs_err 7.15e-07） |
+| S4-20 | **不存在跨架构可移植的全局 CUTLASS tile 配置**：默认 `128×256×64×3` 需 147456 B 动态 smem，sm_87 可用、sm_86（opt-in 101376 B）**无法启动**（`cudaFuncSetAttribute` 失败 → `kErrorInternal`）；`compact` `128×128×64×3`（98304 B）两架构均可行 | runtime-verified | E04-01：`docs/stage_experiments/S04/E04-01/raw/cutlass_feasibility.json`、`cross_arch_comparison.json`；CUTLASS 侧机制 `third_party/cutlass/include/cutlass/gemm/device/gemm_universal_adapter.h:273-282` |
+| S4-21 | CUTLASS GEMM 在 sm_86 上按设备共享内存预算**自动选型**并纳入 CTest 正确性门禁 | runtime-verified | `ops/cuda/cutlass_gemm/bench_cutlass_gemm.cu`；`ctest` 3/3 passed（`cutlass_gemm_correctness`）；`--config large` 正确返回退出码 4 |
+| S4-22 | 原 CUTLASS 对照实现在 sm_86 上**输出过伪造数据**：内核从未启动仍打印 `median_ms=0.0025` 与毒化内存算出的 `max_err`。已改为失败即非零退出（0/2/3/4） | runtime-verified | 修复前后对照见 `reports/dev/rtx3090/20260918_021649/gate5_backends/cutlass_run.log`；诊断 `/tmp/hqsb_diag`（`status=7(Error Internal)`, `cudaGetLastError=1(invalid argument)`） |
+| S4-23 | autotune 非全局常量（sm_86 实测）：同一设备上 GEMM 在 M=1（`64×128×32`）与 M=512（`128×64×32`）选中**不同** tile；RMSNorm 在 fp32/fp16 间切换 `BLOCK`（512 / 1024） | runtime-verified | E04-01：`.../raw/triton_autotune.json`、`cross_arch_comparison.json` |
+| S4-24 | FP16 GEMM 容差模型修正：原 `atol + rtol*|expected|` 对长度 K 的归约在输出过零处不成立（sm_86 上 cuBLAS 与 Triton 相对 FP64 的 `max_abs_error` **完全相同 0.0556**，却因单个近零元素违约）。改为对照 FP64 参考的尺度无关门禁（relative-L2 ≤ 1e-2、cosine ≥ 0.9999），并新增负向对照 | test-verified | `tests/unit/ops/test_triton_gemm.py`（含 `test_fp16_gate_rejects_wrong_output`）；`pytest tests/unit/ops/ -q` → 全绿 |
+| S4-25 | `bench_s04.py` 每条计时附带 correctness 判定，并区分 `cold_call_ms`（含 Triton JIT）与稳态中位数；CUTLASS 跳过时记录原因而非静默丢弃 | runtime-verified | `scripts/bench/bench_s04.py`；`reports/dev/rtx3090/s04_backend_baseline.json`（`all_correctness_passed: true`） |
+| S4-26 | 模型制品 manifest 记录了**不可复现的客户端缓存索引** `.msc`：相同 model id / `allow_patterns` / 客户端版本下连续三次下载得到两个不同摘要（`9bb0066c…`×2、`869ed3e2…`）；`.mv` 确定性可复现。记录中的 manifest 是从既有快照生成，故其 `.msc` 条目仅对该目录自洽 | runtime-verified | 三次独立下载对照（本轮 E04-04）；处置见 S4-27 |
+| S4-27 | 制品门禁恢复可复现：新增 `CLIENT_CACHE_METADATA=(".msc",)`，客户端缓存元数据排除出摘要比对但**显式上报**（`ignored_client_metadata`）；下载脚本改为由 manifest 驱动 `allow_patterns` 并自校验 | runtime-verified | `hqsb/models/manifest.py`、`scripts/models/download_qwen3_modelscope.py`；`verify_qwen3_hashes.py` → `13/14 verified, 0 missing, 0 mismatched, 0 extra, 1 client-cache metadata excluded`（exit 0） |
+| S4-28 | E00-05 真实模型 smoke 由 FAIL 转为 **PASS**（制品门禁修复后） | runtime-verified | `reports/dev/rtx3090/e00_05_smoke/`；`identity_ok=True`、`artifact_hash=e7af1c75…`（与 S00 记录一致）、3/3 子进程 exit 0、跨进程 token 哈希一致、`overall: PASS` |
+| S4-29 | 跨进程一致性误报已修复：原实现在**全部子进程失败**时报 `ok=True`（`None` 哈希集合大小为 1） | runtime-verified | `scripts/audit/run_e00_05_qwen_tiny_smoke.py`（新增 `n_successful_runs` 前置条件） |
+| S4-30 | 当前 HEAD 全量单元测试口径：`pytest -m "not hardware and not e2e and not performance" -q` → **613 passed, 0 failed** | runtime-verified | 本轮 `gate1_python`（归档于 `reports/dev/rtx3090/20260917_193004/gate1_python/`） |
+| S4-31 | SM87（Jetson）构建未被跨架构改动破坏 | runtime-verified | `-DCMAKE_CUDA_ARCHITECTURES=87` 独立构建：`build arch = 8.7`、`*.sm_87.cubin`、C ABI 返回 `(8, 7)` |
+| S4-32 | S04.5 子阶段正式定义（真实模型算子回接），并补齐 `docs/stage_experiments/S04_实验清单.md` / `S04.5_实验清单.md` | source-only | `docs/stages/S04.5_真实模型算子回接.md`、`docs/stage_experiments/S04_实验清单.md`、`docs/stage_experiments/S04.5_实验清单.md` |
+
+### 10.1 本节引入的降级与修正
+
+- **S4-2 / S4-16（原 CUTLASS sm_87 正确性）**：结论本身不变（sm_87 上默认配置可
+  运行且 `max_err ~0.03`），但原实现**未检查内核是否启动**，因此在其他架构上
+  可能输出伪造数据。该缺口的适用范围已由 S4-22 明确限定为「非 sm_87 架构」。
+- **S2-14 / S4-13（历史 passed 计数）**：维持 `historical-unreproduced`；
+  当前口径以 **S4-30（613 passed）** 为准。
+- §6 的 S4-1 … S4-17 **全部为 sm_87 口径**，未因本轮改动而失效。
+
+### 10.2 未验证项（如实登记）
+
+1. sm_90 / sm_100 / sm_120 等更新架构未实测（本轮只有 sm_86 与 sm_87）；
+2. TileLang 在 sm_86 上未验证（未安装，标记 optional unavailable）；
+3. 多架构 fatbin（`-DCMAKE_CUDA_ARCHITECTURES="86;90"`）不受支持：架构自报只取
+   第一项（已知限制，见 `S04_阶段验收报告.md` §6）；
+4. 跨架构兼容判定为**精确相等**，比 CUDA 真实二进制兼容规则保守；
+5. 本节的时延数据为单轮探索性测量，未固定 DVFS/时钟，**不构成稳定性能结论**。

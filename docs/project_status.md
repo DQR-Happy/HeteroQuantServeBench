@@ -1,8 +1,10 @@
 # HQSB 项目现状报告（Project Status）
 
 > 生成时间：2026-08-17
+> 跨架构补验：2026-09-18（RTX 3090 / sm_86）
 > 基线 Commit：`4dda6f8`（`refactor docs into staged roadmap and architecture spec`）
-> 当前阶段：S04（Triton、CUTLASS/CuTe 与 Kernel DSL）—— 已完成
+> 当前阶段：S04（Triton、CUTLASS/CuTe 与 Kernel DSL）—— 已完成，多架构例外已关闭
+> 下一阶段：S04.5（真实模型算子回接）→ S05（量化与低精度推理）
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -191,9 +193,16 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | S01 | 核心契约与工程质量 | **已完成（验收通过）** |
 | S02 | 模型基线与全栈 Profiling | **已完成（验收通过）** |
 | S03 | CUDA 算子性能工程 | **已完成（验收通过）** |
-| S04 | Triton / CUTLASS / Kernel DSL | **已完成（验收通过）** |
-| S05 | 量化与低精度推理 | 未开始（S04 已产出 GEMM 窄矩阵结论，S05 进入 int4/int8 量化） |
+| S04 | Triton / CUTLASS / Kernel DSL | **已完成（验收通过）；「多架构未验证」例外已于 2026-09-18 关闭**（E04-01，sm_86 + sm_87） |
+| S04.5 | 真实模型算子回接 | **已定义，未开始**（`docs/stages/S04.5_真实模型算子回接.md`，本轮新增） |
+| S05 | 量化与低精度推理 | 未开始（准入已放行，见下） |
 | S06–S15 | 框架集成 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
+
+**S05 准入判定（2026-09-18）**：**放行**，附加两条约束——
+S04.5 的「未量化 HQSB 算子路径」数值基线必须先建（否则无法区分量化误差与算子
+回接误差）；S05 的低比特 GEMM 不得假设 dispatcher 已接入 CUTLASS（至今没有该分支）。
+完整判定见 `docs/reports/S04_阶段验收报告.md` §8。建议顺序：
+`S04 补齐（已完成）→ S04.5 → S05`。
 
 > 结论：S04 实测环境能力（Triton 3.7.1 / CUTLASS 4.7.0 / TileLang 0.1.13 三个
 > DSL 在 sm_87 全部可用），实现 Triton RMSNorm/GEMM + CUTLASS GEMM 对照 + 统一
@@ -339,13 +348,31 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 
 ---
 
-## 11. 下一步（S05 输入）
+## 11. 下一步（S04.5 → S05 输入）
 
-S04 完成后进入 S05（量化与低精度推理）：
-- S04 已产出关键结论：decode 窄矩阵（M=1）GEMM cuBLAS 非最优，CUTLASS/Triton 可
-  反超；FP16 访存事务宽度是 RMSNorm 的关键变量
-- S05 进入 int4/int8 量化：RTN/GPTQ/AWQ/SmoothQuant，利用 S04 的 Triton/CUTLASS
-  GEMM 基础实现低比特 kernel（`hqsb/quant/` + `ops/triton` 低比特 GEMM）
-- CUTLASS tile profiling 与多架构验证待云端环境补（S04 已用默认配置，未扫 tile）
+**2026-09-18 跨架构补验后的更新**：
 
-S04 handoff 与验收见 [`reports/S04_阶段验收报告.md`](reports/S04_阶段验收报告.md)。
+已由本轮补验关闭/修正：
+
+- ~~多架构验证待云端环境补~~ → **已完成**（RTX 3090 sm_86 + Jetson sm_87，
+  E04-01：`docs/stage_experiments/S04_实验清单.md` §2）；
+- **CUTLASS 默认配置不可移植**：`128×256×64×3`（144 KiB）在 sm_86 无法启动，
+  已改为按设备共享内存预算选型（`large`/`compact`）；
+- **CUTLASS 对照原为伪造数据**（内核未启动仍输出时间/正确性），已改为失败即
+  非零退出并纳入 CTest；
+- **dispatcher 架构硬编码**已消除，改由共享库自报编译架构；
+- **制品门禁恢复可复现**（`.msc` 客户端缓存索引排除后 13/14 PASS），
+  E00-05 由 FAIL 转 PASS。
+
+仍需在后续阶段处理：
+
+- **S04.5（真实模型算子回接）**：建立「未量化 HQSB 算子路径」的逐层数值基线与
+  全模型 token/logits 对齐；**S05 的精度验收依赖此基线**；
+- **S05 量化**：RTN/GPTQ/AWQ/SmoothQuant（`hqsb/quant/` + 低比特 kernel）；
+- **dispatcher 接入 CUTLASS/TileLang**：目前只有能力标记，没有 dispatch 分支；
+- **CUTLASS tile/stage 性能扫参**（本轮只做了架构可行性选型）；
+- **多架构 fatbin 支持**与**按 CUDA 语义的兼容判定**（当前为精确相等，偏保守）。
+
+S04 handoff 与验收见 [`reports/S04_阶段验收报告.md`](reports/S04_阶段验收报告.md)；
+跨架构补验流水线见
+`reports/dev/rtx3090/20260918_021649/RTX3090_ACCEPTANCE_REPORT.md`。

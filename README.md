@@ -10,11 +10,19 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-当前阶段为 **S04（Triton、CUTLASS/CuTe 与 Kernel DSL）**，已完成。实测 Triton
-3.7.1 在 Jetson sm_87 可用，实现 Triton RMSNorm/GEMM + 统一 dispatcher/
-capability（CUDA/Triton/cuBLAS/CUTLASS 按 arch/dtype/shape/依赖选择，未安装 DSL
-走明确 fallback）。CUDA vs Triton 与 cuBLAS vs Triton 的性能权衡见
-`docs/reports/S04_comparison_report.md`。
+**S04（Triton、CUTLASS/CuTe 与 Kernel DSL）已完成，多架构例外已关闭。**
+实测 Triton 在 Jetson sm_87 与 RTX 3090 sm_86 均可用；实现 Triton RMSNorm/GEMM +
+统一 dispatcher/capability（CUDA/Triton/cuBLAS/CUTLASS 按 arch/dtype/shape/依赖
+选择，未安装 DSL 走明确 fallback）。CUDA vs Triton 与 cuBLAS vs Triton 的性能
+权衡见 `docs/reports/S04_comparison_report.md`。
+
+跨架构补验（2026-09-18，RTX 3090 / sm_86）的关键结论见
+`docs/reports/S04_阶段验收报告.md` §8 与 `docs/stage_experiments/S04_实验清单.md`：
+CUTLASS 默认 tile 在 sm_86 不可用（已改为按设备共享内存预算选型）、dispatcher
+不再硬编码架构（改由共享库自报编译架构）、auto-tuning 经验证非全局常量。
+
+下一阶段：**S04.5（真实模型算子回接）** → S05（量化与低精度推理）。
+S04.5 定义见 `docs/stages/S04.5_真实模型算子回接.md`。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -36,9 +44,11 @@ pip install -e ".[benchmark]" # 附加 torch/transformers/modelscope（S02）
 ### 1. CPU 单元测试（无需 GPU / 模型权重）
 
 ```bash
-python3 -m pytest -q                 # 全量（E00-06 复跑 HEAD e4a031c：340 passed）
+python3 -m pytest -q                 # 全量
 python3 -m pytest -m unit -q         # 纯单元测试
 python3 -m pytest -m property -q     # 属性/不变量测试
+# CI/开发机口径（排除硬件/E2E/性能用例）：
+python3 -m pytest -m "not hardware and not e2e and not performance" -q   # 613 passed
 ```
 
 ### 2. CUDA 算子库（RMSNorm 多版本 + fused + correctness + benchmark）
@@ -123,10 +133,14 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | CUDA 测试框架 + 数值指标 | Implemented | `ops/cuda/common/{test_util,test_metrics}.h` | CTest 集成 |
 | 后端能力检测（Triton 实测编译 probe） | Implemented | `ops/capability.py` | `tests/unit/ops/test_capability.py` |
 | CUDA shared lib ctypes 绑定 | Implemented | `ops/cuda_bridge.py` | `tests/unit/ops/test_cuda_bridge.py` |
-| 统一 dispatcher（CUDA/Triton/cuBLAS/CUTLASS fallback） | Implemented | `ops/dispatcher.py` | `tests/unit/ops/test_dispatcher.py` |
-| Triton RMSNorm（reference + autotune） | Verified | `ops/triton/rmsnorm.py` | FP16 hidden=1024 反超 CUDA 36% |
-| Triton GEMM（reference + autotune） | Verified | `ops/triton/gemm.py` | 窄矩阵反超 cuBLAS |
-| CPU 单元测试 | Implemented | `tests/` | `pytest -q`（E00-06 复跑 e4a031c：340 passed） |
+| CUDA 库自报编译架构（跨架构 dispatch 依据） | Verified | `ops/cuda/rmsnorm/src/rmsnorm_c_api.cu` | sm_86 返回 `(8,6)`、sm_87 返回 `(8,7)`；`docs/reports/S04_阶段验收报告.md` §8 |
+| 统一 dispatcher（CUDA/Triton/cuBLAS/CUTLASS fallback） | Verified | `ops/dispatcher.py` | `tests/unit/ops/test_dispatcher.py`（含双向跨架构用例） |
+| CUTLASS GEMM（按 arch 自适应 tile + 正确性门禁） | Verified | `ops/cuda/cutlass_gemm/` | CTest `cutlass_gemm_correctness`；E04-01 |
+| Triton RMSNorm（reference + autotune） | Verified | `ops/triton/rmsnorm.py` | sm_86/sm_87 均通过正确性门禁 |
+| Triton GEMM（reference + autotune） | Verified | `ops/triton/gemm.py` | autotune 随 shape 选不同 tile（E04-01） |
+| S04 跨架构 tile/autotune 迁移实验 | Verified | `scripts/audit/run_e04_01_cross_arch_tile_transfer.py` | `docs/stage_experiments/S04/E04-01/raw/` |
+| 模型制品门禁（客户端缓存元数据排除） | Verified | `hqsb/models/manifest.py` | `verify_qwen3_hashes.py` → 13/14 PASS |
+| CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（613 passed，2026-09-18） |
 | QuantLab（RTN/GPTQ/AWQ/SmoothQuant） | Planned | `hqsb/quant/` | S05 |
 | KernelLab（CUTLASS/Ascend C） | Planned | `ops/ascend/`（CUTLASS 待网络恢复） | S05/S09 |
 | Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
@@ -143,9 +157,21 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 
 ## Hardware
 
-- NVIDIA Jetson Orin Nano Super 8GB
+- **NVIDIA Jetson Orin Nano Super 8GB**（sm_87）—— 边缘设备**正式实验**机：
+  统一内存行为、`tegrastats`、`nvpmodel`/`jetson_clocks`、功耗/温度/热降频、
+  OOM 与容量边界、Jetson 正式性能报告
+- **NVIDIA RTX 3090**（sm_86, x86_64）—— **开发机**：CUDA 构建、算子开发、
+  单元/集成测试、探索性 profiling 与 benchmark。结果标注为
+  `development` / `smoke` / `cross-architecture validation` / `exploratory benchmark`，
+  不写入 `reports/jetson/**`，不用于计算跨硬件 speedup
 - Orange Pi AI Pro 20T
 - 按需 NVIDIA datacenter/desktop GPU 实例
+
+机器角色与授权边界见 `AGENTS.md`（本机文件）。通用 CUDA 开发机验收入口：
+
+```bash
+./scripts/bench/run_cuda_dev_baseline.sh --platform rtx3090 --cuda-arch 86
+```
 
 ## Repository integrity
 
