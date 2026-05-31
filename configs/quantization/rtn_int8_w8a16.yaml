@@ -1,0 +1,22 @@
+# HQSB S05 — main W8 weight-only RTN scheme (E05-02 primary W8 configuration).
+kind: hqsb.quant.scheme
+description: >
+  RTN INT8, symmetric, per-output-channel (axis -1), nearest-even round,
+  float32 scales, NaN/Inf rejected. This is the E05-01 frozen reference
+  scheme; every W8 result must declare that it used this hash.
+scheme:
+  bits: 8
+  range_policy: symmetric
+  symmetric: true
+  granularity: per_channel
+  axis: -1
+  group_size: null
+  round_mode: nearest_even
+  scale_dtype: float32
+  zero_dtype: int8
+  zero_group_policy: zero_group_scale_one
+  constant_group_policy: constant_group_zero_code
+  nan_policy: reject
+  compute_dtype: float64
+  pack_version: hqsb.byte.v1
+  label: rtn_w8_per_channel

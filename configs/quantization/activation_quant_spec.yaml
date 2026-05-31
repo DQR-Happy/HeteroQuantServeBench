@@ -1,0 +1,20 @@
+# HQSB S05 — E05-07 W8A8 activation spec (P1).
+kind: hqsb.quant.activation_spec
+description: >
+  Dynamic per-token INT8 activation quantization with symmetric [-127, 127].
+  Static mode requires calibration-derived scales and must never compute them
+  from the evaluation batch.
+spec:
+  granularity: per_token
+  mode: dynamic
+  bits: 8
+  qmin: -127
+  qmax: 127
+  round_mode: nearest_even
+  scale_dtype: float32
+  clip_percentile: null
+  clip_threshold: null
+  nan_policy: reject
+  symmetric: true
+  group_size: null
+  label: w8a8

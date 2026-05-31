@@ -1,0 +1,35 @@
+# HQSB S05 — E05-03 calibration data plan (template).
+kind: hqsb.quant.calibration_spec
+name: s05_default_calibration
+description: >
+  Template data spec. The experiment owner must fill in real dataset
+  revisions/licenses and freeze the numbers before any run; the thresholds
+  below are placeholders and must not be reported as results.
+sources:
+  - dataset: TBD-general-text
+    revision: TBD
+    license: TBD
+    split: calibration
+  - dataset: TBD-chat
+    revision: TBD
+    license: TBD
+    split: calibration
+length_buckets:
+  short: [0, 512]
+  medium: [512, 2048]
+  long: [2048, 8192]
+sample_counts: [8, 16, 32, 64, 128, 256]
+token_budgets: [0]
+subset_seeds: [0, 1, 2]
+ngram: 13
+near_duplicate_threshold: 0.85
+primary_quality_metric: perplexity
+primary_direction: lower_is_better
+quality_margin: 0.0
+stabilization_epsilon: 0.0
+seed_variance_threshold: 0.0
+offline_cost_ceiling_s: 0.0
+notes: >
+  quality_margin / stabilization_epsilon / seed_variance_threshold must be
+  filled from the experiment protocol before a formal run; zeros mean "not yet
+  pre-registered" and make select_minimum_sufficient refuse to select.

@@ -1,0 +1,30 @@
+# HQSB S05 — E05-05 policy document example (schema demo, NOT a result).
+kind: hqsb.quant.mixed_precision_policy
+schema_version: "1.0.0"
+name: example_policy_only
+units:
+  - unit_id: model.layers.0.self_attn.q_proj
+    bits: 4
+    group_size: 128
+    method: rtn
+    packed_layout: hqsb.w4a16.rowmajor.nk.v1
+    keep_fp16: false
+    scheme_hash: ""
+  - unit_id: model.layers.0.mlp.down_proj
+    bits: 8
+    group_size: null
+    method: rtn
+    packed_layout: hqsb.w8a16.rowmajor.nk.v1
+    keep_fp16: false
+    scheme_hash: ""
+quality_gate:
+  name: s05_default_gate
+  margins: {}
+cost:
+  device_bytes: 0
+  artifact_bytes: 0
+provenance:
+  search_id: example
+  note: schema demonstration only; no search was run
+known_limitations:
+  - example document; must not be used as a deployment recommendation

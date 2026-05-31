@@ -1,0 +1,18 @@
+# HQSB S05 — E05-06 kernel spec (requested capability, not measured).
+kind: hqsb.quant.kernel_spec
+description: >
+  Declares what the HQSB fused-dequant executor provides. The capability
+  probe must still confirm it on the target machine, and the observed kernel
+  symbol must appear in a profile before any low-bit performance claim.
+kernel_id: hqsb.w4a16.triton
+provider: triton
+layouts:
+  - hqsb.w4a16.rowmajor.nk.v1
+  - hqsb.w8a16.rowmajor.nk.v1
+bits: [4, 8]
+group_sizes: [null, 32, 64, 128]
+dtype: float16
+abi_version: "1"
+workspace_bytes: 0
+fallback_policy: fail_closed
+observed_symbol_fragment: hqsb_dequant_gemm_kernel

@@ -1,0 +1,12 @@
+# HQSB S05 — E05-01 §11 step 4 factorial matrix definition.
+kind: hqsb.quant.scheme_matrix
+description: >
+  bit x granularity x symmetric x G matrix. Shape-relative group sizes (K, K+1)
+  are resolved by the driver with the real K of each tensor; illegal cells are
+  pre-registered and must be refused by QuantScheme (the unit test asserts the
+  refusal instead of skipping the cell).
+bits: [8, 4]
+granularities: [per_tensor, per_channel, per_group]
+symmetric: [true, false]
+group_sizes: [1, 16, 32, 64, 128]
+shape_relative_group_sizes: [K, K+1]

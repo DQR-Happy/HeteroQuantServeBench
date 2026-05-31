@@ -1,0 +1,22 @@
+# HQSB S05 — asymmetric W4 ablation scheme (E05-01 range policy S2).
+kind: hqsb.quant.scheme
+description: >
+  RTN INT4 asymmetric with the full two's-complement range [-8, 7], per-group
+  G=128, explicit int8 zero points. The zero point is part of the artifact
+  identity: a kernel that ignores it would silently shift the weights.
+scheme:
+  bits: 4
+  range_policy: twos_complement
+  symmetric: false
+  granularity: per_group
+  axis: -1
+  group_size: 128
+  round_mode: nearest_even
+  scale_dtype: float32
+  zero_dtype: int8
+  zero_group_policy: zero_group_scale_one
+  constant_group_policy: constant_group_zero_code
+  nan_policy: reject
+  compute_dtype: float64
+  pack_version: hqsb.nibble.v1
+  label: rtn_w4_asym_g128

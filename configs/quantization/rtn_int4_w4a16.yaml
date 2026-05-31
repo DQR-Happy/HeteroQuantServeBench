@@ -1,0 +1,22 @@
+# HQSB S05 — main W4 weight-only RTN scheme (E05-02 primary W4 configuration).
+kind: hqsb.quant.scheme
+description: >
+  RTN INT4, symmetric, per-group with G=128 along the input-feature axis,
+  nearest-even round, float32 scales. The tail group is recorded in the
+  artifact (logical_K/padded_K/valid_tail) and padding never affects a GEMM.
+scheme:
+  bits: 4
+  range_policy: symmetric
+  symmetric: true
+  granularity: per_group
+  axis: -1
+  group_size: 128
+  round_mode: nearest_even
+  scale_dtype: float32
+  zero_dtype: int8
+  zero_group_policy: zero_group_scale_one
+  constant_group_policy: constant_group_zero_code
+  nan_policy: reject
+  compute_dtype: float64
+  pack_version: hqsb.nibble.v1
+  label: rtn_w4_g128

@@ -1,0 +1,21 @@
+# HQSB S05 — E05-08 KV cache spec (P1).
+kind: hqsb.quant.kv_spec
+description: >
+  KV INT8 per-token-per-head with a post-RoPE cache point and a 32-token FP16
+  residual window. K and V are configured separately because their error
+  propagation differs; the RoPE point is a semantic field, not a detail.
+spec:
+  k_bits: 8
+  v_bits: 8
+  k_granularity: per_token_per_head
+  v_granularity: per_token_per_head
+  k_group_size: null
+  v_group_size: null
+  rope_point: post_rope
+  residual_window: 32
+  page_size: 16
+  scale_dtype: float32
+  k_zero_point: false
+  v_zero_point: false
+  clip_percentile: null
+  label: kv8

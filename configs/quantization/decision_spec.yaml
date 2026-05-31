@@ -1,0 +1,33 @@
+# HQSB S05 — E05-10 decision spec (template).
+kind: hqsb.quant.decision_spec
+description: >
+  Template decision spec. Workload ids must match the six-workload manifest;
+  scenarios and SLO numbers must be filled before the Pareto analysis, and the
+  quality gate below is a placeholder until E05-02/E05-03 freeze real margins.
+hardware: TBD
+workloads: [tiny, short, balanced, long_prefill, decode_heavy, long_balanced]
+objectives:
+  - device_peak_bytes
+  - ttft_ms
+  - tpot_ms
+  - joules_per_token
+  - offline_cost_s
+scenarios:
+  - name: memory_constrained
+    constraints: {device_peak_bytes_max: 0.0}
+  - name: interactive_low_latency
+    constraints: {ttft_ms_max: 0.0, tpot_p95_ms_max: 0.0}
+  - name: batch_prefill
+    constraints: {prefill_tokens_per_s_min: 0.0}
+  - name: long_context
+    constraints: {max_context_tokens_min: 0.0}
+  - name: portability
+    constraints: {compatibility_rank_max: 1.0}
+quality_gate:
+  name: s05_default_gate
+  margins: {}
+  slices: []
+  hard_safety: [no_nan_inf, no_illegal_token, no_crash]
+  confidence: 0.95
+  resamples: 2000
+  seed: 0
