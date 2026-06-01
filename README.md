@@ -10,19 +10,29 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-**S04（Triton、CUTLASS/CuTe 与 Kernel DSL）已完成，多架构例外已关闭。**
-实测 Triton 在 Jetson sm_87 与 RTX 3090 sm_86 均可用；实现 Triton RMSNorm/GEMM +
-统一 dispatcher/capability（CUDA/Triton/cuBLAS/CUTLASS 按 arch/dtype/shape/依赖
-选择，未安装 DSL 走明确 fallback）。CUDA vs Triton 与 cuBLAS vs Triton 的性能
-权衡见 `docs/reports/S04_comparison_report.md`。
+**S05（量化与低精度推理）—— 接口/代码层就位；实验层 BLOCKED。**
 
-跨架构补验（2026-09-18，RTX 3090 / sm_86）的关键结论见
-`docs/reports/S04_阶段验收报告.md` §8 与 `docs/stage_experiments/S04_实验清单.md`：
-CUTLASS 默认 tile 在 sm_86 不可用（已改为按设备共享内存预算选型）、dispatcher
-不再硬编码架构（改由共享库自报编译架构）、auto-tuning 经验证非全局常量。
+S05 已交付 E05-01~E05-10 全部 190 个实验步骤的能力接口（`hqsb/quant/` 28 模块 +
+`ops/quant/` 低比特执行层 + `scripts/quant/run_e05.py` 驱动 + `configs/quantization/`
+10 份配置），由 936 个测试、依赖边界 gate、接口解析与 Triton fused-dequant kernel
+对 oracle 的正确性对照证明。**未执行任何正式实验、未产出质量/性能/内存/能耗结论**。
 
-下一阶段：**S04.5（真实模型算子回接）** → S05（量化与低精度推理）。
-S04.5 定义见 `docs/stages/S04.5_真实模型算子回接.md`。
+实验层为 `BLOCKED`：S04.5 M4「真实模型算子回接」前置未满足（`hqsb/integration`、
+S04.5 实验证据、S04.5 验收报告、六 workload FP16 基线四项缺失）。驱动入口默认拒绝
+产结论：
+
+```bash
+python3 scripts/quant/run_e05.py --experiment E05-01 --mode status        # 报告 BLOCKED 原因
+python3 scripts/quant/run_e05.py --mode self-check --json                 # 接口 smoke 自检
+python3 scripts/quant/run_e05.py --experiment E05-01 --mode execute --confirm-execute  # 退出码 7（拒绝）
+```
+
+详见 `docs/reports/S05_开发报告.md`（含「实验步骤 → 代码接口」对照表）与
+`docs/reports/S05_阶段验收报告.md`。
+
+S04（Triton/CUTLASS/Kernel DSL）已完成；跨架构补验（2026-09-18，RTX 3090 / sm_86）
+见 `docs/reports/S04_阶段验收报告.md` §8。下一阶段顺序：**S04.5（真实模型算子
+回接）→ S05 实验执行**。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -141,7 +151,17 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | S04 跨架构 tile/autotune 迁移实验 | Verified | `scripts/audit/run_e04_01_cross_arch_tile_transfer.py` | `docs/stage_experiments/S04/E04-01/raw/` |
 | 模型制品门禁（客户端缓存元数据排除） | Verified | `hqsb/models/manifest.py` | `verify_qwen3_hashes.py` → 13/14 PASS |
 | CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（613 passed，2026-09-18） |
-| QuantLab（RTN/GPTQ/AWQ/SmoothQuant） | Planned | `hqsb/quant/` | S05 |
+| QuantLab 量化语义/RTN/golden/packing/制品 | Implemented | `hqsb/quant/{spec,rounding,rtn,golden,packing,artifact}.py` | `tests/unit/quant/`（936 passed 子集） |
+| QuantLab 兼容/故障注入/校准/统计 | Implemented | `hqsb/quant/{compat,faults,calibration,stats,fixtures}.py` | `tests/unit/quant/test_artifact_compat.py`、`test_calibration_stats.py` |
+| QuantLab 模型级评估（coverage/apply/quality/execution/oracle/model_eval） | Implemented | `hqsb/quant/` | `test_coverage_apply_quality.py`、`test_execution_model_eval.py` |
+| QuantLab 工业方法 adapter（GPTQ/AWQ/SmoothQuant） | Implemented | `hqsb/quant/adapters/` | `test_adapters_units_policy.py` |
+| QuantLab 敏感性与混合精度 policy | Implemented | `hqsb/quant/{units,sensitivity,policy}.py` | `test_adapters_units_policy.py` |
+| 激活量化 / KV 缓存量化（P1） | Implemented | `hqsb/quant/{activation,kv}.py` | `test_activation_kv.py` |
+| Pareto 与部署决策层（五道门/场景/推荐） | Implemented | `hqsb/quant/decision.py` | `test_decision.py` |
+| 低比特 fused-dequant GEMM kernel（Triton W4/W8） | Verified（`development`/`smoke`，sm_86） | `ops/quant/w4a16_triton.py`、`executors.py` | `tests/unit/ops/test_quant_kernels.py`（对 oracle 分层容差） |
+| 实验驱动入口（默认不产结论） | Implemented | `scripts/quant/run_e05.py`、`hqsb/quant/experiment.py` | `test_experiment_interface_map.py`；`--mode execute` 退出码 7 |
+| 实验步骤→接口对照表（190 步 / 219 接口） | Implemented | `hqsb/quant/interface_map.py` | `test_experiment_interface_map.py::TestInterfaceMap` |
+| QuantLab 实验执行 | **BLOCKED**（S04.5 M4 前置缺失） | `docs/stage_experiments/details/S05/` | `run_e05.py --mode status` |
 | KernelLab（CUTLASS/Ascend C） | Planned | `ops/ascend/`（CUTLASS 待网络恢复） | S05/S09 |
 | Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
 | ServeFabric（OpenAI-compatible gateway） | Planned | `hqsb/serving/` | — |

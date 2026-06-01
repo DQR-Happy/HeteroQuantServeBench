@@ -78,8 +78,11 @@ Thumbs.db
 # External third-party dependencies (fetched on demand; see third_party/README.md)
 /third_party/cutlass/
 
-# Docs
-/docs
+# Docs: tracked documentation (architecture/reports/stages/templates).
+# The stage-experiment protocol/report tree is internal evidence and stays out
+# of the public repo (its raw run data already falls under /reports/ and
+# /experiment_results/ ignores).
+/docs/stage_experiments/
 
 # Local CodeBuddy conversation exports (private; never publish)
 /buddy_history/
@@ -89,3 +92,5 @@ Thumbs.db
 
 # Codex
 AGENTS.md
+# S05 experiment run directories (raw execution data; local / archive separately)
+/experiment_results/
