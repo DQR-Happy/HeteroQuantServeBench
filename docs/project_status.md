@@ -3,8 +3,8 @@
 > 生成时间：2026-08-17
 > 跨架构补验：2026-09-18（RTX 3090 / sm_86）
 > 基线 Commit：`4dda6f8`（`refactor docs into staged roadmap and architecture spec`）
-> 当前阶段：S04（Triton、CUTLASS/CuTe 与 Kernel DSL）—— 已完成，多架构例外已关闭
-> 下一阶段：S04.5（真实模型算子回接）→ S05（量化与低精度推理）
+> 当前阶段：S05（量化与低精度推理）—— **接口/代码层就位；实验层 BLOCKED**（S04.5 M4 前置缺失，见 §4）
+> 下一阶段：S04.5（真实模型算子回接）→ S05 实验执行
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -74,7 +74,8 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `backends/dummy.py` | DummyBackend 参考实现（C4） | **S01 新增**，Implemented |
 | `backends/pytorch.py` | PyTorchBackend（C4，FP16 Qwen3 reference） | **S02 新增**，Implemented |
 | `hardware/jetson.py` | Jetson 实验协议（温度/冷却/电源模式） | **S02 新增**，Implemented |
-| `quant/` `serving/` | 空目录（S04–S08 规划占位） | Planned |
+| `quant/` | 量化语义/RTN/golden/packing/artifact/compat/faults/stats/calibration/coverage/apply/quality/execution/oracle/model_eval/adapters/units/sensitivity/policy/activation/kv/decision/experiment/interface_map/config_io + fixtures（28 模块） | **S05 新增**，Implemented（test-verified，见 `evidence_ledger.md` §11） |
+| `serving/` | 空目录（S06–S08 规划占位） | Planned |
 
 ### 3.2 `ops/`（算子）
 
@@ -121,7 +122,8 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `operators/rmsnorm_v1.json` | RMSNorm C3 OperatorSpec（V1） | **S03 新增**，Implemented |
 | `operators/rmsnorm_v2.json` | RMSNorm C3 OperatorSpec（V2） | **S03 新增**，Implemented |
 | `operators/fused_residual_rmsnorm.json` | fused residual+rmsnorm C3 OperatorSpec | **S03 新增**，Implemented |
-| `backends/` `quantization/` | 空（.gitkeep） | Planned |
+| `backends/` | 空（.gitkeep） | Planned |
+| `quantization/` | RTN W8/W4/非对称、scheme 矩阵、校准、kernel、激活、KV、决策 spec + policy 示例（10 份，均经 `config_io.load_any` 严格校验） | **S05 新增**，Implemented |
 
 ### 3.5 `scripts/`
 
@@ -195,7 +197,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | S03 | CUDA 算子性能工程 | **已完成（验收通过）** |
 | S04 | Triton / CUTLASS / Kernel DSL | **已完成（验收通过）；「多架构未验证」例外已于 2026-09-18 关闭**（E04-01，sm_86 + sm_87） |
 | S04.5 | 真实模型算子回接 | **已定义，未开始**（`docs/stages/S04.5_真实模型算子回接.md`，本轮新增） |
-| S05 | 量化与低精度推理 | 未开始（准入已放行，见下） |
+| S05 | 量化与低精度推理 | **接口/代码层就位（E05-01~E05-10 共 190 步能力接口 + 936 测试）；实验层 BLOCKED**（S04.5 M4 前置缺失） |
 | S06–S15 | 框架集成 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
 
 **S05 准入判定（2026-09-18）**：**放行**，附加两条约束——
@@ -376,3 +378,37 @@ S04.5 的「未量化 HQSB 算子路径」数值基线必须先建（否则无�
 S04 handoff 与验收见 [`reports/S04_阶段验收报告.md`](reports/S04_阶段验收报告.md)；
 跨架构补验流水线见
 `reports/dev/rtx3090/20260918_021649/RTX3090_ACCEPTANCE_REPORT.md`。
+
+---
+
+## 12. S05 补齐内容（接口/代码层，实验层 BLOCKED）
+
+按任务约束「提供接口、不执行实验」，S05 交付了 E05-01~E05-10 全部 190 个实验
+步骤的能力接口与测试，**未执行任何正式实验、未产出任何质量/性能/内存/能耗结论**。
+
+1. **量化数学与制品**：`hqsb/quant/spec.py`（语义冻结 + factorial 矩阵）、
+   `rounding.py`、`rtn.py`（自实现 RTN，axis 通用）、`golden.py`（精确有理数
+   双实现交叉校验）、`packing.py`（canonical/kernel layout）、`artifact.py`
+   （版本化 QuantArtifact，原子保存/身份哈希）、`compat.py`（兼容判定/repack/
+   迁移）、`faults.py`（35 例故障注入）、`fixtures.py`（合成自检制品）。
+2. **统计与校准**：`stats.py`（bootstrap/非劣效）、`calibration.py`（四段隔离/
+   泄漏审计/最小充分预算）。
+3. **模型级评估**：`coverage.py`、`apply.py`（可逆权重替换）、`quality.py`、
+   `execution.py`（执行标签/claim 审计）、`oracle.py`（量化 vs kernel oracle）、
+   `model_eval.py`（内存阶梯/相位计时/统一结果表/五道门）。
+4. **工业方法**：`adapters/`（GPTQ/AWQ/SmoothQuant 五层 + 字段映射审计）。
+5. **敏感性与决策**：`units.py`、`sensitivity.py`、`policy.py`、`activation.py`
+   （P1）、`kv.py`（P1）、`decision.py`（注册/门/Pareto/场景/推荐）。
+6. **执行层**：`ops/quant/`（capability/executors/w4a16_triton/microbench/safety），
+   Triton W4/W8 fused-dequant GEMM 对 oracle 分层容差通过（本机 smoke）。
+7. **驱动与配置**：`scripts/quant/run_e05.py`（status/preregister/interface-map/
+   self-check/execute，默认拒绝结论）、`configs/quantization/*.yaml`（10 份）、
+   `hqsb/quant/interface_map.py`（190 步→219 接口，全部解析）。
+8. **测试**：全量 **936 passed**（新增约 280）；依赖边界 0 violations；
+   故障注入 35/35 捕获；golden 11 向量 0 失配。
+
+**阻塞**：S04.5 M4「真实模型算子回接」前置未满足（`hqsb/integration`、S04.5
+实验证据、S04.5 验收报告、六 workload FP16 基线四项缺失）。`run_e05.py --mode
+execute --confirm-execute` 如实拒绝（退出码 7），不产结论。
+
+S05 报告：`docs/reports/S05_开发报告.md`、`docs/reports/S05_阶段验收报告.md`。

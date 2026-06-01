@@ -265,3 +265,39 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
    第一项（已知限制，见 `S04_阶段验收报告.md` §6）；
 4. 跨架构兼容判定为**精确相等**，比 CUDA 真实二进制兼容规则保守；
 5. 本节的时延数据为单轮探索性测量，未固定 DVFS/时钟，**不构成稳定性能结论**。
+
+---
+
+## 11. S05 声明台账（接口/代码层，2026-09-18）
+
+> 背景：S05（量化与低精度推理）按任务约束「提供接口、不执行实验」交付了
+> E05-01~E05-10 全部 190 个实验步骤的能力接口与测试，**未执行任何正式实验、
+> 未产出任何质量/性能/内存/能耗结论数字**。本节所有条目为 `test-verified`
+> （接口正确性）或带 `development`/`smoke` 标注的运行证据；**实验层判定为
+> `BLOCKED`**（S04.5 M4 前置缺失，见 S5-BLOCK）。配套报告：
+> `docs/reports/S05_开发报告.md`、`docs/reports/S05_阶段验收报告.md`。
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S5-1 | 量化语义冻结 + factorial 矩阵：非法组合（symmetric+twos_complement、per-channel 声明 group_size、per-group 缺 group_size）构造时拒绝 | test-verified | `hqsb/quant/spec.py`；`tests/unit/quant/test_spec_and_rounding.py` |
+| S5-2 | 自实现 RTN（per-tensor/channel/group、对称/非对称、axis 通用、zero/constant group、NaN/Inf、尾块）+ 精确有理数 golden 双实现交叉校验 | test-verified | `hqsb/quant/rtn.py`、`golden.py`；`tests/unit/quant/test_rtn_and_golden.py`（golden 11 向量 0 失配） |
+| S5-3 | canonical nibble/byte + kernel layout（nibble order、尾块、alignment、parent hash）往返与非法输入（非整数 code、非正 scale、未知 layout、payload 长度）拒绝 | test-verified | `hqsb/quant/packing.py`；`tests/unit/quant/test_packing.py`、`tests/property/test_quant_properties.py` |
+| S5-4 | 版本化 QuantArtifact：原子保存、身份/canonical hash 稳定、未知 scheme 字段拒绝、symmetric 含 zeros 拒绝、payload bit-flip 拒绝 | test-verified | `hqsb/quant/artifact.py`；`tests/unit/quant/test_artifact_compat.py` |
+| S5-5 | 兼容判定（DIRECT/REPACK/REQUANTIZE/FALLBACK/REJECT）+ lossless repack 不变量 + 迁移计划（未来版本拒绝） | test-verified | `hqsb/quant/compat.py`；`tests/unit/quant/test_artifact_compat.py` |
+| S5-6 | 故障注入矩阵 35 例（schema/model/quant/pack/capability）全部 pre-launch 拒绝且 golden 原件不被破坏 | test-verified | `hqsb/quant/faults.py`；`test_artifact_compat.py::TestFaultMatrix` |
+| S5-7 | 校准四段数据隔离、样本身份哈希、泄漏审计（id/文本哈希/父文档/模板）、因子抽样确定性与最小充分预算选择规则（零阈值拒绝选择） | test-verified | `hqsb/quant/calibration.py`；`tests/unit/quant/test_calibration_stats.py` |
+| S5-8 | 分位数/bootstrap/配对/聚类 bootstrap/效应量/非劣效判定（PASS/FAIL/INCONCLUSIVE 三分） | test-verified | `hqsb/quant/stats.py`；`test_calibration_stats.py::TestStatistics` |
+| S5-9 | 模型级评估：覆盖枚举、可逆权重替换（fake_dequant/storage_only 标签）、logit/token 质量指标、执行标签与 claim 审计、内存阶梯、相位计时、统一结果表、五道门顺序 | test-verified | `hqsb/quant/{coverage,apply,quality,execution,model_eval}.py`；`tests/unit/quant/test_coverage_apply_quality.py`、`test_execution_model_eval.py` |
+| S5-10 | 工业方法 adapter 五层（GPTQ/AWQ/SmoothQuant）：字段映射审计（无 silent drop）、合成源记录转换、等价性检查 | test-verified | `hqsb/quant/adapters/`；`tests/unit/quant/test_adapters_units_policy.py` |
+| S5-11 | 干预单元（fused/tied 合并）与混合精度 policy（YAML 往返、约束校验、贪心搜索轨迹、反事实） | test-verified | `hqsb/quant/{units,sensitivity,policy}.py`；`test_adapters_units_policy.py` |
+| S5-12 | 激活量化（静态/动态、per-token、饱和率、SmoothQuant 等价、w8a8 int32 精确累加）与 KV 缓存（容量模型、注意力 oracle、最大上下文搜索） | test-verified | `hqsb/quant/{activation,kv}.py`；`tests/unit/quant/test_activation_kv.py` |
+| S5-13 | 决策层：候选注册、五道门、Pareto（点/不确定性）、部署场景、推荐矩阵、发布包、回归阈值 | test-verified | `hqsb/quant/decision.py`；`tests/unit/quant/test_decision.py` |
+| S5-14 | Triton W4/W8 fused-dequant GEMM 对 kernel oracle 分层容差通过（W4 对称/非对称、W8、尾块 N=7/K=96 G=48） | runtime-verified（`development`/`smoke`，RTX 3090 sm_86） | `ops/quant/w4a16_triton.py`；`tests/unit/ops/test_quant_kernels.py::TestFusedDequantKernel` |
+| S5-15 | 实验驱动入口默认不产结论：`--mode status` 报告 BLOCKED、`--mode execute --confirm-execute` 拒绝（退出码 7） | test-verified + runtime-verified | `scripts/quant/run_e05.py`；`tests/unit/quant/test_experiment_interface_map.py` + 实测退出码 |
+| S5-16 | 实验步骤→接口对照表：190 步、219 接口全部 import 解析成功 | test-verified | `hqsb/quant/interface_map.py`；`tests/unit/quant/test_experiment_interface_map.py::TestInterfaceMap` |
+| S5-17 | 全量测试 **936 passed, 0 failed**（含既有回归 + 本阶段新增约 280 测试） | runtime-verified | `pytest -q`（本机）；依赖边界 gate 0 violations / 0 cycles |
+| S5-BLOCK | S05 **实验层 BLOCKED**：S04.5 M4「真实模型算子回接」前置未满足（`hqsb/integration`、S04.5 实验证据、S04.5 验收报告、六 workload FP16 基线四项缺失） | source-only（缺失事实，由 `check_prerequisites` 实测登记） | `hqsb/quant/experiment.py::check_prerequisites`；`scripts/quant/run_e05.py --mode status` |
+
+> 本阶段不新增 `runtime-verified` 之外的性能/质量结论；S5-14 的 kernel 正确性
+> 为接口层 smoke 证据，**不是** E05-06 实验结论（E05-06 实验层 BLOCKED）。
+
