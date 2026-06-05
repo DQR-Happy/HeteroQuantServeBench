@@ -1,0 +1,30 @@
+# S06 冻结制品：CUDA Graph 捕获范围与桶（E06-08 步骤1，P1）
+#
+# CUDA Graph 是 P1 能力：只有在本文件声明的 scope 上完成 capture/replay/失败矩阵/
+# 生命周期证据后，才允许对外声称。claim_cuda_graph=false 表示当前**不声称**该能力
+# （对应 E06-08 的 NOT_RUN/NOT_CLAIMED，而不是 PASS）。
+kind: hqsb.integration.graph_spec
+description: S06 CUDA Graph 捕获范围、桶、输出契约与越界策略
+name: s06_graph_spec_v1
+capture_scope: decode_step_block   # decode M=1 固定 bucket 的 block/model step
+stream: capture_origin_stream      # 多 stream 必须从 capture origin fork 并 rejoin
+output_contract: REUSED_BUFFER     # 复用 buffer 必须显式声明，调用方持有引用时不得 replay
+out_of_bucket_policy: fallback_non_graph
+max_graphs: 4
+includes_input_copy: true
+includes_output_copy: true
+allow_recapture: true
+claim_cuda_graph: false
+buckets:
+  - name: decode_b1_s1
+    dims: { batch: 1, sequence: 1 }
+  - name: decode_b1_s2
+    dims: { batch: 1, sequence: 2 }
+  - name: tiny_b1_s32
+    dims: { batch: 1, sequence: 32 }
+  - name: short_b1_s128
+    dims: { batch: 1, sequence: 128 }
+notes: >
+  padding 到 bucket 会增加计算与显存，必须实测；不默认捕获完整 generate Python loop，
+  token 采样/停止条件/动态 KV 增长留在 graph 外或分桶。计时必须说明是否包含
+  input/output copy（本文件默认都包含）。

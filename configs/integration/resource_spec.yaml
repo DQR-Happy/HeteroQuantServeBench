@@ -1,0 +1,80 @@
+# S06 冻结制品：资源与生命周期规格（E06-10 步骤1）
+#
+# 每个被跟踪资源都必须声明 class / owner / create / destroy / 上限 / 回收语义，
+# 否则无法把「reserved 不下降」与「真泄漏」区分开，也无法在超阈值时定位 owner。
+kind: hqsb.integration.resource_spec
+description: S06 长期启停与资源生命周期规格
+name: s06_resource_spec_v1
+warmup_cycles: 1
+steady_cycles: 0     # 0 = 由预注册终止条件决定稳态窗口长度
+resources:
+  - name: model_module
+    resource_class: python
+    owner: model_adapter
+    create_span: import
+    destroy_span: close
+  - name: compiled_callable
+    resource_class: python
+    owner: compile_engine
+    create_span: compile
+    destroy_span: close
+    cache_cap_entries: 32
+    reclaim: cache_evictable
+  - name: fx_graph_cache
+    resource_class: python
+    owner: compile_engine
+    create_span: capture
+    destroy_span: close
+    cache_cap_entries: 64
+    reclaim: bounded_cache
+  - name: library_registration
+    resource_class: python
+    owner: operator_registry
+    create_span: register
+    destroy_span: close
+  - name: extension_library
+    resource_class: host_native
+    owner: operator_registry
+    create_span: load
+    destroy_span: close
+    reclaim: process_lifetime
+  - name: compiler_subprocess
+    resource_class: host_native
+    owner: compile_engine
+    create_span: compile
+    destroy_span: compile_end
+  - name: generated_module
+    resource_class: device
+    owner: compile_engine
+    create_span: codegen
+    destroy_span: close
+    reclaim: driver_module_cache
+  - name: workspace_buffer
+    resource_class: device
+    owner: lowering_runtime
+    create_span: execute
+    destroy_span: execute_end
+  - name: cuda_graph_pool
+    resource_class: device
+    owner: cuda_graph_manager
+    create_span: capture
+    destroy_span: destroy
+    reclaim: graph_private_pool
+  - name: static_buffer
+    resource_class: device
+    owner: cuda_graph_manager
+    create_span: capture
+    destroy_span: destroy
+  - name: event
+    resource_class: device
+    owner: stream_manager
+    create_span: create
+    destroy_span: destroy
+  - name: kv_cache
+    resource_class: device
+    owner: runtime
+    create_span: allocate
+    destroy_span: close
+notes: >
+  稳态斜率必须分段（warmup/steady/teardown）估计并给出 CI；达到声明上限的
+  bounded cache 不是泄漏，但必须有 manifest 证据。

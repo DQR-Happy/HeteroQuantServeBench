@@ -1,0 +1,54 @@
+# S06 冻结制品：compile cache 规格与失效预期（E06-06 步骤1）
+#
+# 每个状态（cold / same-process / new-process / disabled / corrupt）使用独立目录；
+# 失效矩阵逐因子冻结 expected action，运行后由 raw 自动对比。
+# imported/remote cache 未声明（imported_remote_claimed=false）→ 报告中只能记 NOT_CLAIMED。
+kind: hqsb.integration.cache_spec
+description: S06 compile cache 层、状态与失效预期
+name: s06_cache_spec_v1
+cache_root: experiment_results/cache
+cap_entries: 128
+cap_bytes: 536870912
+imported_remote_claimed: false
+states:
+  - COLD-EMPTY
+  - WARM-SAME-PROCESS
+  - WARM-NEW-PROCESS-LOCAL
+  - CACHE-DISABLED
+  - CORRUPT/PARTIAL
+layers:
+  - python_source_bytecode
+  - dynamo_code
+  - aot_autograd
+  - inductor_fx_graph
+  - triton_binary
+  - hqsb_kernel_binary
+  - autotune
+  - gpu_module_driver
+  - allocator
+  - os_page
+invalidation:
+  - { factor: python_source, expected_action: MISS }
+  - { factor: graph_structure, expected_action: MISS }
+  - { factor: pattern_pass_version, expected_action: MISS }
+  - { factor: operator_schema, expected_action: MISS }
+  - { factor: kernel_binary, expected_action: MISS }
+  - { factor: model_revision, expected_action: MISS }
+  - { factor: weight_values_same_shape, expected_action: MISS }
+  - { factor: quant_artifact_hash, expected_action: MISS }
+  - { factor: quant_group_or_layout, expected_action: REPACK }
+  - { factor: dynamic_bounds, expected_action: MISS }
+  - { factor: dtype, expected_action: MISS }
+  - { factor: device_or_stride, expected_action: MISS }
+  - { factor: pytorch_patch, expected_action: MISS }
+  - { factor: triton_inductor, expected_action: MISS }
+  - { factor: cuda_toolkit_driver, expected_action: MISS }
+  - { factor: gpu_arch, expected_action: REJECT }
+  - { factor: compiler_flags, expected_action: MISS }
+  - { factor: capability_env, expected_action: MISS }
+  - { factor: backend_preference, expected_action: MISS }
+  - { factor: quality_policy, expected_action: MISS }
+  - { factor: irrelevant_metadata_control, expected_action: HIT, semantic: false }
+notes: >
+  坏 entry 必须在执行前被 validate_entry 拒绝（路径安全→完整性→平台身份→内容 hash），
+  注入只在 CorruptionFixture 的 scratch 副本上进行，golden 不可触碰。

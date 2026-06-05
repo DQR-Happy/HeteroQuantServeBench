@@ -1,0 +1,36 @@
+# S06 冻结制品：第二目标复用规格（E06-11 步骤1）
+#
+# 复用只允许通过 config/registry 加载，且不得改动全局默认（否则会把已通过验证的
+# Qwen 路径静默换掉）。差异只允许留在 adapter 内，core 不得出现模型类名/固定 shape/
+# 后端 if 链；任何 core 改动都必须分类（generic fix / contract extension）。
+kind: hqsb.integration.reuse_spec
+description: S06 第二模型或 dummy backend 复用边界
+name: s06_reuse_spec_v1
+route: dummy_backend_first   # 第二真实模型制品当前不在本机授权范围内
+targets:
+  - target: dummy
+    kind: backend
+    adapter_path: hqsb/integration/adapter.py
+    config_path: configs/integration/reuse_spec.yaml
+    version: "1.0.0"
+    changes_global_default: false
+  - target: second_transformer
+    kind: model
+    adapter_path: hqsb/integration/adapters/second_model.py
+    config_path: configs/integration/reuse_spec.yaml
+    version: "0.1.0"
+    changes_global_default: false
+pass_conditions:
+  - core 中不存在模型类名、模块路径字符串、固定层数/head 数
+  - 至少一个 operator 与一条 compile 路径在第二目标上成功
+  - pattern 安全命中或给出字段级 reject reason
+  - correctness / fallback / lifecycle 均通过
+  - cache/registry/artifact identity 不碰撞
+  - Qwen 回归无退化
+core_modification_policy: >
+  generic bug fixes 与 contract extensions 允许但必须分类并记录 reason；
+  model_specific_leak / backend_specific_leak 发生在 core 内即视为失败信号。
+notes: >
+  真实第二模型（不同 RMSNorm/eps 来源、GQA/MHA、tied lm_head 等）需要 ModelArtifact
+  与授权；在制品就位前，E06-11 只能以 dummy backend 完成「backend 契约」维度的复用，
+  并在报告中明确未覆盖的边界。

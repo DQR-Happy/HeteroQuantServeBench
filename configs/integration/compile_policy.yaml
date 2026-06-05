@@ -1,0 +1,37 @@
+# S06 冻结制品：动态 shape / 编译策略（E06-05 步骤1）
+#
+# 预注册动态维度、边界、桶、storm 阈值与 fallback 政策。阈值一旦冻结不得事后修改；
+# fallback 必须 deterministic，strict 模式禁止任何隐式 fallback。
+kind: hqsb.integration.compile_policy
+description: S06 动态 shape 策略、storm 阈值与 fallback 政策
+name: s06_compile_policy_v1
+policy: auto                      # static / auto / dynamic / explicit_bounds / bucketed / phase_split / eager_fallback
+capture_mode: dynamo              # 具体 capture mode 以锁定版本实际 API 为准，运行时记录
+dimensions:
+  - name: batch
+    symbol: B
+    bounds: [1, 8]
+    buckets: [1, 2, 4, 8]
+  - name: sequence
+    symbol: S
+    bounds: [1, 2048]
+    buckets: [32, 128, 512, 2048]
+  - name: flattened_m
+    symbol: M
+    bounds: [1, 16384]
+    buckets: []
+storm:
+  window_requests: 1000
+  max_recompiles_per_window: 8
+  max_unique_shape_graph_ratio: 0.02
+  max_compile_wall_fraction: 0.05
+  max_graph_variants: 32
+  max_p95_amplification: 1.25
+  max_cache_growth_entries: 64
+fallback_enabled: true
+strict: false
+recompile_limit: 8
+notes: >
+  六 workload 与有序 shape trace 见 hqsb.integration.guards.ordered_shape_trace()。
+  选择策略前必须先在每个 graph variant 的边界上通过 correctness；storm 阈值只用
+  于判定，不得为了让数字好看而放宽。

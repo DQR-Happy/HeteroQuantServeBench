@@ -1,0 +1,73 @@
+# S06 冻结制品：算子 schema 契约（E06-01 步骤1）
+#
+# C3 OperatorSpec 只表达数学与 dtype/layout，不表达 mutation/alias/autograd/
+# autocast 政策。本文件补齐这些字段，使 schema 成为编译契约：
+#   hqsb.integration.specs.schema_from_operator_spec(spec, contract)
+# 任何缺失字段都会在加载时被拒绝（不允许默认值）。
+kind: hqsb.integration.operator_contracts
+description: S06 P0 算子的 schema / mutation / alias / policy 冻结
+name: s06_operator_contracts_v1
+contracts:
+  hqsb::rms_norm:
+    spec:
+      name: rms_norm
+      semantic_version: "1.0.0"
+      inputs:
+        - { name: x, dtype: float16 }
+        - { name: weight, dtype: float16 }
+      outputs:
+        - { name: out, dtype: float16 }
+    contract:
+      overload: default
+      mutation: []
+      alias:
+        - { output_index: 0, input_name: null, kind: no_alias }
+      inference_only: true
+      autograd_policy: INFERENCE_ONLY_ERROR
+      autocast_policy: FOLLOW_INPUT
+      note: functional; FP32 accumulation; C3 rmsnorm_v2 + S04.5 语义
+  hqsb::fused_add_rms_norm:
+    spec:
+      name: fused_add_rms_norm
+      semantic_version: "1.0.0"
+      inputs:
+        - { name: x, dtype: float16 }
+        - { name: residual, dtype: float16 }
+        - { name: weight, dtype: float16 }
+      outputs:
+        - { name: normalized, dtype: float16 }
+        - { name: updated_residual, dtype: float16 }
+    contract:
+      overload: default
+      mutation: []
+      alias:
+        - { output_index: 0, input_name: null, kind: no_alias }
+        - { output_index: 1, input_name: null, kind: no_alias }
+      inference_only: true
+      autograd_policy: INFERENCE_ONLY_ERROR
+      autocast_policy: FOLLOW_INPUT
+      note: >
+        functional 融合契约（不原地写 residual）。选择理由：alias/functionalization/
+        CUDA Graph 写风险最小；若将来需要 mutable 变体，必须是独立私有 op，
+        不得让同一 qualified name 有两种含义。
+  hqsb::dequant_linear:
+    spec:
+      name: dequant_linear
+      semantic_version: "1.0.0"
+      inputs:
+        - { name: x, dtype: float16 }
+        - { name: weight_q, dtype: uint8 }
+        - { name: scales, dtype: float16 }
+        - { name: zeros, dtype: float16 }
+        - { name: bias, dtype: float16 }
+      outputs:
+        - { name: out, dtype: float16 }
+    contract:
+      overload: default
+      mutation: []
+      alias:
+        - { output_index: 0, input_name: null, kind: no_alias }
+      inference_only: true
+      autograd_policy: INFERENCE_ONLY_ERROR
+      autocast_policy: FOLLOW_INPUT
+      note: 第二热点（S05 量化路径）；packed layout 身份属于算子身份

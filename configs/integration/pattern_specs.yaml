@@ -1,0 +1,23 @@
+# S06 冻结制品：pattern 声明（E06-04 步骤1）
+#
+# 本文件只声明「哪些 pattern 在哪个 IR level 被冻结」，谓词实现与结构定义在
+# hqsb/integration/patterns.py。加载后由
+# hqsb.integration.policies.audit_pattern_declarations() 与代码逐条比对，
+# 防止 YAML 与代码漂移。
+kind: hqsb.integration.pattern_specs
+description: S06 pattern 版本与 IR level 声明
+name: s06_pattern_specs_v1
+patterns:
+  - pattern_id: hqsb.pattern.residual_add_rmsnorm
+    version: "1.0.0"
+    ir_level: dynamo_fx
+    lowering_targets:
+      - hqsb.cuda.fused_add_rms_norm
+      - hqsb.triton.fused_add_rms_norm
+    note: 主 fusion；结构 add→rms_norm，谓词含 eps/user/mutation/impure/capability/version
+  - pattern_id: hqsb.pattern.rmsnorm_quantize
+    version: "1.0.0"
+    ir_level: dynamo_fx
+    lowering_targets:
+      - hqsb.triton.dequant_linear
+    note: 第二 pattern（S05 量化路径）；绑定 QuantArtifact scheme/group/layout
