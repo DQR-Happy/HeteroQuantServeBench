@@ -1,25 +1,27 @@
-"""Experiment scaffolding: preregistration, run layout, evidence manifest, verdicts.
+"""S06 experiment scaffolding: prerequisites, run layout, evidence, verdicts.
 
-S05 experiments are *not* executed by this repository state: the hard
-prerequisite (S04.5 M4) is unmet. The scaffolding therefore has one central
-property — **it cannot produce a conclusion by default**:
+Like its S05 counterpart (``hqsb.quant.experiment``), the scaffolding has one
+central property: **it cannot produce a conclusion by default**.
 
-* :func:`check_prerequisites` reads the repository for the S04.5 M4 evidence
-  and reports what is missing; the result feeds every verdict;
-* :func:`finalize_status` maps ``(prerequisites, executed, evidence)`` to one
-  of the protocol statuses, and returns ``BLOCKED`` whenever the prerequisite
-  chain is incomplete — regardless of how much interface code exists;
-* :meth:`RunDirectory.write_verdict` refuses to write a PASS/FAIL/PASS_NEGATIVE
-  verdict unless the caller passes ``allow_execute=True`` *and* the
-  prerequisites are satisfied *and* the run recorded at least one raw sample;
-* the run directory layout and the evidence manifest follow the S05 protocol
-  (``preregistration.json``, ``evidence_manifest.json``, ``raw/``,
-  ``normalized/``, ``quant_artifacts/``, ...), so a future execution lands in
-  the structure the protocol expects.
+* :func:`check_prerequisites` inspects the repository for the *evidence* the S06
+  protocol demands (S04.5 M4, S05 P0, frozen six-workload baseline, recorded
+  environment fingerprint, C1–C7 availability) and reports every missing item
+  with the path it looked for;
+* :meth:`RunDirectory.write_verdict` refuses to write PASS/FAIL/PASS_NEGATIVE
+  unless the caller explicitly enables execution, the prerequisites are
+  satisfied **and** raw samples exist;
+* the run layout mirrors the S06 data layout (``graph/before``, ``graph/after``,
+  ``graph/guards``, ``graph/breaks``, ``compile/phases``, ``compile/generated``,
+  ``compile/cache``, ``dispatch``, ``correctness``, ``performance``, ``memory``,
+  ``profiler``, ``traces``, ``errors``, ``operator``, ``environment``);
+* :meth:`RunDirectory.write_report_skeleton` writes the experiment report stub
+  with ``NOT_RUN`` placeholders and **no numbers**, so an unexecuted report can
+  never be mistaken for a result.
 """
 
 from __future__ import annotations
 
+import glob
 import hashlib
 import json
 import os
@@ -28,7 +30,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from hqsb.core.errors import ConfigError
 
@@ -51,38 +53,47 @@ PROTOCOL_STATUSES = (
     STATUS_N_A_BY_ADR,
 )
 
-#: Statuses that require real execution evidence and are therefore refused by
-#: default.
 CONCLUSION_STATUSES = (STATUS_PASS, STATUS_PASS_NEGATIVE, STATUS_FAIL)
 
-EXPERIMENTS = tuple(f"E05-{index:02d}" for index in range(1, 11))
+EXPERIMENTS = tuple(f"E06-{index:02d}" for index in range(1, 12))
 
-STAGE = "S05"
+STAGE = "S06"
 
-#: The run directory layout from details README §13 (created eagerly).
-RUN_LAYOUT = (
+#: Run layout from the S06 details README §16.
+RUN_LAYOUT: Tuple[str, ...] = (
     "commands",
     "stdout",
     "stderr",
-    "raw",
-    "normalized",
-    "quant_artifacts",
-    "compiler",
+    "environment",
+    "operator",
+    "graph/before",
+    "graph/after",
+    "graph/guards",
+    "graph/breaks",
+    "compile/phases",
+    "compile/generated",
+    "compile/cache",
+    "dispatch",
+    "correctness",
+    "performance",
+    "memory",
     "profiler",
-    "plots",
+    "traces",
+    "errors",
 )
+
+#: The marker an actual S04.5 execution must leave behind.  S06's own
+#: scaffolding lives in the same package, so a bare directory can never be
+#: accepted as S04.5 evidence.
+S04_5_EVIDENCE_MARKER = os.path.join("hqsb", "integration", "s04_5_evidence.json")
 
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _sha256_file(path: str) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _utc_now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
 # ── prerequisites ─────────────────────────────────────────────────────────
@@ -108,7 +119,7 @@ class PrerequisiteCheck:
 
 @dataclass
 class PrerequisiteStatus:
-    """Aggregate prerequisite status for the S05 stage."""
+    """Aggregate prerequisite status for S06."""
 
     stage: str
     checks: List[PrerequisiteCheck] = field(default_factory=list)
@@ -130,51 +141,54 @@ class PrerequisiteStatus:
         }
 
 
+def _find_verdicts(root: str, stage: str) -> List[Dict[str, Any]]:
+    pattern = os.path.join(root, "docs", "stage_experiments", stage, "**", "verdict.json")
+    verdicts: List[Dict[str, Any]] = []
+    for path in glob.glob(pattern, recursive=True):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            continue
+        payload["_path"] = path
+        verdicts.append(payload)
+    return verdicts
+
+
 def check_prerequisites(root: str) -> PrerequisiteStatus:
-    """Inspect the repository for the S04.5 M4 prerequisite chain.
+    """Inspect the repository for the S06 evidence chain (never for intent).
 
-    The checks are deliberately about *evidence*, not about intent:
-
-    * an integration module that can replace an operator in a real model
-      (``hqsb/integration`` or the torch-op binding the S04.5 plan names);
-    * the S04.5 experiment raw/evidence directories;
-    * the S04.5 acceptance report;
-    * a frozen FP16 six-workload baseline bound to the current model hash.
-
-    A missing item is reported with the path that was looked for, so the
-    reason can be verified by hand (E05-02 §3: any missing condition makes the
-    run exploratory only).
+    Every check names the path it looked for, so the reason is verifiable by
+    hand.  S06's own interface scaffolding is explicitly **not** accepted as
+    upstream evidence.
     """
     checks: List[PrerequisiteCheck] = []
 
-    # Tightened in S06: the mere existence of ``hqsb/integration`` is *not*
-    # S04.5 M4 evidence — S06 ships its own framework-integration package under
-    # that path.  What is required is the evidence marker an actual S04.5
-    # execution writes (documented in docs/reports/S06_开发报告.md §交接项).
-    evidence_marker = os.path.join(root, "hqsb", "integration", "s04_5_evidence.json")
+    marker = os.path.join(root, S04_5_EVIDENCE_MARKER)
     checks.append(
         PrerequisiteCheck(
-            name="s04_5_operator_integration",
-            satisfied=os.path.isfile(evidence_marker),
-            evidence=evidence_marker if os.path.isfile(evidence_marker) else "",
+            name="s04_5_model_reintegration_evidence",
+            satisfied=os.path.isfile(marker),
+            evidence=marker if os.path.isfile(marker) else "",
             reason=(
                 ""
-                if os.path.isfile(evidence_marker)
-                else "no S04.5 execution marker at hqsb/integration/s04_5_evidence.json; "
-                "the presence of hqsb/integration (S06 interface scaffolding) is not "
-                "evidence that operator re-integration was executed or passed"
+                if os.path.isfile(marker)
+                else (
+                    "no S04.5 execution marker at hqsb/integration/s04_5_evidence.json; "
+                    "S06 interface scaffolding in hqsb/integration is NOT S04.5 M4 "
+                    "evidence and must not be read as such"
+                )
             ),
         )
     )
 
     raw_root = os.path.join(root, "docs", "stage_experiments", "S04.5")
-    raw_evidence = os.path.isdir(raw_root)
     checks.append(
         PrerequisiteCheck(
             name="s04_5_experiment_evidence",
-            satisfied=raw_evidence,
-            evidence=raw_root if raw_evidence else "",
-            reason="" if raw_evidence else f"no S04.5 experiment evidence under {raw_root}",
+            satisfied=os.path.isdir(raw_root),
+            evidence=raw_root if os.path.isdir(raw_root) else "",
+            reason="" if os.path.isdir(raw_root) else f"no S04.5 experiment evidence under {raw_root}",
         )
     )
 
@@ -188,11 +202,7 @@ def check_prerequisites(root: str) -> PrerequisiteStatus:
             name="s04_5_acceptance_report",
             satisfied=bool(acceptance),
             evidence=acceptance[0] if acceptance else "",
-            reason=(
-                ""
-                if acceptance
-                else "no S04.5 acceptance report; the M4 claim is unverified"
-            ),
+            reason="" if acceptance else "no S04.5 acceptance report; the M4 claim is unverified",
         )
     )
 
@@ -209,10 +219,74 @@ def check_prerequisites(root: str) -> PrerequisiteStatus:
             reason=(
                 ""
                 if baseline
-                else "no frozen six-workload FP16 baseline bound to the current "
-                "model hash; without it quantization error cannot be separated "
-                "from operator re-integration error"
+                else "no frozen six-workload FP16 baseline; without it a compile-path "
+                "difference cannot be separated from a model-level difference"
             ),
+        )
+    )
+
+    s05_verdicts = _find_verdicts(root, "S05")
+    s05_passing = [
+        item
+        for item in s05_verdicts
+        if item.get("status") in (STATUS_PASS, STATUS_PASS_NEGATIVE)
+    ]
+    checks.append(
+        PrerequisiteCheck(
+            name="s05_p0_evidence",
+            satisfied=bool(s05_passing),
+            evidence=s05_passing[0]["_path"] if s05_passing else "",
+            reason=(
+                ""
+                if s05_passing
+                else "no S05 verdict.json with PASS/PASS_NEGATIVE; S05 P0 is not complete, "
+                "so the quant route cannot be consumed"
+            ),
+        )
+    )
+
+    fingerprints = glob.glob(
+        os.path.join(root, "docs", "stage_experiments", "*", "**", "environment_fingerprint.json"),
+        recursive=True,
+    ) + glob.glob(
+        os.path.join(root, "experiment_results", "S04.5", "**", "environment_fingerprint.json"),
+        recursive=True,
+    )
+    checks.append(
+        PrerequisiteCheck(
+            name="frozen_environment_fingerprint",
+            satisfied=bool(fingerprints),
+            evidence=sorted(fingerprints)[0] if fingerprints else "",
+            reason=(
+                ""
+                if fingerprints
+                else "no recorded environment fingerprint (Python/torch/CUDA/compiler/ABI/arch); "
+                "a run without a frozen toolchain identity cannot be reproduced"
+            ),
+        )
+    )
+
+    # C1–C7 availability is a code-level check and is satisfied in this tree; it
+    # is kept here so a schema regression blocks execution instead of surfacing
+    # at report time.
+    schema_note = ""
+    schema_ok = True
+    try:
+        from hqsb.integration import telemetry
+
+        coverage = telemetry.c6_c7_summary()
+        schema_ok = bool(coverage["c6"]["ok"] and coverage["c7"]["ok"])
+        if not schema_ok:
+            schema_note = "C6/C7 projection does not cover the required S06 fields"
+    except Exception as exc:  # noqa: BLE001 - a broken contract must block, not crash
+        schema_ok = False
+        schema_note = f"{type(exc).__name__}: {exc}"
+    checks.append(
+        PrerequisiteCheck(
+            name="c6_c7_schema_available",
+            satisfied=schema_ok,
+            evidence="hqsb/integration/telemetry.py" if schema_ok else "",
+            reason=schema_note,
         )
     )
 
@@ -224,24 +298,26 @@ def check_prerequisites(root: str) -> PrerequisiteStatus:
 
 @dataclass
 class Preregistration:
-    """The frozen experiment plan (details README §9.1)."""
+    """The frozen S06 experiment plan (details README §15.1)."""
 
     experiment_id: str
     question: str
     hypothesis: str
-    controls: Dict[str, Any] = field(default_factory=dict)
-    independent_variables: Dict[str, Any] = field(default_factory=dict)
-    metrics: Dict[str, Any] = field(default_factory=dict)
-    gates: Dict[str, Any] = field(default_factory=dict)
-    guard_band: Dict[str, float] = field(default_factory=dict)
-    seeds: Sequence[int] = ()
+    capture_mode: str = ""
+    operator_schema_hash: str = ""
+    pattern: str = ""
+    dynamic_policy: str = ""
+    shape_sequence: Tuple[str, ...] = ()
+    cache_state: str = ""
+    quality_tolerance: Mapping[str, Any] = field(default_factory=dict)
+    performance_metrics: Tuple[str, ...] = ()
     repeats: int = 0
-    independent_processes: int = 0
-    exclusions: Sequence[str] = ()
-    stop_conditions: Sequence[str] = ()
-    allowed_claims: Sequence[str] = ()
+    independent_processes: int = 3
+    exclusions: Tuple[str, ...] = ()
+    stop_conditions: Tuple[str, ...] = ()
+    allowed_claims: Tuple[str, ...] = ()
+    claim_boundary: str = ""
     hardware: str = ""
-    backend: str = ""
     notes: str = ""
     created_at: str = ""
 
@@ -258,6 +334,12 @@ class Preregistration:
                     f"{name!r}; a hypothesis written after seeing results is not a "
                     f"preregistration"
                 )
+        if not self.claim_boundary:
+            raise ConfigError(
+                f"preregistration for {self.experiment_id} needs an explicit "
+                "claim_boundary (what may NOT be claimed from this experiment)",
+                details={"field": "claim_boundary"},
+            )
 
     def to_json(self) -> str:
         payload = {
@@ -266,19 +348,21 @@ class Preregistration:
             "experiment_id": self.experiment_id,
             "question": self.question,
             "hypothesis": self.hypothesis,
-            "controls": self.controls,
-            "independent_variables": self.independent_variables,
-            "metrics": self.metrics,
-            "gates": self.gates,
-            "guard_band": self.guard_band,
-            "seeds": list(self.seeds),
+            "capture_mode": self.capture_mode,
+            "operator_schema_hash": self.operator_schema_hash,
+            "pattern": self.pattern,
+            "dynamic_policy": self.dynamic_policy,
+            "shape_sequence": list(self.shape_sequence),
+            "cache_state": self.cache_state,
+            "quality_tolerance": dict(self.quality_tolerance),
+            "performance_metrics": list(self.performance_metrics),
             "repeats": self.repeats,
             "independent_processes": self.independent_processes,
             "exclusions": list(self.exclusions),
             "stop_conditions": list(self.stop_conditions),
             "allowed_claims": list(self.allowed_claims),
+            "claim_boundary": self.claim_boundary,
             "hardware": self.hardware,
-            "backend": self.backend,
             "notes": self.notes,
             "created_at": self.created_at or _utc_now(),
         }
@@ -289,12 +373,12 @@ class Preregistration:
         return _sha256_text(self.to_json())
 
 
-# ── run directory and evidence ────────────────────────────────────────────
+# ── evidence manifest ─────────────────────────────────────────────────────
 
 
 @dataclass
 class EvidenceManifest:
-    """Run evidence manifest (control plane §26.3)."""
+    """Run evidence manifest (control plane §26.3 + S06 extras)."""
 
     run_id: str
     stage: str = STAGE
@@ -315,6 +399,19 @@ class EvidenceManifest:
     correctness_status: str = "not_run"
     claim_level: str = "SOURCE"
     limitations: Sequence[str] = ()
+    # S06 extras (details README §14)
+    compile_mode: str = ""
+    graph_identity: str = ""
+    compile_identity: str = ""
+    graph_count: int = 0
+    break_count: int = 0
+    cache_layer: str = ""
+    cache_hit: bool = False
+    compile_phase_times: Mapping[str, float] = field(default_factory=dict)
+    requested_lowering: str = ""
+    actual_lowering: str = ""
+    observed_kernel: str = ""
+    fallback_reason: str = ""
 
     def to_json(self) -> str:
         payload = {
@@ -335,12 +432,29 @@ class EvidenceManifest:
             "correctness_status": self.correctness_status,
             "claim_level": self.claim_level,
             "limitations": list(self.limitations),
+            "graph_compile": {
+                "compile_mode": self.compile_mode,
+                "graph_identity": self.graph_identity,
+                "compile_identity": self.compile_identity,
+                "graph_count": self.graph_count,
+                "break_count": self.break_count,
+                "cache_layer": self.cache_layer,
+                "cache_hit": self.cache_hit,
+                "compile_phase_times": dict(self.compile_phase_times),
+                "requested_lowering": self.requested_lowering,
+                "actual_lowering": self.actual_lowering,
+                "observed_kernel": self.observed_kernel,
+                "fallback_reason": self.fallback_reason,
+            },
         }
         return json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False)
 
 
+# ── run directory ─────────────────────────────────────────────────────────
+
+
 class RunDirectory:
-    """Creates and manages one ``experiment_results/S05/<E>/<run_id>/`` tree."""
+    """Creates and manages one ``experiment_results/S06/<E>/<run_id>/`` tree."""
 
     def __init__(self, root: str, experiment_id: str, run_id: str) -> None:
         if experiment_id not in EXPERIMENTS:
@@ -373,8 +487,14 @@ class RunDirectory:
             handle.write(text)
         return path
 
-    def record_command(self, index: int, command: Sequence[str], stdout: str = "", stderr: str = "", returncode: int = 0) -> Dict[str, Any]:
-        """Persist one command with its streams (details README §4)."""
+    def record_command(
+        self,
+        index: int,
+        command: Sequence[str],
+        stdout: str = "",
+        stderr: str = "",
+        returncode: int = 0,
+    ) -> Dict[str, Any]:
         name = f"{index:02d}_{'_'.join(part for part in command[:3] if part)}"[:60]
         self.write_json(
             os.path.join("commands", f"{name}.json"),
@@ -400,8 +520,27 @@ class RunDirectory:
     def raw_file_count(self) -> int:
         raw = os.path.join(self.path, "raw")
         if not os.path.isdir(raw):
+            raw = os.path.join(self.path, "performance")
+        if not os.path.isdir(raw):
             return 0
         return sum(len(files) for _root, _dirs, files in os.walk(raw))
+
+    def write_report_skeleton(self, experiment_id: str, title: str) -> str:
+        """Write a report stub that cannot be mistaken for a result."""
+        skeleton = (
+            f"# {experiment_id}: {title}\n\n"
+            f"> 状态：**NOT_RUN**（本文件由 `hqsb.integration.experiment` 生成的骨架；\n"
+            f"> 未执行任何实验，未产出任何数值）。\n\n"
+            "## 1. 预注册\n\n"
+            "见 `preregistration.json`。\n\n"
+            "## 2. 环境与身份\n\n"
+            "见 `environment_fingerprint.json`、`evidence_manifest.json`；未执行时为占位。\n\n"
+            "## 3. 原始数据\n\n"
+            "`raw/`、`performance/`、`profiler/`、`traces/` 均为空，直到实验真正运行。\n\n"
+            "## 4. 结论\n\n"
+            "无。实验未执行，禁止填写任何设备/性能/正确性结论。\n"
+        )
+        return self.write_text("report.md", skeleton)
 
     def write_verdict(
         self,
@@ -416,7 +555,7 @@ class RunDirectory:
     ) -> Dict[str, Any]:
         """Write a verdict — or refuse when the run cannot support one.
 
-        Refusal conditions (all of them deliberate):
+        Refusal conditions (all deliberate):
 
         * ``status`` is a conclusion status and ``allow_execute`` is False
           (the default), so interface work can never emit a result;
@@ -464,12 +603,16 @@ class RunDirectory:
         self.write_json("verdict.json", payload)
         return payload
 
-    def write_status(self, status: str, reason: str, prerequisites: PrerequisiteStatus, executed: bool = False) -> Dict[str, Any]:
+    def write_status(
+        self,
+        status: str,
+        reason: str,
+        prerequisites: PrerequisiteStatus,
+        executed: bool = False,
+    ) -> Dict[str, Any]:
         """Write a non-conclusion status (NOT_STARTED / RUNNING / BLOCKED)."""
         if status in CONCLUSION_STATUSES:
-            raise ConfigError(
-                f"use write_verdict for conclusion statuses, got {status!r}"
-            )
+            raise ConfigError(f"use write_verdict for conclusion statuses, got {status!r}")
         payload = {
             "stage": STAGE,
             "experiment_id": self.experiment_id,
@@ -484,11 +627,7 @@ class RunDirectory:
         return payload
 
 
-def _utc_now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-# ── environment and git helpers ───────────────────────────────────────────
+# ── environment / git ─────────────────────────────────────────────────────
 
 
 def environment_fingerprint(extra: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
@@ -555,13 +694,7 @@ def interface_only_run(
     *,
     run_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Create a run directory and record a non-conclusion status.
-
-    This is what the CLI does by default: it materialises the structure the
-    protocol expects, records the prerequisite report, and writes
-    ``NOT_STARTED`` (or ``BLOCKED`` when a prerequisite is missing) — never a
-    result.
-    """
+    """Create a run directory and record a non-conclusion status."""
     prerequisites = check_prerequisites(root)
     resolved_run_id = run_id or time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     run = RunDirectory(root, experiment_id, resolved_run_id)
@@ -591,6 +724,7 @@ __all__ = [
     "PrerequisiteStatus",
     "RUN_LAYOUT",
     "RunDirectory",
+    "S04_5_EVIDENCE_MARKER",
     "STAGE",
     "STATUS_BLOCKED",
     "STATUS_FAIL",
