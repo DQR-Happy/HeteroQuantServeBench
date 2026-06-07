@@ -2,9 +2,12 @@
 
 > 生成时间：2026-08-17
 > 跨架构补验：2026-09-18（RTX 3090 / sm_86）
-> 基线 Commit：`4dda6f8`（`refactor docs into staged roadmap and architecture spec`）
-> 当前阶段：S05（量化与低精度推理）—— **接口/代码层就位；实验层 BLOCKED**（S04.5 M4 前置缺失，见 §4）
-> 下一阶段：S04.5（真实模型算子回接）→ S05 实验执行
+> 基线 Commit：`9b403aa`（`chore: stop tracking the stage-experiment tree`，2026-06-02）
+> 当前阶段：S06（框架集成与图优化）—— **接口/代码层就位；实验层 BLOCKED**（S04.5 M4 与 S05 P0 前置缺失，见 §4、§13）
+> 下一阶段：S04.5（真实模型算子回接）→ S05 实验执行 → S06 实验执行
+>
+> 说明：本报告正文生成于 `4dda6f8`，其后仓库推进到 `9b403aa`（HEAD，tracked 343
+> 文件），S05/S06 两轮交付在其上追加；历史条目保留不改，新增章节见 §12/§13。
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -75,7 +78,8 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `backends/pytorch.py` | PyTorchBackend（C4，FP16 Qwen3 reference） | **S02 新增**，Implemented |
 | `hardware/jetson.py` | Jetson 实验协议（温度/冷却/电源模式） | **S02 新增**，Implemented |
 | `quant/` | 量化语义/RTN/golden/packing/artifact/compat/faults/stats/calibration/coverage/apply/quality/execution/oracle/model_eval/adapters/units/sensitivity/policy/activation/kv/decision/experiment/interface_map/config_io + fixtures（28 模块） | **S05 新增**，Implemented（test-verified，见 `evidence_ledger.md` §11） |
-| `serving/` | 空目录（S06–S08 规划占位） | Planned |
+| `integration/` | 框架集成与图优化：specs / dispatch / meta / graph / patterns / guards / cache / lowering / cuda_graph / taxonomy / abi / lifecycle / adapter / differential / telemetry / policies / experiment / interface_map（18 模块） | **S06 新增**，Implemented（test-verified，见 `evidence_ledger.md` §12） |
+| `serving/` | 空目录（S08 规划占位） | Planned |
 
 ### 3.2 `ops/`（算子）
 
@@ -124,6 +128,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `operators/fused_residual_rmsnorm.json` | fused residual+rmsnorm C3 OperatorSpec | **S03 新增**，Implemented |
 | `backends/` | 空（.gitkeep） | Planned |
 | `quantization/` | RTN W8/W4/非对称、scheme 矩阵、校准、kernel、激活、KV、决策 spec + policy 示例（10 份，均经 `config_io.load_any` 严格校验） | **S05 新增**，Implemented |
+| `integration/` | 算子契约、pattern 声明、编译策略、cache 规格、graph 规格、资源规格、复用规格（7 份，均经 `policies.load_directory` 严格校验 + 与代码逐字段审计） | **S06 新增**，Implemented |
 
 ### 3.5 `scripts/`
 
@@ -142,6 +147,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `bench/nsys_profile.sh` | Nsight Systems 采集 runner | **S02 新增**，Implemented |
 | `bench/ncu_profile.sh` | Nsight Compute 采集 runner | **S02 新增**，Implemented |
 | `bench/run_jetson_baseline.sh` | Jetson CUDA baseline 一键脚本 | Implemented |
+| `integration/run_e06.py` | S06 实验驱动（status/preregister/interface-map/self-check/execute，默认不产结论） | **S06 新增**，Implemented |
 | `env/collect_jetson_env.sh` | 环境采集脚本 | Implemented |
 | `common/git_commit.sh` | 本地 git 历史改写辅助（**已 gitignore，勿入库**） | 本地工具，见 §8 |
 
@@ -165,7 +171,9 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `unit/core/test_pytorch_backend.py` | PyTorchBackend 契约合规 | **S02 新增** |
 | `unit/core/test_jetson.py` | Jetson 协议防御式表面 | **S02 新增** |
 | `property/test_percentile_property.py` | 百分位不变量属性测试 | **S01 新增** |
-| `correctness/` `integration/` `test_vectors/` | 空（.gitkeep） | Planned |
+| `unit/quant/`、`unit/ops/test_quant_kernels.py`、`property/test_quant_properties.py` | 量化单元/属性/kernel 测试 | **S05 新增**，Implemented |
+| `unit/integration/`（10 文件）、`property/test_integration_invariants.py` | S06 接口层测试 371 项（schema/dispatch/meta/graph/pattern/guard/cache/lowering/cuda_graph/lifecycle/adapter/taxonomy/ABI/differential/telemetry/脚手架/依赖边界） | **S06 新增**，Implemented |
+| `correctness/` `integration/` `test_vectors/` | 空（.gitkeep） | Planned（S04.5 起填充真实模型正确性矩阵） |
 
 ### 3.7 `docs/` 与 `reports/`
 
@@ -183,6 +191,8 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `reports/baseline_report.md` | S02 baseline（六 workload + KV cache 画像） | **S02 新增** |
 | `reports/pytorch_profile_report.md` | PyTorch Profiler hotspot 证据 | **S02 新增** |
 | `reports/nsys_report.md` / `ncu_report.md` | Nsight Systems / Compute 分析 | **S02 新增** |
+| `reports/S06_开发报告.md` / `S06_阶段验收报告.md` | S06 交付与验收（接口层；实验层 BLOCKED） | **S06 新增** |
+| `reports/S06_graph_integration_design.md` | S06 Design 制品（编译链分层、ADR、数据布局、边界） | **S06 新增** |
 | `reports/` | raw 运行证据（**gitignored，仅本机保留**） | runtime-verified |
 
 ---
@@ -197,8 +207,9 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | S03 | CUDA 算子性能工程 | **已完成（验收通过）** |
 | S04 | Triton / CUTLASS / Kernel DSL | **已完成（验收通过）；「多架构未验证」例外已于 2026-09-18 关闭**（E04-01，sm_86 + sm_87） |
 | S04.5 | 真实模型算子回接 | **已定义，未开始**（`docs/stages/S04.5_真实模型算子回接.md`，本轮新增） |
-| S05 | 量化与低精度推理 | **接口/代码层就位（E05-01~E05-10 共 190 步能力接口 + 936 测试）；实验层 BLOCKED**（S04.5 M4 前置缺失） |
-| S06–S15 | 框架集成 / Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
+| S05 | 量化与低精度推理 | **接口/代码层就位（E05-01~E05-10 共 190 步能力接口）；实验层 BLOCKED**（S04.5 M4 前置缺失） |
+| S06 | 框架集成与图优化 | **接口/代码层就位（E06-01~E06-11 共 218 步能力接口 + 371 新增测试）；实验层 BLOCKED**（S04.5 M4 与 S05 P0 前置缺失）。`hqsb/integration/` 18 模块 + `scripts/integration/run_e06.py` + `configs/integration/` 7 份；CUDA Graph 记 `NOT_CLAIMED` |
+| S07–S15 | Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
 
 **S05 准入判定（2026-09-18）**：**放行**，附加两条约束——
 S04.5 的「未量化 HQSB 算子路径」数值基线必须先建（否则无法区分量化误差与算子
@@ -407,8 +418,59 @@ S04 handoff 与验收见 [`reports/S04_阶段验收报告.md`](reports/S04_阶�
 8. **测试**：全量 **936 passed**（新增约 280）；依赖边界 0 violations；
    故障注入 35/35 捕获；golden 11 向量 0 失配。
 
-**阻塞**：S04.5 M4「真实模型算子回接」前置未满足（`hqsb/integration`、S04.5
-实验证据、S04.5 验收报告、六 workload FP16 基线四项缺失）。`run_e05.py --mode
+**阻塞**：S04.5 M4「真实模型算子回接」前置未满足。`run_e05.py --mode
 execute --confirm-execute` 如实拒绝（退出码 7），不产结论。
 
 S05 报告：`docs/reports/S05_开发报告.md`、`docs/reports/S05_阶段验收报告.md`。
+
+> 注：S05 原前置检查把「`hqsb/integration/` 目录存在」当作 S04.5 M4 证据；
+> S06 交付落在同一路径后，该检查已被**收紧**为要求执行证据标记
+> `hqsb/integration/s04_5_evidence.json`（`hqsb/quant/experiment.py`，
+> 见 §13 与 `docs/reports/S06_开发报告.md` §2.3）。
+
+---
+
+## 13. S06 补齐内容（接口/代码层，实验层 BLOCKED）
+
+按任务约束「提供接口、不执行实验」，S06 交付了 E06-01~E06-11 全部 **218 个
+实验步骤**的能力接口与测试，**未执行任何正式实验、未产出任何图/编译/性能/
+内存/命中率结论数字**。
+
+1. **算子与 dispatcher 边界**：`specs.py`（schema = 编译契约、单一 schema owner
+   审计）、`dispatch.py`（注册矩阵冲突拒绝、dispatch table 快照与 diff、
+   redispatch 递归/耗尽守卫、capability 驱动选择、确定性 fallback、opcheck 计划）。
+2. **Meta/Fake 与图 IR**：`meta.py`（符号维度、元数据契约、real-vs-fake 逐字段
+   oracle、无分配证据 spy、guard 集合）、`graph.py`（capture mode/IR level 标注、
+   结构哈希、graph diff、FX/声明式适配）。
+3. **重写与 lowering**：`patterns.py`（结构候选 → 语义谓词 → 副本重写、字段级
+   拒绝原因、四种覆盖率、负向变异测试）、`lowering.py`（能力驱动选型、拒绝原因、
+   分配对账、Amdahl 归因、消融矩阵）。
+4. **guard/编译/cache**：`guards.py`（五类事件分离计数、动态策略、有序 shape
+   trace、storm 阈值、guard 最小性审计）、`cache.py`（graph/compile identity、
+   15 个编译相位、entry 执行前校验、scratch 损坏注入、失效矩阵、并发锁、
+   break-even）。
+5. **失败与生命周期**：`taxonomy.py`（14 层 stage + 稳定 reason code + 事务化执行
+   + 确定性 fallback + 消息脱敏）、`abi.py`（load 前 ABI/arch 判定）、
+   `lifecycle.py`（状态机、分段斜率/平台期/泄漏判定、弱引用探针、stream 审计、
+   teardown）、`cuda_graph.py`（P1 契约 + claim 门，当前 `NOT_CLAIMED`）。
+6. **跨目标复用与证据投影**：`adapter.py`（model/backend 协议、硬编码扫描、
+   改动分类、dummy backend、identity 碰撞）、`differential.py`（8 条路径矩阵、
+   预注册容差、冻结融合语义、首次发散定位、正确性矩阵）、`telemetry.py`
+   （C6/C7 投影 + 字段/事件覆盖审计）、`policies.py`（7 类冻结 spec + 漂移审计）。
+7. **驱动与配置**：`scripts/integration/run_e06.py`
+   （status/preregister/interface-map/self-check/execute，默认拒绝产结论）、
+   `configs/integration/*.yaml`（7 份）。
+8. **测试**：全量 **1303 passed**（本阶段新增 371）；依赖边界 gate 0 违规 0 环
+   （新增 region `integration` 与规则 R2）；接口解析 218 步 / 381 接口全部通过；
+   ruff 本阶段文件全绿（仓库其余 76 处为既有）。
+
+**阻塞**：S06 的 7 条硬前提中 6 条未满足（S04.5 执行证据标记、S04.5 证据目录、
+S04.5 验收报告、六 workload FP16 基线、S05 P0 verdict、环境指纹）。
+`run_e06.py --mode execute --confirm-execute` 如实拒绝（退出码 7），不产结论。
+
+**既有文档债务（未修）**：`docs/stage_experiments/details/*/README.md` 43 处相对
+链接断裂（S04/S04.5 清单文件随 `9b403aa` 移出树；控制平面文档实际位于
+`docs/architecture/`）。协议目录冻结。
+
+S06 报告：`docs/reports/S06_开发报告.md`、`docs/reports/S06_阶段验收报告.md`、
+`docs/reports/S06_graph_integration_design.md`。

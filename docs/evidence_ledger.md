@@ -301,3 +301,62 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 > 本阶段不新增 `runtime-verified` 之外的性能/质量结论；S5-14 的 kernel 正确性
 > 为接口层 smoke 证据，**不是** E05-06 实验结论（E05-06 实验层 BLOCKED）。
 
+---
+
+## 12. S06 声明台账（接口/代码层，2026-09-18）
+
+> 背景：S06（框架集成与图优化）按任务约束「提供接口、不执行实验」交付了
+> E06-01~E06-11 全部 **218 个实验步骤**的能力接口与测试，**未执行任何正式实验、
+> 未产出任何 graph/guard/recompile/cache/lowering/kernel/性能/内存结论数字**。
+> 本节条目为 `test-verified`（接口正确性）；**实验层判定为 `BLOCKED`**
+> （S04.5 M4 / S05 P0 前置缺失，见 S6-BLOCK）。配套报告：
+> `docs/reports/S06_开发报告.md`、`docs/reports/S06_阶段验收报告.md`、
+> `docs/reports/S06_graph_integration_design.md`。
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S6-1 | 算子 schema 作为编译契约：mutation/alias/autograd/autocast/inference-only 显式声明，缺失或自相矛盾即拒绝；schema hash 稳定 | test-verified | `hqsb/integration/specs.py`；`tests/unit/integration/test_specs_dispatch.py::TestOperatorSchema` |
+| S6-2 | 单一 schema owner 审计：Python `torch.library.define` 与 C++ `TORCH_LIBRARY/m.def` 定义点计数，两名 owner 即冲突 | test-verified | `hqsb/integration/specs.py::audit_schema_owners`；`TestSchemaOwnerAudit` |
+| S6-3 | 注册矩阵冲突拒绝：重复 schema/同 key 不同实现/第三方 namespace 占用/实现与 schema hash 不符，全部结构化拒绝，禁止 last-load-wins | test-verified | `hqsb/integration/dispatch.py::RegistrationMatrix`；`TestRegistrationMatrix` |
+| S6-4 | dispatch 真实性：capability 驱动选择返回 requested/selected/internal route/reason；不满足时回退 composite 并记录原因；Triton/quant 作为内部 route 而非独立 dispatch key | test-verified | `hqsb/integration/dispatch.py::select_implementation`；`TestSelectionAndRedispatch` |
+| S6-5 | redispatch 守卫：按 (op, key set) 检测递归、key set 耗尽与深度上限，不依赖全局递归计数器 | test-verified | `hqsb/integration/dispatch.py::RedispatchGuard`；`TestSelectionAndRedispatch` |
+| S6-6 | fallback 策略确定性：固定优先级链、strict 模式拒绝隐式回退、禁用能力必须带 reason、无可用实现显式报错 | test-verified | `hqsb/integration/dispatch.py::FallbackPolicy`；`TestFallbackPolicy`、`tests/property/test_integration_invariants.py` |
+| S6-7 | Meta/Fake 元数据契约：符号维度不被具体值替换、stride/alias 逐字段与 real 比对、非法 rank/dtype/shape 在分配前拒绝、fake 路径可证明"无真实分配/无 kernel/无 payload 读取" | test-verified | `hqsb/integration/meta.py`；`tests/unit/integration/test_meta_graph.py` |
+| S6-8 | 图 IR 与结构身份：capture mode / IR level 必须标注、结构哈希对节点名不变、拓扑变化必然改变哈希、graph diff 记录增删/死代码/impure 节点 | test-verified | `hqsb/integration/graph.py`；`TestGraphIR`、`tests/property/test_integration_invariants.py::TestHashes` |
+| S6-9 | pattern 语义安全：结构只是候选，谓词（eps/alpha/axis/extra user/mutation/impure/weight/capability/version）全通过才可重写；拒绝带字段级 reason；重写在副本上进行、原图不被污染 | test-verified | `hqsb/integration/patterns.py`；`tests/unit/integration/test_patterns.py` |
+| S6-10 | false-positive 变异测试：eps/alpha/in-place/未知版本 4 类近失全部被拒（`ok=True`） | test-verified | `patterns.mutation_report`；`TestMutationTesting`、`run_e06.py --mode self-check` |
+| S6-11 | 覆盖率口径分离：node/call/time/model coverage 与 precision/recall/false-positive 分别计算，缺数据时比值落在 [0,1] | test-verified | `patterns.coverage_report`；`TestCoverage`、`test_integration_invariants.py::TestCoverageInvariants` |
+| S6-12 | guard/break/recompile/assert/fallback 五类事件分离计数，各自带 request/graph/reason；storm 阈值预注册且逐条报告越界原因 | test-verified | `hqsb/integration/guards.py`；`TestCompileLedger`、`TestStorm`、`TestGuardMinimality` |
+| S6-13 | compile identity 敏感性：graph/op schema/tensor metadata/model/quant policy/rewrite spec 与 torch/triton/ABI/arch/guard 任一变化都改变 digest | test-verified | `hqsb/integration/cache.py`；`TestCompileIdentity`、`test_integration_invariants.py::TestHashes` |
+| S6-14 | cache entry 在执行前校验：路径穿越、缺失、截断、位翻转、外部架构、陈旧 schema/ABI、不完整写入、不可信制品全部检出（`pre_execution=True`） | test-verified | `cache.validate_entry`；`TestCacheEntryValidation` |
+| S6-15 | 损坏注入只作用于 scratch 副本：`CorruptionFixture` 拒绝修改 scratch 根之外的目标，golden 不可达 | test-verified | `cache.CorruptionFixture`；`TestCorruptionFixture` |
+| S6-16 | 失效矩阵逐因子 expected/actual 对比，含 `irrelevant_metadata_control` 控制项；未观测因子记 `<NOT_OBSERVED>` 而非默认通过 | test-verified | `cache.evaluate_invalidation`；`TestInvalidationMatrix` |
+| S6-17 | break-even 数学：`N = extra_compile_cost / (eager - steady)` 向上取整；分母 ≤0 时返回无摊销点并给出 reason | test-verified | `cache.compute_break_even`；`TestBreakEven`、`test_integration_invariants.py` |
+| S6-18 | 并发/原子性：锁文件陈旧检测 + 原子写（tmp+fsync+rename），第二个 writer 被拒绝；manifest 往返与淘汰确定性 | test-verified | `cache.CacheLock`、`cache.atomic_write_text`、`cache.evict`；`TestCacheManifestAndLock` |
+| S6-19 | lowering 能力驱动：dtype/layout/rank/M/arch/group/workspace 逐项校验，拒绝原因逐个记录；选型规则不得以模型/模块名为键（静态审计） | test-verified | `hqsb/integration/lowering.py`；`TestLoweringRegistry` |
+| S6-20 | 分配与收益归因：理论中间量/workspace/拷贝/anchor 与实际节省对账，残差非零即 `explained=False`；Amdahl 预测与实测差必须逐因子解释 | test-verified | `lowering.AllocationAccount.reconcile`、`AttributionReport`；`TestAllocationAccounting`、`TestAmdahlAndAttribution` |
+| S6-21 | CUDA Graph 契约与 claim 门：未观测的前置条件视为失败；in-flight 缓冲区拒绝释放；越界 shape 走非 graph 路径；证据不完整时 `NOT_CLAIMED`，未执行时 `NOT_RUN` | test-verified | `hqsb/integration/cuda_graph.py`；`tests/unit/integration/test_cuda_graph_lifecycle.py` |
+| S6-22 | 错误分类：14 层 stage 全覆盖、reason code 带 severity/retryable/fallback/user message、fatal 类禁止 fallback、消息脱敏（路径/地址/权重文本） | test-verified | `hqsb/integration/taxonomy.py`；`TestErrorTaxonomy`、`TestFailureRecord` |
+| S6-23 | 事务化执行：validate→prepare→execute→validate→commit；不变量破坏时 abort 并丢弃 shadow 输出（无半 token/半 residual）；状态机拒绝乱序调用 | test-verified | `taxonomy.TransactionalPlan`；`TestTransactionalPlan` |
+| S6-24 | ABI 兼容判定在 load 前：架构/ABI/toolchain/unknown 字段逐项拒绝，二进制 hash 与符号缺失可检出 | test-verified | `hqsb/integration/abi.py`；`TestABI` |
+| S6-25 | 生命周期：状态机拒绝非法迁移；泄漏判定区分 bounded cache 与持续增长（分段斜率 + CI + plateau）；弱引用探针不持有对象；stream 审计检出隐式全局同步 | test-verified | `hqsb/integration/lifecycle.py`；`TestLifecycleMachine`、`TestLeakStatistics`、`TestLivenessAndStreams` |
+| S6-26 | 反硬编码：core 代码扫描 10 条规则（模型类名/模块路径/固定层数/后端 if 链/节点名/形状常量/环境开关等），例外必须显式标记并计数上报 | test-verified | `hqsb/integration/adapter.py::hardcode_scan`；`TestHardcodeScanner`（含植入 4 类违规的负向 fixture） |
+| S6-27 | 跨目标复用隔离：identity 碰撞检查（`*_id/_hash/_key/_identity`）、`changes_global_default` 必须为假、dummy backend 恒不允许性能 claim | test-verified | `adapter.identity_collision_check`、`AdapterRegistration`、`DummyBackendAdapter`；`TestReuse`、`TestAdapterRegistration`、`TestDummyBackendAdapter` |
+| S6-28 | 四级 differential 门禁：容差按 level×dtype 预注册（缺失即错误、不给全局默认）、NaN/Inf 独立硬门、首次不匹配索引保留、路径矩阵缺失单元显式化 | test-verified | `hqsb/integration/differential.py`；`tests/unit/integration/test_differential.py` |
+| S6-29 | 冻结融合语义：functional（不原地写 residual）、FP32 累加、舍入后读取；参考实现为纯 Python FP64 组合而不是目标 kernel | test-verified | `differential.FROZEN_ADD_RMSNORM_SEMANTICS`、`fused_add_rms_norm_reference`；`TestFusionSemantics` |
+| S6-30 | C6/C7 投影完整且不破坏冻结 schema：14 个 C6 字段全部可寻址（`missing=[]`）、18 类 S06 事件都映射到合法 C7 事件（`invalid=[]`）、run/span/parent/单调时间可关联 | test-verified | `hqsb/integration/telemetry.py`；`TestC6Projection`、`TestC7Projection` |
+| S6-31 | 配置即冻结：7 类 YAML 严格加载（未知键拒绝）、算子契约与代码 schema 逐字段审计、pattern 声明与代码无漂移 | test-verified | `hqsb/integration/policies.py`；`tests/unit/integration/test_s06_experiment_scaffolding.py::TestConfigs` |
+| S6-32 | 运行脚手架默认不产结论：verdict 在未执行/无 raw/前置未满足时一律落 `BLOCKED`；报告骨架标注 `NOT_RUN` 且不含数字；run layout 覆盖 graph/compile/dispatch/correctness/performance 等 19 个子目录 | test-verified | `hqsb/integration/experiment.py`；`TestRunDirectory` |
+| S6-33 | 接口对照表 218 步 / 381 接口 / 629 引用全部 import 解析成功（对照表不会腐烂成文档） | test-verified | `hqsb/integration/interface_map.py`；`resolve_interfaces()` → `ok=True`；`TestInterfaceMap` |
+| S6-34 | 依赖方向：`hqsb.integration` 模块级不 import torch/triton、不 import `ops`；`core`/`models`/`benchmark` 不 import integration；gate 规则 R1+R2 0 违规 0 环 | test-verified | `tests/unit/integration/test_import_boundaries.py`；`scripts/audit/import_dependency_gate.py`（PASS） |
+| S6-35 | S05 前置门收紧（更严而非更松）：S04.5 M4 证据从「目录存在」改为「存在执行证据标记 `s04_5_evidence.json`」，避免 S06 脚手架伪造上游证据 | test-verified | `hqsb/quant/experiment.py`；`test_s06_experiment_scaffolding.py::TestPrerequisites::test_s06_scaffolding_is_not_accepted_as_s04_5_evidence` |
+| S6-36 | 全量测试 **1303 passed, 0 failed**（4 deselected；本阶段新增 371） | runtime-verified（本机） | `python3 -m pytest tests/ -q -m "not hardware and not e2e and not performance"`（本机 RTX 3090 / CPU 测试口径） |
+| S6-37 | 实验驱动默认拒绝：`--mode status` 6/7 前置 MISS → BLOCKED；`--mode execute --confirm-execute` 退出码 7；`--mode preregister` 只写预注册与 `NOT_RUN` 骨架 | runtime-verified（本机） | `scripts/integration/run_e06.py`；`docs/reports/S06_阶段验收报告.md` §7 |
+| S6-38 | CPU-minimal 打包包含 S06 交付：wheel（124 entries）含 19 个 `hqsb/integration/` 模块；CI 入口两步（pytest 口径 + dependency gate）全通过 | runtime-verified（本机，`development`） | `pip wheel . --no-deps --no-build-isolation`（离线环境需关构建隔离）；`.github/workflows/ci.yml` |
+| S6-BLOCK | S06 **实验层 BLOCKED**：7 条硬前提中 6 条未满足（S04.5 M4 证据标记/S04.5 证据目录/S04.5 验收报告/六 workload FP16 基线/S05 P0 verdict/环境指纹） | source-only（缺失事实，由 `check_prerequisites` 实测登记） | `hqsb/integration/experiment.py::check_prerequisites`；`run_e06.py --mode status` |
+| S6-CLAIM | CUDA Graph（P1）**未声称**：`claim_cuda_graph: false`，`claim_status(executed=False)` → `NOT_RUN` | source-only | `configs/integration/graph_spec.yaml`；`cuda_graph.claim_status` |
+| S6-DEBT | 既有文档债务：`docs/stage_experiments/details/*/README.md` 43 处相对链接断裂（S04/S04.5 清单随 `9b403aa` 移出树；控制平面文档实际在 `docs/architecture/`）；协议目录冻结，登记不修 | source-only | `scripts/check_docs.py`（43 broken，全部既有） |
+
+> 本节不含任何实验结果数字。S6-36/S6-37 是本机测试与驱动行为证据（`development`
+> 级别），**不是** E06 实验结论；E06-01~E06-11 实验层全部 BLOCKED。
+
