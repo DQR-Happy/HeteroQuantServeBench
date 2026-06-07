@@ -10,29 +10,35 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-**S05（量化与低精度推理）—— 接口/代码层就位；实验层 BLOCKED。**
+**S06（框架集成与图优化）—— 接口/代码层就位；实验层 BLOCKED。**
 
-S05 已交付 E05-01~E05-10 全部 190 个实验步骤的能力接口（`hqsb/quant/` 28 模块 +
-`ops/quant/` 低比特执行层 + `scripts/quant/run_e05.py` 驱动 + `configs/quantization/`
-10 份配置），由 936 个测试、依赖边界 gate、接口解析与 Triton fused-dequant kernel
-对 oracle 的正确性对照证明。**未执行任何正式实验、未产出质量/性能/内存/能耗结论**。
+S06 已交付 E06-01~E06-11 全部 **218 个实验步骤**的能力接口（`hqsb/integration/`
+18 模块：算子 schema/dispatcher、Meta/FakeTensor、图 IR、pattern 重写、guard 与
+recompile 记账、compile cache、lowering、CUDA Graph 契约、错误/ABI 分类、
+生命周期、adapter 与反硬编码、四级 differential、C6/C7 投影）+
+`scripts/integration/run_e06.py` 驱动 + `configs/integration/` 7 份冻结配置，
+由 371 个新增测试（全量 1303 passed）、依赖边界 gate、接口解析（218 步 / 381 接口）、
+契约漂移审计与 smoke 自检证明。**未执行任何正式实验、未产出任何图/编译/性能/
+内存/命中率结论**。
 
-实验层为 `BLOCKED`：S04.5 M4「真实模型算子回接」前置未满足（`hqsb/integration`、
-S04.5 实验证据、S04.5 验收报告、六 workload FP16 基线四项缺失）。驱动入口默认拒绝
-产结论：
+实验层为 `BLOCKED`：S06 的 7 条硬前提中 6 条未满足（S04.5 执行证据标记、S04.5
+证据目录与验收报告、六 workload FP16 基线、S05 P0 verdict、环境指纹）。
+CUDA Graph（P1）未声称（`NOT_CLAIMED`）。驱动入口默认拒绝产结论：
 
 ```bash
-python3 scripts/quant/run_e05.py --experiment E05-01 --mode status        # 报告 BLOCKED 原因
-python3 scripts/quant/run_e05.py --mode self-check --json                 # 接口 smoke 自检
-python3 scripts/quant/run_e05.py --experiment E05-01 --mode execute --confirm-execute  # 退出码 7（拒绝）
+python3 scripts/integration/run_e06.py --mode status                 # 逐项前置门 → BLOCKED
+python3 scripts/integration/run_e06.py --mode interface-map          # 218 步 / 381 接口对照表
+python3 scripts/integration/run_e06.py --mode self-check --json      # 接口 smoke 自检
+python3 scripts/integration/run_e06.py --experiment E06-01 --mode execute --confirm-execute  # 退出码 7（拒绝）
 ```
 
-详见 `docs/reports/S05_开发报告.md`（含「实验步骤 → 代码接口」对照表）与
-`docs/reports/S05_阶段验收报告.md`。
+详见 `docs/reports/S06_开发报告.md`（含「实验步骤 → 代码接口」对照表）、
+`docs/reports/S06_阶段验收报告.md`（区分代码层验收与实验层 BLOCKED）与
+`docs/reports/S06_graph_integration_design.md`（Design 制品）。
 
-S04（Triton/CUTLASS/Kernel DSL）已完成；跨架构补验（2026-09-18，RTX 3090 / sm_86）
-见 `docs/reports/S04_阶段验收报告.md` §8。下一阶段顺序：**S04.5（真实模型算子
-回接）→ S05 实验执行**。
+S05（量化）与 S04（Triton/CUTLASS/Kernel DSL）已完成代码/接口层交付；S04 跨架构
+补验（2026-09-18，RTX 3090 / sm_86）见 `docs/reports/S04_阶段验收报告.md` §8。
+下一阶段顺序：**S04.5（真实模型算子回接）→ S05 实验执行 → S06 实验执行**。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -150,7 +156,7 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | Triton GEMM（reference + autotune） | Verified | `ops/triton/gemm.py` | autotune 随 shape 选不同 tile（E04-01） |
 | S04 跨架构 tile/autotune 迁移实验 | Verified | `scripts/audit/run_e04_01_cross_arch_tile_transfer.py` | `docs/stage_experiments/S04/E04-01/raw/` |
 | 模型制品门禁（客户端缓存元数据排除） | Verified | `hqsb/models/manifest.py` | `verify_qwen3_hashes.py` → 13/14 PASS |
-| CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（613 passed，2026-09-18） |
+| CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（1303 passed，2026-09-18，S06 口径） |
 | QuantLab 量化语义/RTN/golden/packing/制品 | Implemented | `hqsb/quant/{spec,rounding,rtn,golden,packing,artifact}.py` | `tests/unit/quant/`（936 passed 子集） |
 | QuantLab 兼容/故障注入/校准/统计 | Implemented | `hqsb/quant/{compat,faults,calibration,stats,fixtures}.py` | `tests/unit/quant/test_artifact_compat.py`、`test_calibration_stats.py` |
 | QuantLab 模型级评估（coverage/apply/quality/execution/oracle/model_eval） | Implemented | `hqsb/quant/` | `test_coverage_apply_quality.py`、`test_execution_model_eval.py` |
@@ -162,6 +168,22 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | 实验驱动入口（默认不产结论） | Implemented | `scripts/quant/run_e05.py`、`hqsb/quant/experiment.py` | `test_experiment_interface_map.py`；`--mode execute` 退出码 7 |
 | 实验步骤→接口对照表（190 步 / 219 接口） | Implemented | `hqsb/quant/interface_map.py` | `test_experiment_interface_map.py::TestInterfaceMap` |
 | QuantLab 实验执行 | **BLOCKED**（S04.5 M4 前置缺失） | `docs/stage_experiments/details/S05/` | `run_e05.py --mode status` |
+| 算子 schema / dispatcher 边界（schema 契约、注册冲突、redispatch、capability、fallback） | Implemented | `hqsb/integration/{specs,dispatch}.py` | `tests/unit/integration/test_specs_dispatch.py` |
+| Meta/FakeTensor 元数据契约与 symbolic shape | Implemented | `hqsb/integration/meta.py` | `tests/unit/integration/test_meta_graph.py` |
+| 图 IR（capture mode/IR level、结构哈希、graph diff） | Implemented | `hqsb/integration/graph.py` | `test_meta_graph.py::TestGraphIR` |
+| pattern 重写（语义谓词、字段级拒绝、副本重写、四种覆盖率） | Implemented | `hqsb/integration/patterns.py` | `tests/unit/integration/test_patterns.py` |
+| guard / graph break / recompile / fallback 五类分离与 storm 阈值 | Implemented | `hqsb/integration/guards.py` | `test_guards_cache.py::TestCompileLedger`、`TestStorm` |
+| compile identity / cache 校验 / 失效矩阵 / 损坏注入 / break-even | Implemented | `hqsb/integration/cache.py` | `test_guards_cache.py` |
+| lowering registry 与收益归因（allocation / Amdahl / 消融） | Implemented | `hqsb/integration/lowering.py` | `test_lowering_telemetry.py` |
+| CUDA Graph 契约与 claim 门（P1） | Implemented（`NOT_CLAIMED`） | `hqsb/integration/cuda_graph.py`、`configs/integration/graph_spec.yaml` | `test_cuda_graph_lifecycle.py::TestClaimGate` |
+| 错误分类 / 事务化执行 / ABI load 前判定 | Implemented | `hqsb/integration/{taxonomy,abi}.py` | `test_adapter_taxonomy.py` |
+| 生命周期 / 资源斜率 / 弱引用存活 / stream 审计 | Implemented | `hqsb/integration/lifecycle.py` | `test_cuda_graph_lifecycle.py::TestLeakStatistics` |
+| 跨模型/后端复用与反硬编码扫描 | Implemented | `hqsb/integration/adapter.py` | `test_adapter_taxonomy.py::TestHardcodeScanner` |
+| 四级 differential（路径矩阵、预注册容差、首次发散定位） | Implemented | `hqsb/integration/differential.py` | `tests/unit/integration/test_differential.py` |
+| C6/C7 投影 + 字段/事件覆盖审计 | Implemented | `hqsb/integration/telemetry.py` | `test_lowering_telemetry.py::TestC6Projection` |
+| 实验驱动入口（默认不产结论） | Implemented | `scripts/integration/run_e06.py`、`hqsb/integration/experiment.py` | `--mode execute` 退出码 7；`test_s06_experiment_scaffolding.py` |
+| 实验步骤→接口对照表（218 步 / 381 接口） | Implemented | `hqsb/integration/interface_map.py` | `test_s06_experiment_scaffolding.py::TestInterfaceMap` |
+| S06 实验执行 | **BLOCKED**（S04.5 M4 / S05 P0 前置缺失） | `docs/stage_experiments/details/S06/` | `run_e06.py --mode status` |
 | KernelLab（CUTLASS/Ascend C） | Planned | `ops/ascend/`（CUTLASS 待网络恢复） | S05/S09 |
 | Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
 | ServeFabric（OpenAI-compatible gateway） | Planned | `hqsb/serving/` | — |
