@@ -61,6 +61,7 @@ REGION_PREFIXES: List[Tuple[str, str]] = [
     ("models", "hqsb.models"),
     ("hardware", "hqsb.hardware"),
     ("quant", "hqsb.quant"),
+    ("integration", "hqsb.integration"),
     ("serving", "hqsb.serving"),
     ("ops", "ops"),
 ]
@@ -83,9 +84,22 @@ RULES: List[Dict[str, Any]] = [
             "models",
             "hardware",
             "quant",
+            "integration",
             "serving",
             "ops",
         ],
+    },
+    {
+        "id": "R2",
+        "name": "lower_layers_do_not_depend_on_integration",
+        "description": (
+            "hqsb.integration is the framework-integration layer (S06); the "
+            "stable contracts, model artifacts and measurement kernel must not "
+            "depend on it (the dependency arrow points core ← models/benchmark "
+            "← backends/integration/quant)."
+        ),
+        "source_regions": ["core", "models", "benchmark"],
+        "forbidden_target_regions": ["integration"],
     },
 ]
 
