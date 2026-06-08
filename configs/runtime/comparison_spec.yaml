@@ -1,0 +1,56 @@
+# S07 冻结制品：reference/edge/cloud 公平比较的“方法”配置（E07-10 步骤 1）
+#
+# 本文件只冻结**方法**：tier 阶梯、common-denominator 特性集、冷热相位、统计口径、
+# Pareto 目标与 token 分母。run 身份（model manifest hash、硬件、request trace hash）
+# 属于具体运行，由 make_comparison_spec 绑定后写入 evidence manifest——把占位
+# hash 写进 checked-in 配置等于伪造身份。
+kind: hqsb.runtime.comparison_spec
+description: S07 公平比较方法：tier、common/best-valid、冷热相位、统计与 Pareto 口径
+name: s07_comparison_spec_v1
+
+tiers: [A, B, C, D]
+
+tier_claims:
+  A: strong runtime causal comparison (same hardware, model, precision)
+  B: comparable end-to-end runtime, but actual kernel/route must be recorded
+  C: deployment portrait only; no runtime attribution across hardware
+  D: capability case study only; no ranking across model format/precision
+
+common_denominator_features:
+  - streaming
+  - cancel
+  - continuous_batching
+  - chunked_prefill
+  - prefix_cache
+  - cuda_graph
+  - speculative
+  - custom_ops
+
+best_valid_preregistered: true
+
+cold_warm_phases:
+  - install_build
+  - model_load
+  - engine_conversion
+  - compile
+  - graph_capture
+  - first_request
+  - cache_hit
+  - steady
+  - close
+
+reported_only_phases: [install_build]
+
+statistics: median_p50_p95_ci95
+independent_processes: 3
+
+pareto_objectives: [memory_bytes, ttft_ms, tpot_ms, throughput, energy_j_per_token]
+
+token_denominators: [logical_input, useful_committed, model_computed]
+
+request_classes: [short, long_prefill, decode_heavy, mixed, cancelled, failed]
+
+notes: >
+  同一张表不得混合 common-denominator 与 best-valid 结果；不可比项必须保留 NA 与
+  reason；跨硬件只能做部署画像，不得归因 runtime；运行自报 TPS 一律用统一边界重算；
+  质量门失败的路径不得进入 Pareto；S08 只消费稳定 contract 字段，禁止私有 SDK 对象。

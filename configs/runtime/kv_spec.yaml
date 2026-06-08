@@ -1,0 +1,58 @@
+# S07 冻结制品：KV 几何、碎片分类、OOM 政策与淘汰策略（E07-03 步骤 1/14/16/17）
+#
+# 几何字段在真实 run 中必须从 runtime schema 读取后再校验（本文件是待校验的
+# 声明，不是“事实”）：contract_audit 会把 fragment_classes / oom_kinds /
+# oom_action_order / max_oom_attempts 与 hqsb.runtime.kv 中的代码定义逐项比对，
+# 任何漂移都会在加载时失败。
+kind: hqsb.runtime.kv_spec
+description: S07 KV 几何、碎片分类、容量水线与有界 OOM 动作序
+name: s07_kv_spec_v1
+
+# 待测的 block size 候选（E07-03 步骤 6）：同一 trace、同一 memory budget 下比较。
+block_sizes: [8, 16, 32, 64]
+kv_dtype: float16
+
+# Qwen3-1.7B 的声明值；run 必须用 runtime schema 复核后写入 C6（不得手抄进结论）。
+num_layers: 28
+query_heads: 16
+kv_heads: 8
+head_dim: 128
+element_bytes: 2
+
+# 命名内存类别：不允许把预测与实测的差额统一叫“碎片”。
+fragment_classes:
+  - internal_slot_waste
+  - cached_inactive_blocks
+  - block_table_metadata
+  - refcount_hash_metadata
+  - page_alignment
+  - allocator_reserve
+  - workspace
+  - graph_static_buffers
+  - non_kv_runtime
+
+oom_kinds:
+  - predictable_admission_reject
+  - preallocation_failure
+  - execution_oom
+  - fragmentation_induced
+  - prefix_cache_pressure
+  - graph_pool_oom
+  - actual_leak
+
+# 固定且有限的 OOM 动作序：不允许无限重试（E07-09 §5）。
+# 每个 kind 的动作阶梯都有限且以终态动作（reject/fail）结束，
+# max_oom_attempts 必须等于代码中最长阶梯的长度（hqsb.runtime.kv.MAX_OOM_ATTEMPTS）。
+oom_action_order: [reject, evict_eligible_cache, preempt, reduce_batch, fallback, fail]
+max_oom_attempts: 4
+
+# 安全接纳水线：理论容量 × watermark 才是 admission 上限。
+capacity_watermark: 0.9
+
+# 只比较有限的淘汰策略，不做无界算法竞赛（E07-05 §7）。
+eviction_policies: [lru, lru_reuse_aware]
+
+notes: >
+  预测—实测差额必须逐类拆分（payload / block table / refcount+hash / alignment /
+  allocator reserve / workspace / graph static / cache inactive）；residual 非零即
+  explained=False，不得用“碎片”掩盖。KV 量化侧数据（scale/zero）若启用必须单独计。

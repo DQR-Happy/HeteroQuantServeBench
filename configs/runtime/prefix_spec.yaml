@@ -1,0 +1,40 @@
+# S07 冻结制品：prefix cache key、碰撞政策、淘汰与隔离（E07-05 步骤 1/8/9/12）
+#
+# key_fields 必须覆盖 hqsb.runtime.prefix_cache.IDENTITY_FIELDS 的全部字段——
+# 缺任一字段都会在 contract_audit 中报错，因为漏掉一个影响 KV 的语义就会产生
+# “无法解释的错误命中”，那属于正确性失败而不是性能负结果。
+kind: hqsb.runtime.prefix_spec
+description: S07 prefix cache key 绑定、碰撞政策、LRU/复用感知淘汰与容量上限
+name: s07_prefix_spec_v1
+
+block_size: 16                 # 与 kv_spec/scheduler_spec 对齐
+collision_policy: digest_plus_token_equality   # strong_digest | digest_plus_token_equality
+eviction_policy: lru           # lru | lru_reuse_aware
+max_cache_bytes: 268435456     # 缓存必须有字节上限，否则容量问题会变成 OOM
+allow_cancelled_retain: false  # 取消请求默认不进缓存（需要显式政策才允许）
+verify_token_equality: true
+cache_layout_version: "1.0.0"
+
+key_fields:
+  - model_id
+  - weight_revision
+  - precision
+  - quant_artifact_hash
+  - adapter_hash
+  - tokenizer_id
+  - chat_template_hash
+  - rope_config_hash
+  - attention_config_hash
+  - cache_layout_version
+  - block_group
+  - tenant_domain
+  - multimodal_identity
+  - parent_chain_digest
+  - block_token_sequence_hash
+
+security_domains: [shared, tenant, request]
+
+notes: >
+  原始字符串永不作为 key；只按完整 block 复用，tail 由 runtime 政策决定（重算或
+  按块对齐）。forced collision fixture 必须被拒绝或经 token 相等性校验后拒绝；
+  sampling 不改变已给定 prefix 的 KV，但新生成 token 的 block 由实际 token IDs 决定。

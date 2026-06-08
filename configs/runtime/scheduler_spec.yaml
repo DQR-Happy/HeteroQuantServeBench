@@ -1,0 +1,85 @@
+# S07 冻结制品：批处理/调度基线配置与 trace 目录（E07-04 步骤 1）
+#
+# 本文件是 **主 A/B 的基线配置**：一次实验只允许改变其中一个主变量。步骤 6～15
+# 的扫参由此配置派生（chunk size、token budget、max sequences、concurrency 等），
+# 派生后的每个配置都要写入 run 目录，不能只在报告里口述。
+kind: hqsb.runtime.scheduler_spec
+description: S07 continuous batching 基线配置（含 chunked prefill 与 watermark）
+name: s07_scheduler_spec_v1
+
+mode: continuous            # static | continuous | chunked_prefill
+max_batched_tokens: 2048    # token budget
+max_sequences: 8            # sequence budget
+block_size: 16              # 与 kv_spec 的 block_sizes 对齐
+kv_blocks: 1024             # 待由容量实验（E07-03 步骤 16）复核
+chunk_size: 0               # 仅 chunked_prefill 模式可非零
+decode_priority: false
+long_prefill_threshold: 0
+preemption_policy: recompute_longest   # none | recompute_longest | recompute_newest
+admission_reserve_full_isl: true       # 防 chunked prefill 过度接纳
+watermark: 0.9
+prefix_cache: false
+
+# 预注册 trace（E07-04 §5）：比例与到达偏移固定，不允许事后挑。
+traces:
+  - name: homogeneous_short
+    kind: homogeneous
+    prompt_tokens: 128
+    max_new_tokens: 32
+    count: 8
+  - name: homogeneous_decode_heavy
+    kind: homogeneous
+    prompt_tokens: 128
+    max_new_tokens: 256
+    count: 4
+  - name: homogeneous_long_prefill
+    kind: homogeneous
+    prompt_tokens: 2048
+    max_new_tokens: 32
+    count: 4
+  - name: mixed_short_long_80_20
+    kind: mixed
+    short_count: 8
+    long_count: 2
+    short_prompt: 128
+    long_prompt: 2048
+    max_new_tokens: 64
+    long_first: true
+  - name: short_first_insert_long
+    kind: mixed
+    short_count: 8
+    long_count: 2
+    short_prompt: 128
+    long_prompt: 2048
+    max_new_tokens: 64
+    long_first: false
+  - name: near_capacity
+    kind: homogeneous
+    prompt_tokens: 1024
+    max_new_tokens: 64
+    count: 8
+  - name: staggered_arrival
+    kind: staggered
+    prompt_tokens: 128
+    max_new_tokens: 64
+    count: 8
+    spacing: 2
+  - name: shared_prefix_high_reuse
+    kind: shared_prefix
+    shared_prefix: 1024
+    suffix_choices: [64, 128]
+    max_new_tokens: 32
+    count: 8
+  - name: cancel_inserted
+    kind: cancel
+    prompt_tokens: 512
+    max_new_tokens: 64
+    count: 8
+    cancel_fraction: 0.25
+
+congestion_waiting_growth: 3   # 连续 N 轮 waiting 增长即视为拥塞候选
+fairness_metric: jain_index
+
+notes: >
+  trace 比例由本文件固定，不事后挑选；一次主 A/B 只改一个变量。S07 的“容量”是
+  确定性 model-core trace 下的稳定点，不得包装成线上 QPS 容量（details §7）。

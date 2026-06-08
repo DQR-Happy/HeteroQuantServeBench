@@ -1,0 +1,69 @@
+# S07 冻结制品：失败矩阵、公共不变量、有界 OOM 动作与长稳阈值（E07-09 步骤 1）
+#
+# 失败不是错误码，而是一笔可能执行到一半的事务。本文件在运行前冻结“允许发生什么、
+# 禁止发生什么、最终由谁释放资源”，运行后只做 expected/actual 对照。
+kind: hqsb.runtime.failure_spec
+description: S07 cancel/timeout/OOM/超长 context 故障矩阵与资源恢复判据
+name: s07_failure_spec_v1
+
+cases:
+  # 请求控制
+  - cancel_waiting
+  - cancel_admitted_before_prefill
+  - cancel_prefill_before
+  - cancel_prefill_mid
+  - cancel_chunk_boundary
+  - cancel_first_token_race
+  - cancel_during_decode
+  - cancel_final_token_race
+  - cancel_repeated
+  - timeout_with_cancel
+  - client_stops_consuming
+  # 资源
+  - admission_capacity_shortfall
+  - kv_allocation_oom
+  - workspace_oom
+  - graph_pool_oom
+  - prefix_cache_pressure
+  - preemption_recompute
+  - context_beyond_model_max
+  - context_beyond_runtime_max
+  - context_beyond_kv_capacity
+  - max_sequences_exceeded
+  - max_tokens_exceeded
+  - host_memory_or_thread_failure
+  # 运行
+  - compile_or_capture_failure
+  - attention_or_kernel_error
+  - invalid_artifact
+  - sampling_or_output_error
+  - worker_process_failure_isolated
+
+common_invariants:
+  - cancelled_or_timed_out_request_is_never_re_admitted
+  - no_token_emitted_beyond_the_contract
+  - block_owner_and_refcount_consistent_after_cleanup
+  - prefix_cache_retains_only_under_an_explicit_policy
+  - batch_token_budget_is_conserved
+  - other_requests_tokens_and_kv_unchanged
+  - request_state_and_rng_do_not_leak_across_requests
+  - failed_graph_or_buffer_is_not_reused
+  - runtime_serves_the_next_healthy_request
+  - close_finally_releases_everything
+
+oom_action_order: [reject, evict_eligible_cache, preempt, reduce_batch, fallback, fail]
+
+run_separation:
+  ordinary: 仅计时与资源序列，不挂 profiler
+  profiler: 仅代表 case；其时间不得进入性能结论
+  sanitizer: 仅故障夹具；其容量数字不得进入容量结论
+
+# 长稳判据：稳态斜率超出每轮预算即视为 GROWING，直接阻塞 PASS。
+longrun_tolerance: 1024        # bytes/cycle（预注册的漂移预算）
+max_cleanup_ms: 1000.0         # 单次故障清理上限
+allowed_extra_tokens: 0        # 契约默认不得在请求后继续输出 token
+
+notes: >
+  超长 context 必须在最早可知层拒绝；先占用大量 block 再拒绝属于 admission 缺陷。
+  allocator reserve 不自动等于泄漏；“cached 但合法保留”也不算泄漏。取消后的
+  in-flight 工作允许完成，但必须按 contract 决定是否丢弃其输出并归档。

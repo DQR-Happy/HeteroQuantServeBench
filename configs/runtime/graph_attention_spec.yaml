@@ -1,0 +1,76 @@
+# S07 冻结制品：CUDA Graph 桶、越界策略与 attention 候选（E07-06 步骤 1/2）
+#
+# CUDA Graph 在 S07 中仍是**待验证能力**：claim_cuda_graph=false 表示当前不声称，
+# 只有 2×2 factorial、multi-input replay、失败矩阵与内存账本全部完成后才允许改写。
+# attention 候选按 shape/dtype/layout/phase 逐项判定，配置字符串不等于实际 kernel。
+kind: hqsb.runtime.graph_attention_spec
+description: S07 runtime graph 桶、越界 fallback 与 attention backend capability 矩阵
+name: s07_graph_attention_spec_v1
+
+out_of_bucket_policy: fallback_non_graph   # fallback_non_graph | recapture
+allow_recapture: false
+max_graphs: 5                # 必须 ≥ bucket 数，否则会被静默 recapture
+capture_stream: capture_origin_stream
+includes_input_copy: true
+includes_output_copy: true
+claim_cuda_graph: false
+
+buckets:
+  - name: decode_b1_s1
+    max_sequences: 1
+    max_tokens: 1
+    context_bucket: 0            # 0 = 不限 context
+  - name: decode_b4_s1
+    max_sequences: 4
+    max_tokens: 4
+  - name: decode_b8_s1
+    max_sequences: 8
+    max_tokens: 8
+  - name: prefill_b1_s512
+    max_sequences: 1
+    max_tokens: 512
+  - name: prefill_b1_s2048
+    max_sequences: 1
+    max_tokens: 2048
+
+attention_candidates:
+  - name: runtime_default
+    provider: runtime
+    version: "frozen-at-run"     # 真实版本由 capability probe 冻结
+    dtypes: [float16, bfloat16]
+    kv_dtypes: [float16]
+    head_dim: 128
+    supports_gqa: true
+    mask: causal
+    phases: [prefill, decode]
+    paged_layout: true
+    max_context: 32768
+    alignment: 1
+    graph_capturable: true
+    workspace_bytes: 0.0
+    fallback_target: runtime_default
+  - name: sdpa_candidate
+    provider: pytorch
+    version: "frozen-at-run"
+    dtypes: [float16, bfloat16]
+    kv_dtypes: [float16]
+    head_dim: 128
+    supports_gqa: true
+    mask: causal
+    phases: [prefill, decode]
+    paged_layout: false          # 需要连续 KV；paged 请求必须 fallback
+    max_context: 32768
+    alignment: 8
+    graph_capturable: true
+    workspace_bytes: 0.0
+    fallback_target: runtime_default
+
+factorial:
+  submissions: [eager, cuda_graph]
+  attentions: [runtime_default, sdpa_candidate]
+  unsupported_cells: report_not_patch   # 不兼容组合必须登记 UNSUPPORTED
+
+notes: >
+  prefill 与 decode 分别报告，禁止混合成一个 TPS；graph 的 capture/instantiate/
+  first replay/steady replay 必须分开计时；多输入 replay 必须使用不同输入以暴露
+  stale buffer 问题；memory pool/workspace 必须计入容量。

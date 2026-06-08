@@ -1,0 +1,59 @@
+# S07 冻结制品：canonical request 语义与 capability 状态词表（E07-01 步骤 1/2）
+#
+# 本文件冻结“一个请求是什么”以及“backend 能对每个字段说什么”。它**不含**任何
+# 模型路径、硬件路径或运行结果：model/tokenizer/sampling 的真实取值属于 run 身份，
+# 由 E07-01 步骤 2 冻结后写入 evidence manifest。
+kind: hqsb.runtime.request_spec
+description: S07 canonical request 语义、比较单元与 capability 状态词表
+name: s07_request_spec_v1
+
+# 采样路径必须是二者之一，不能混用（greedy 才允许逐 token 比较）。
+sampling_modes: [greedy, sampling]
+
+# capability 协商词表（E07-01 §4）：UNKNOWN 默认拒绝相关 claim。
+capability_states:
+  - SUPPORTED_EXACT
+  - SUPPORTED_WITH_CONSTRAINT
+  - EMULATED
+  - UNSUPPORTED_REJECT
+  - UNSUPPORTED_FALLBACK
+  - UNKNOWN
+
+# 允许被“声称”的状态；其余状态必须带 reason，且不得进入性能实验。
+claimable_states: [SUPPORTED_EXACT, SUPPORTED_WITH_CONSTRAINT, EMULATED]
+
+# stop string 的求值层；gateway 层属于 S08，S07 不接受。
+stop_string_layers: [none, tokenizer, runtime]
+
+# 跨 backend 的比较单元：最终 token IDs，而不是原始文本。
+comparison_unit: token_ids
+
+# 必须在一次 run 内冻结的请求字段（写入 C6/evidence manifest）。
+frozen_fields:
+  - model_artifact
+  - tokenizer
+  - chat_template
+  - input_token_ids
+  - max_new_tokens
+  - min_new_tokens
+  - sampling_mode
+  - temperature
+  - top_k
+  - top_p
+  - seed
+  - repetition_penalty
+  - logprobs
+  - stop_token_ids
+  - eos_handling
+  - stop_string_layer
+  - streaming
+  - timeout
+  - cancel
+  - precision
+  - quant_artifact
+  - prefix_cache
+  - backend_extensions
+
+notes: >
+  一次请求只允许一个 sampling 语义；greedy 与 sampling 不得混入同一张对照表。
+  backend 私有扩展字段必须 namespaced，且不得进入公共 contract（E07-01 §10）。

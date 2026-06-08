@@ -1,0 +1,24 @@
+# S07 冻结制品：speculative decoding / MTP 算法与 gamma 候选（E07-08 步骤 1/10）
+#
+# E07-08 是 P1：claim=false 表示当前**不声称**投机解码能力。若将来把 algorithm
+# 改为 strict_sampling，必须提交 acceptance/residual 的精确有理数验证与多 seed
+# 分布门；MTP 必须自带质量契约，不得借用严格 speculative sampling 的分布保证。
+kind: hqsb.runtime.spec_decode_spec
+description: S07 speculative/MTP 算法、gamma 候选与质量契约声明
+name: s07_spec_decode_spec_v1
+
+algorithm: greedy              # greedy | strict_sampling | mtp
+claim: false                   # P1 未执行 → NOT_RUN，不得对外声称收益
+
+# gamma 扫描必须包含 1（对照组），否则无法把收益与验证开销分开。
+gamma_candidates: [1, 2, 3, 4, 6]
+
+mtp_heads: 0
+mtp_quality_contract: ""
+draft_vocab_requires_mapping: true
+
+notes: >
+  greedy 变体要求与 vanilla target 逐 token 一致；sampling 变体不得用单 seed
+  近似相等，必须用预注册统计量做多 seed 分布比较；KV commit/rollback 必须满足
+  rollback = proposed - accepted 且无 stale token；收益必须用 cycle 成本公式解释，
+  高 acceptance 不保证快。
