@@ -50,7 +50,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 GATE_NAME = "import_dependency_gate"
-RULES_VERSION = "1.0.0"
+RULES_VERSION = "1.2.0"
 
 #: Architectural regions. A module belongs to the first region whose dotted
 #: prefix matches it. Order matters (most specific first).
@@ -62,6 +62,7 @@ REGION_PREFIXES: List[Tuple[str, str]] = [
     ("hardware", "hqsb.hardware"),
     ("quant", "hqsb.quant"),
     ("integration", "hqsb.integration"),
+    ("runtime", "hqsb.runtime"),
     ("serving", "hqsb.serving"),
     ("ops", "ops"),
 ]
@@ -100,6 +101,71 @@ RULES: List[Dict[str, Any]] = [
         ),
         "source_regions": ["core", "models", "benchmark"],
         "forbidden_target_regions": ["integration"],
+    },
+    {
+        "id": "R3",
+        "name": "lower_layers_do_not_depend_on_runtime",
+        "description": (
+            "hqsb.runtime is the request/KV/scheduling layer (S07); it sits above "
+            "the contracts, model, benchmark, backend, hardware, quantization and "
+            "integration layers, so none of them may import it (the dependency "
+            "arrow points core ← models/benchmark ← backends/integration/quant "
+            "← runtime ← serving)."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "integration",
+            "quant",
+        ],
+        "forbidden_target_regions": ["runtime"],
+    },
+    {
+        "id": "R4",
+        "name": "runtime_does_not_import_kernel_implementations",
+        "description": (
+            "Kernels are addressed by capability/provider names, never by "
+            "importing the ops package (the same rule S06 follows for "
+            "integration); a runtime adapter that needs a kernel declares it as a "
+            "provider string."
+        ),
+        "source_regions": ["runtime"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R5",
+        "name": "serving_does_not_import_kernel_implementations",
+        "description": (
+            "hqsb.serving addresses kernels through the Backend/Runtime capability "
+            "names, never by importing the ops package; the service core must run on "
+            "the CPU-minimal installation."
+        ),
+        "source_regions": ["serving"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R6",
+        "name": "lower_layers_do_not_depend_on_serving",
+        "description": (
+            "hqsb.serving is the service layer (S08); it sits above every other "
+            "region, so core/models/benchmark/backends/hardware/integration/quant/"
+            "runtime may not import it (the dependency arrow points core ← "
+            "models/benchmark ← backends/integration/quant ← runtime ← serving)."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "integration",
+            "quant",
+            "runtime",
+        ],
+        "forbidden_target_regions": ["serving"],
     },
 ]
 
