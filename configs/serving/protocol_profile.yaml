@@ -1,0 +1,108 @@
+kind: hqsb.serving.protocol_profile
+name: s08_frozen_protocol_subset
+description: >
+  Frozen OpenAI-compatible subset HQSB claims for S08. Only the fields listed
+  here may be called "compatible"; everything else is an explicit
+  UNSUPPORTED_REJECT (details/S08/E08-01 §2/§4). The profile is a contract: the
+  code audits this document field by field.
+profile_version: "s08.1"
+schema_version: "1.0.0"
+upstream_reference: "OpenAI Chat Completions API Reference (snapshot recorded in details S08 README §27)"
+endpoints:
+  - /v1/completions
+  - /v1/chat/completions
+stream_modes:
+  - stream_false
+  - stream_true
+completion_request_fields:
+  model: required
+  prompt: required
+  max_tokens: optional
+  temperature: optional
+  top_p: optional
+  seed: optional
+  stop: optional
+  stream: optional
+  stream_options: optional
+  logprobs: unsupported
+  n: unsupported
+chat_request_fields:
+  model: required
+  messages: required
+  max_tokens: optional
+  temperature: optional
+  top_p: optional
+  seed: optional
+  stop: optional
+  stream: optional
+  stream_options: optional
+  tools: unsupported
+  response_format: unsupported
+message_roles:
+  - system
+  - user
+  - assistant
+response_fields:
+  - id
+  - object
+  - created
+  - model
+  - choices
+  - usage
+choice_fields:
+  - index
+  - text
+  - message
+  - logprobs
+  - finish_reason
+finish_reasons:
+  - stop
+  - length
+  - error
+  - cancelled
+sse:
+  content_type: text/event-stream
+  data_field: "data: "
+  event_separator: "\n\n"
+  terminal_marker: "[DONE]"
+  usage_frame: profile_specific
+  heartbeat_comment: allowed_outside_token_stream
+  delta_concatenation_must_equal_final: true
+limits:
+  max_body_bytes: 1048576
+  max_messages: 64
+  max_prompt_tokens: 8192
+  max_context_tokens: 32768
+  max_completion_tokens: 4096
+  max_stop_sequences: 4
+  default_completion_tokens: 256
+policies:
+  unknown_field_policy: reject_400
+  unsupported_parameter_policy: reject_400
+  unsupported_combo_policy: reject_400
+  silent_truncation_policy: forbidden
+  missing_choice_index_policy: reject_response
+  default_expansion_recorded: true
+  requested_normalized_actual_views: true
+trace_headers:
+  - traceparent
+  - tracestate
+  - x-request-id
+extension_namespace: hqsb
+unsupported_features:
+  - responses_api
+  - tools_and_function_calling
+  - multimodal_input
+  - structured_output
+  - multiple_choices
+  - logprobs
+  - prompt_truncation
+error_envelope_fields:
+  - message
+  - type
+  - code
+  - param
+notes: >
+  Unknown fields are refused rather than dropped; an unsupported field is
+  reported with a stable code so a caller can react. The profile never claims
+  Features that are not in the frozen subset.

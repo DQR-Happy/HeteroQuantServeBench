@@ -1,0 +1,90 @@
+kind: hqsb.serving.stream_lifecycle_spec
+name: s08_stream_backpressure_lifecycle_spec
+description: >
+  Streaming lifecycle and backpressure (details/S08/E08-08). Generation rate and
+  client read rate are not the same thing: every level between the Runtime and
+  the socket has an owner, a cap and a defined action when the cap is reached.
+schema_version: "1.0.0"
+preregistration_status: template
+layers:
+  - name: application_queue
+    owner: gateway
+    cap_frames: 256
+    cap_bytes: 4194304
+    on_cap: cancel_or_close_with_explicit_protocol
+  - name: serializer_buffer
+    owner: gateway
+    cap_frames: 64
+    cap_bytes: 1048576
+    on_cap: block_writer
+  - name: server_buffer
+    owner: transport
+    cap_bytes: 1048576
+    on_cap: apply_backpressure
+  - name: socket_send_buffer
+    owner: kernel
+    cap_bytes: 262144
+    on_cap: await_writable
+  - name: client_receive_buffer
+    owner: loadgen
+    cap_bytes: 1048576
+    on_cap: read_or_disconnect
+silent_token_drop: forbidden
+overflow_action_must_be_observable: true
+write:
+  high_watermark_bytes: 262144
+  write_timeout_ms: 1000
+  idle_timeout_ms: 30000
+  flush_required_before_timestamp: true
+cancel:
+  linearization_point_order:
+    - queued
+    - backend_submitted_no_first_token
+    - token_ready_not_serialized
+    - frame_queued_not_written
+    - write_in_progress
+    - client_read_n_frames
+    - runtime_generating_next_token
+    - final_frame_race
+    - shared_prefix_kv
+    - multi_request_same_batch
+  after_linearization_no_new_client_visible_token: true
+  bytes_already_in_socket_buffer_reported_separately: true
+  cancel_propagation_window_ms: 500
+drain:
+  signal: SIGTERM
+  readiness_false_immediately: true
+  stop_accepting_new_requests: true
+  continue_bounded_inflight: true
+  drain_deadline_ms: 30000
+  force_cancel_after_deadline: true
+  close_is_idempotent: true
+  shutdown_record_fields:
+    - signal_time_ns
+    - readiness_changed_at_ns
+    - inflight_at_start
+    - completed
+    - cancelled
+    - failed
+    - last_backend_work_at_ns
+    - drain_deadline_ms
+    - closed_at_ns
+  k8s_rolling_update_claimed: false
+resource_invariants:
+  - per_connection_buffer_within_cap
+  - backend_stops_generating_after_disconnect
+  - tasks_and_futures_reach_a_terminal_state
+  - private_kv_and_request_slots_released
+  - shared_prefix_refcount_remains_valid
+  - no_positive_slope_for_fd_socket_queue_rss
+  - normal_requests_never_write_to_a_disconnected_connection
+  - terminal_or_error_frame_at_most_once
+  - no_new_business_request_after_shutdown
+longrun:
+  warmup_cycles: 3
+  slope_tolerance_bytes_per_cycle: 0
+  growth_in_steady_state_blocks_pass: true
+client_behaviors_reference: hqsb.serving.clients.ClientBehavior
+notes: >
+  "write() returned" does not mean the client received anything; socket buffers
+  are instrumented separately from the application queue.

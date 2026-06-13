@@ -1,0 +1,108 @@
+kind: hqsb.serving.cache_routing_spec
+name: s08_cache_aware_routing_spec
+description: >
+  Prefix-locality aware routing (details/S08/E08-07). The router's prefix
+  fingerprint is only a match index; the Backend must re-validate the real
+  token/block identity, and a wrong hit across model/version/tenant is a
+  correctness failure, not a performance loss.
+schema_version: "1.0.0"
+preregistration_status: template
+identity_fields:
+  - model_id
+  - weight_revision
+  - precision
+  - quant_artifact_hash
+  - adapter_hash
+  - tokenizer_id
+  - chat_template_hash
+  - rope_config_hash
+  - attention_config_hash
+  - kv_dtype
+  - kv_layout
+  - cache_format_version
+  - tenant_sharing_policy
+  - cache_epoch
+matcher:
+  unit: token_ids
+  block_aligned: true
+  partial_tail_hit_allowed: true
+  text_hash_is_not_identity: true
+  backend_second_check_required: true
+policies:
+  - random_round_robin
+  - least_load
+  - pure_affinity
+  - joint_locality_load
+joint_score:
+  weight_predicted_queue: 1.0
+  weight_predicted_uncached_prefill: 1.0
+  weight_predicted_decode: 0.5
+  weight_eviction_cost: 0.25
+  weight_skew_penalty: 1.5
+  frozen_per_workload: true
+  per_workload_retuning_forbidden: true
+telemetry:
+  ttl_ms: 2000
+  fields:
+    - cache_epoch
+    - prefix_fingerprint
+    - matched_token_length
+    - bytes
+    - refcount
+    - pinned
+    - evictable
+    - last_access_ms
+    - frequency
+    - capacity_bytes
+    - free_bytes
+    - pressure_ratio
+    - eviction_count
+    - invalidation_count
+    - model_epoch
+    - precision
+  fault_injections:
+    - delayed_update
+    - dropped_update
+    - out_of_order_update
+    - contradictory_update
+  stale_prediction_must_not_use_wrong_kv: true
+net_value:
+  terms:
+    - saved_prefill_compute_ms
+    - minus_extra_queue_delay_ms
+    - minus_load_imbalance_cost_ms
+    - minus_eviction_pollution_cost_ms
+    - minus_telemetry_lookup_cost_ms
+    - minus_migration_or_remote_access_cost_ms
+  hit_rate_alone_is_not_the_objective: true
+skew:
+  max_to_mean_ratio: 1.5
+  cv_max: 0.4
+  unbounded_skew_for_locality_is_forbidden: true
+correctness_oracle:
+  - greedy_token_ids
+  - logits_topk_or_quality_gate
+  - stop_and_usage
+  - matched_prefix_token_length
+  - actual_reused_blocks
+  - actual_reused_tokens
+  - model_and_cache_epoch
+  - no_cross_tenant_hit
+  - no_cross_version_hit
+  - evict_cancel_refcount_consistency
+correctness_assertions:
+  predicted_hit_actual_miss_is_a_telemetry_issue: true
+  wrong_hit_is_a_correctness_failure: true
+load_locality_matrix:
+  - low_load_zero_medium_high_locality
+  - cliff_load_zero_medium_high_locality
+  - hot_single_prefix
+  - many_medium_prefixes
+  - long_reuse_distance
+  - burst_of_one_prefix
+  - mixed_tenants_models_versions
+  - cache_cold_warm_steady_invalidate
+zero_locality_falsification_required: true
+notes: >
+  cache bytes are not a free resource; stale telemetry must degrade safely and
+  never lead to a wrong KV reference.

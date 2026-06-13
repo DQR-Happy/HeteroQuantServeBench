@@ -1,0 +1,129 @@
+kind: hqsb.serving.workload_suite
+name: s08_service_workload_suite
+description: >
+  The service-level workload suite (details/S08 README §24) plus the tenant /
+  priority / entitlement / cost model used by E08-04 fairness accounting. The
+  trace carries payload identity; the arrival trace only carries *when* to
+  send, so the two can be recombined and replayed.
+schema_version: "1.0.0"
+preregistration_status: template
+payload_trace_separate_from_arrival_trace: true
+request_classes:
+  - name: short_chat
+    isl: 128
+    osl: 64
+    stream: stream_true
+    prefix_locality: none
+    class: interactive
+  - name: long_prefill_short_output
+    isl: 2048
+    osl: 32
+    stream: stream_true
+    prefix_locality: none
+    class: interactive
+  - name: short_prefill_long_decode
+    isl: 128
+    osl: 512
+    stream: stream_true
+    prefix_locality: none
+    class: batch
+  - name: mixed_short_long
+    isl: [128, 2048]
+    osl: [64, 256]
+    stream: stream_true
+    prefix_locality: medium
+    class: interactive
+  - name: shared_prefix_high
+    isl: 1024
+    osl: 64
+    stream: stream_true
+    prefix_locality: high
+    class: batch
+  - name: near_capacity_context
+    isl: 7000
+    osl: 128
+    stream: stream_true
+    prefix_locality: none
+    class: batch
+  - name: tight_deadline_interactive
+    isl: 256
+    osl: 64
+    stream: stream_true
+    prefix_locality: medium
+    class: tight_deadline
+tenants:
+  - name: tenant_a
+    entitlement: 1.0
+    priority: high
+    quota_share: 0.5
+  - name: tenant_b
+    entitlement: 2.0
+    priority: normal
+    quota_share: 0.3
+  - name: tenant_c
+    entitlement: 1.0
+    priority: low
+    quota_share: 0.2
+priority_levels:
+  - high
+  - normal
+  - low
+cost_model:
+  alpha_uncached_input_token: 1.0
+  beta_committed_output_token: 1.0
+  gamma_recomputed_position: 0.0
+  version: s08.cost.v1
+  weights_source: >
+    placeholder normalized weights; the owner must replace them with the S07
+    phase measurement or freeze them explicitly as a normalized accounting unit
+    before any formal run. A strategy may not re-fit the cost model.
+  must_report_alongside:
+    - logical_tokens
+    - computed_positions
+    - device_time
+fairness_guardrails:
+  jain_min: 0.9
+  max_service_lag_ratio: 0.25
+  max_continuous_wait_ms: 5000
+  starvation_count_max: 0
+  low_priority_min_service_share: 0.05
+  work_conserving_required: true
+  priority_inversion_report_required: true
+  high_priority_alone_is_not_sufficient: true
+holtrace_constructs:
+  - long_first_then_short_burst
+  - short_steady_stream_with_long_insert
+  - cached_long_vs_uncached_short
+  - long_decode_holding_kv
+  - high_priority_long_vs_low_priority_short
+  - tenant_a_long_vs_tenant_b_short
+isolated_baseline_required_for_slowdown: true
+homogeneous_control_required: true
+prediction_error_records:
+  - estimated_cost_at_admission
+  - incremental_actual_cost
+  - final_actual_cost
+  - prediction_error
+forbidden_online_inputs:
+  - final_output_length
+  - future_arrival
+overload_waveforms:
+  - ramp
+  - step_up
+  - burst
+  - sustained
+  - backend_capacity_drop
+  - slow_client_pressure
+  - step_down
+slow_client_behaviors:
+  - fixed_delay_reader
+  - token_bucket_bandwidth_reader
+  - periodic_stall_resume
+  - never_read_after_headers
+  - read_n_frames_then_fin
+  - abrupt_reset
+  - many_simultaneous_slow_readers
+notes: >
+  Rejects must not be dropped from the offered denominator just because they
+  would make a strategy look better; cancellation refunds are pre-registered in
+  the cost model.

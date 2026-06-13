@@ -1,0 +1,109 @@
+kind: hqsb.serving.routing_spec
+name: s08_capability_slo_routing_spec
+description: >
+  Multi-backend routing (details/S08/E08-06): hard capability/identity/health
+  filters run first, and only the surviving feasible set is scored. Every
+  exclusion carries a stable reason; telemetry has a unit, a timestamp and a
+  freshness budget, and missing telemetry is never treated as zero.
+schema_version: "1.0.0"
+preregistration_status: template
+registry:
+  atomic_generation_updates: true
+  generation_fields_must_not_mix: true
+  duplicate_instance_id_is_error: true
+  telemetry_ttl_ms: 2000
+  max_telemetry_age_ms: 5000
+  require_version_epoch_binding: true
+hard_filter_order:
+  - model_alias_resolve
+  - artifact_revision_tokenizer_template
+  - precision_quality_tenant_policy
+  - context_input_output_feasibility
+  - protocol_feature_capability
+  - device_parallel_constraints
+  - readiness_model_epoch
+  - circuit_health
+  - deadline_slo_envelope
+score_features:
+  - name: predicted_queue_ms
+    unit: ms
+    normalization: min_max_over_feasible_set
+    weight: 0.35
+    missing_policy: treat_as_unknown_and_apply_conservative_rule
+  - name: predicted_ttft_ms
+    unit: ms
+    normalization: min_max_over_feasible_set
+    weight: 0.25
+    missing_policy: treat_as_unknown_and_apply_conservative_rule
+  - name: cache_saved_prefill_ms
+    unit: ms
+    normalization: min_max_over_feasible_set
+    weight: 0.2
+    missing_policy: treat_as_unknown_and_apply_conservative_rule
+  - name: monetary_cost_units
+    unit: normalized_cost_unit
+    normalization: min_max_over_feasible_set
+    weight: 0.1
+    missing_policy: treat_as_unknown_and_apply_conservative_rule
+  - name: routing_skew_ratio
+    unit: ratio
+    normalization: min_max_over_feasible_set
+    weight: 0.1
+    missing_policy: treat_as_unknown_and_apply_conservative_rule
+score_sense: lower_is_better
+tie_break: stable_instance_id_order
+missing_telemetry_never_zero: true
+low_confidence_telemetry_policy: conservative
+slo_feasibility:
+  predicted_completion_terms:
+    - route_overhead_ms
+    - predicted_queue_ms
+    - predicted_runtime_ms
+    - predicted_stream_ms
+  feasible_if: predicted_completion <= remaining_deadline
+  report_calibration: true
+  report_false_feasible: true
+  report_false_infeasible: true
+fallback_ladder:
+  - level: same_instance_retry
+    requires_explicit_permission: false
+    must_revalidate_identity: true
+  - level: same_artifact_same_quality_other_instance
+    requires_explicit_permission: false
+    must_revalidate_identity: true
+  - level: approved_alternate_precision
+    requires_explicit_permission: true
+    must_revalidate_identity: true
+  - level: alternate_model_degraded_quality
+    requires_explicit_permission: true
+    must_revalidate_identity: true
+  - level: fail_closed_reject
+    requires_explicit_permission: false
+    must_revalidate_identity: true
+reduce_precision_because_backend_is_busy: forbidden
+quarantine_triggers:
+  - model_or_precision_identity_mismatch
+  - token_or_quality_identity_mismatch
+  - malformed_response
+  - corrupt_cache_identity
+quarantine_is_not_a_transient_open: true
+no_feasible_policy: reject_with_no_feasible_backend
+route_record_fields:
+  - candidate_set
+  - filter_reasons
+  - telemetry_age_ms
+  - feature_values
+  - feature_normalization
+  - score_components
+  - tie_break
+  - selected_instance_id
+  - selected_model_epoch
+  - selected_route_epoch
+  - actual_instance_id
+  - actual_model_epoch
+  - fallback_level
+  - route_policy_version
+route_vs_actual_conservation_required: true
+notes: >
+  Never pick the least-loaded backend first and discover the model/precision
+  incompatibility afterwards: feasibility precedes optimisation.

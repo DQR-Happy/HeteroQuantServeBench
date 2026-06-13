@@ -1,0 +1,172 @@
+kind: hqsb.serving.telemetry_spec
+name: s08_end_to_end_telemetry_spec
+description: >
+  End-to-end observability (details/S08/E08-10): identifiers, trace context,
+  span model, clock domains, metric/log schemas, sampling modes and the overhead
+  gate. Metrics, logs and traces must agree on the same request, and every
+  counter must be recomputable from raw terminal events.
+schema_version: "1.0.0"
+preregistration_status: template
+identifiers:
+  - request_id
+  - trace_id
+  - span_id
+  - parent_span_id
+  - attempt_id
+  - backend_request_id
+  - batch_id
+  - iteration_id
+  - kernel_correlation_id
+trace_context:
+  standard: w3c_trace_context
+  version: "00"
+  headers:
+    - traceparent
+    - tracestate
+  validate_external_headers: true
+  trust_boundary_required: true
+  prompt_or_pii_in_tracestate: forbidden
+  internal_request_id_separate_from_trace_id: true
+clock_domains:
+  - loadgen_monotonic
+  - gateway_monotonic
+  - backend_process_monotonic
+  - wall_clock_utc
+  - gpu_event_timeline
+  - profiler_clock
+cross_process_subtraction_without_offset: forbidden
+gpu_time_from_host_enqueue_duration: forbidden
+spans:
+  - HTTP_SERVER
+  - parse_validate
+  - tokenize_template
+  - admission
+  - queue_wait
+  - route
+  - capability_filter
+  - health_filter
+  - score
+  - backend_attempt
+  - runtime_wait
+  - prefill
+  - decode_iteration
+  - kv_lookup_allocate
+  - attention
+  - kernel
+  - sampling
+  - stream_frame
+  - serialize
+  - socket_write
+  - terminal_or_error
+  - cleanup
+metrics:
+  counters:
+    - offered
+    - received
+    - valid
+    - admitted
+    - completed
+    - good
+    - rejected
+    - error
+    - cancelled
+    - retried
+    - fallback
+    - tokens_emitted
+    - bytes_emitted
+    - cache_hit
+    - cache_eviction
+    - circuit_transition
+  histograms:
+    - client_ttft_ms
+    - server_ttft_ms
+    - runtime_ttft_ms
+    - queue_wait_ms
+    - validation_ms
+    - route_ms
+    - backend_ms
+    - stream_ms
+    - e2e_ms
+    - itl_ms
+    - cleanup_ms
+    - recovery_ms
+  gauges:
+    - queue_depth
+    - inflight_requests
+    - active_tasks
+    - connections
+    - kv_bytes
+    - cache_bytes
+    - rss_bytes
+    - gpu_memory_bytes
+    - buffered_bytes
+    - backend_health
+    - circuit_state
+histogram_rules:
+  buckets_must_cover_slo_and_timeout: true
+  highest_bucket_truncation: forbidden
+  percentiles_from_per_request_raw: true
+  aggregate_summary_quantiles: forbidden
+log_fields:
+  - timestamp
+  - clock_domain
+  - service_version
+  - instance_id
+  - request_id
+  - trace_id
+  - span_id
+  - attempt_id
+  - tenant
+  - request_class
+  - model_epoch
+  - backend_epoch
+  - policy_epoch
+  - event
+  - action
+  - reason
+  - requested
+  - actual
+  - error_cause
+  - retryability
+  - resource_counters
+  - schema_version
+redaction:
+  prompt_text: forbidden
+  token_text: forbidden
+  token_ids: hashed_or_length_only
+  pii: forbidden
+  secrets: forbidden
+cardinality:
+  request_id_as_metric_label: forbidden
+  prompt_as_metric_label: forbidden
+  model_path_as_metric_label: forbidden
+  max_label_cardinality: 10000
+sampling_modes:
+  - metrics_always_on
+  - minimal_trace
+  - head_sampling
+  - tail_and_error_sampling
+  - full_trace_and_profile
+tail_and_error_never_fully_sampled_out: true
+overhead_gate:
+  measure_cpu_latency_qps_goodput_log_bytes_export_drop: true
+  full_trace_may_not_replace_the_low_overhead_run: true
+  observer_must_not_change_behaviour: true
+root_cause_classes:
+  - client_send_or_loadgen_lag
+  - ingress_or_network
+  - gateway_parse_or_tokenization
+  - admission_or_queue_hol
+  - route_or_telemetry
+  - backend_scheduler_or_preemption
+  - prefix_miss_or_eviction
+  - prefill_decode_or_kernel
+  - cpu_launch_or_sync
+  - stream_serialize_socket_or_slow_reader
+  - retry_fault_or_recovery
+  - unknown_or_unaccounted
+root_cause_requires_counterfactual: true
+notes: >
+  A single signal is never enough: metrics find the anomaly, traces explain the
+  request, profiles explain the kernel, raw protocol events show what the client
+  really saw.

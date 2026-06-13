@@ -1,0 +1,180 @@
+kind: hqsb.serving.fault_spec
+name: s08_fault_circuit_breaker_spec
+description: >
+  Failure semantics (details/S08/E08-09): the retry boundary is defined by what
+  the client has already seen, the circuit breaker counts backend failures only
+  (never client 4xx, user cancel or admission reject), and identity/correctness
+  problems are quarantined instead of being retried.
+schema_version: "1.0.0"
+preregistration_status: template
+faults:
+  - id: backend_process_crash
+    layer: backend
+    commit_phase: before_commit
+    expected_detection: connection_error_or_child_exit
+    expected_blast_radius: target_instance_inflight
+    allowed_action: retry_or_failover
+    cleanup_criteria: attempt_terminal_kv_released
+  - id: backend_process_crash_after_commit
+    layer: backend
+    commit_phase: after_commit
+    expected_detection: stream_breaks_after_first_frame
+    expected_blast_radius: target_instance_inflight
+    allowed_action: explicit_incomplete_error
+    cleanup_criteria: no_second_generation_concatenated
+  - id: backend_hang_no_progress
+    layer: backend
+    commit_phase: any
+    expected_detection: watchdog_deadline
+    expected_blast_radius: target_instance_inflight
+    allowed_action: cancel_and_quarantine_after_deadline
+    cleanup_criteria: slot_kv_released
+  - id: backend_slow_straggler
+    layer: backend
+    commit_phase: any
+    expected_detection: slo_or_latency_policy
+    expected_blast_radius: limited
+    allowed_action: score_penalty_not_immediate_circuit
+    cleanup_criteria: n_a
+  - id: runtime_oom
+    layer: backend
+    commit_phase: any
+    expected_detection: backend_oom_signal
+    expected_blast_radius: target_instance
+    allowed_action: cancel_retry_within_budget_or_reject
+    cleanup_criteria: kv_and_request_slots_released
+  - id: model_load_failure
+    layer: backend
+    commit_phase: before_start
+    expected_detection: readiness_false
+    expected_blast_radius: target_instance
+    allowed_action: keep_out_of_feasible_set
+    cleanup_criteria: no_partial_epoch_serving
+  - id: identity_mismatch_response
+    layer: backend
+    commit_phase: before_commit
+    expected_detection: response_identity_check
+    expected_blast_radius: target_instance
+    allowed_action: hard_quarantine
+    cleanup_criteria: never_return_to_client
+  - id: cache_unavailable
+    layer: cache
+    commit_phase: any
+    expected_detection: lookup_timeout
+    expected_blast_radius: cache_aware_requests
+    allowed_action: bypass_or_recompute_per_policy
+    cleanup_criteria: cache_not_a_hard_dependency
+  - id: cache_stale_or_corrupt
+    layer: cache
+    commit_phase: any
+    expected_detection: identity_check_at_use
+    expected_blast_radius: matched_prefix_requests
+    allowed_action: invalidate_and_recompute
+    cleanup_criteria: corrupt_entry_never_enters_attention
+  - id: gateway_backend_connect_failure
+    layer: network
+    commit_phase: before_commit
+    expected_detection: connect_error
+    expected_blast_radius: single_attempt
+    allowed_action: pre_commit_retry_with_backoff
+    cleanup_criteria: route_filter_applied
+  - id: mid_request_network_interruption
+    layer: network
+    commit_phase: before_or_after_first_token
+    expected_detection: transport_error
+    expected_blast_radius: single_request
+    allowed_action: commit_aware_behaviour
+    cleanup_criteria: terminal_state_unique
+  - id: client_disconnect_race_with_backend_fault
+    layer: network
+    commit_phase: any
+    expected_detection: disconnect_and_fault_both
+    expected_blast_radius: single_request
+    allowed_action: single_terminal_reason
+    cleanup_criteria: counters_not_double_counted
+circuit_breaker:
+  states:
+    - CLOSED
+    - OPEN
+    - HALF_OPEN
+  sliding_window_samples: 50
+  min_samples: 20
+  failure_rate_threshold: 0.5
+  consecutive_failure_threshold: 5
+  open_duration_ms: 5000
+  max_open_duration_ms: 60000
+  half_open_probe_concurrency: 1
+  half_open_probes_required: 3
+  scope: per_instance_and_model_epoch
+  counted_failure_classes:
+    - backend_unavailable
+    - backend_oom
+    - backend_timeout
+    - malformed_response
+    - protocol_failure
+  excluded_failure_classes:
+    - client_4xx
+    - user_cancel
+    - admission_reject
+    - deadline_infeasible
+  quarantine_classes:
+    - model_or_precision_identity_mismatch
+    - token_or_quality_identity_mismatch
+    - corrupt_cache_identity
+  quarantine_requires_explicit_clear: true
+  telemetry_freshness_ms: 2000
+recovery_metrics:
+  - MTTD
+  - isolation_time
+  - request_resolution
+  - backend_recovery
+  - traffic_recovery
+  - SLO_recovery
+process_restart_is_not_service_recovery: true
+commit_phase_vocabulary:
+  before_start: before_backend_start
+  before_commit: backend_started_no_external_bytes
+  after_commit: after_external_commit
+  before_or_after_first_token: any
+attempt_lineage_fields:
+  - parent_request_id
+  - attempt_id
+  - selected_backend
+  - model_epoch
+  - start_ns
+  - end_ns
+  - error
+  - generated_tokens
+  - committed_tokens
+  - emitted_tokens
+  - cancel_status
+  - cleanup_status
+  - retry_decision
+  - retry_reason
+  - retry_budget_remaining
+  - next_backend
+blast_radius_groups:
+  - target_backend_inflight
+  - other_backend_inflight
+  - same_tenant
+  - other_tenant
+  - committed_stream
+  - uncommitted_stream
+  - cache_hit
+  - cache_miss
+  - high_priority
+  - low_priority
+  - arrived_before_fault
+  - arrived_during_fault
+  - arrived_after_fault
+injector_requirements:
+  - exact_target
+  - recorded_injection_time
+  - bounded_scope
+  - deterministic_recovery
+  - never_kills_unrelated_processes
+  - never_exhausts_host_memory
+notes: >
+  "The process is still alive" is not the pass condition; the pass condition is
+  no wrong model, no duplicated or missing token, no endless wait, no retry
+  storm, correct health state and no residual task/KV/socket.

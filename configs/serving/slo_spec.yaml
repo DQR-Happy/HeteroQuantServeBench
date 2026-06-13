@@ -1,0 +1,65 @@
+kind: hqsb.serving.slo_spec
+name: s08_preregistered_slo_template
+description: >
+  Pre-registration template for the service SLOs (details/S08/E08-02 §5, E08-02
+  details §11 of the S08 README). Thresholds are policy, never results: they
+  must be frozen *before* the formal run and may not be moved to a nicer point
+  of a curve afterwards. This document ships as a template, and `hqsb.serving.slo`
+  refuses to evaluate goodput while `preregistration_status != frozen`.
+schema_version: "1.0.0"
+preregistration_status: template
+preregistration_note: >
+  The experiment owner must review the thresholds against the project goal,
+  record who froze them and when, and set `preregistration_status: frozen`
+  before any formal run. Numbers below are placeholders, not measurements.
+frozen_by: ""
+frozen_at: ""
+measurement_window_sec: 300
+warmup_sec: 60
+ramp_sec: 30
+drain_sec: 30
+percentile_method: from_per_request_raw_linear_interpolation
+tail_min_samples: 200
+min_samples_per_class: 200
+goodput_uses_lower_confidence_bound: true
+lcb_method: bootstrap_percentile_5
+lcb_resamples: 2000
+allow_degraded_backend: false
+allow_precision_downgrade: false
+max_error_ratio: 0.01
+classes:
+  - name: interactive
+    ttft_ms: 500
+    tpot_ms: 50
+    e2e_ms: 20000
+    streaming: stream_true
+    priority: high
+  - name: batch
+    ttft_ms: 5000
+    tpot_ms: 100
+    e2e_ms: 120000
+    streaming: stream_false
+    priority: normal
+  - name: tight_deadline
+    ttft_ms: 300
+    tpot_ms: 30
+    e2e_ms: 10000
+    streaming: stream_true
+    priority: high
+classification:
+  canceled_enters_goodput_denominator: true
+  canceled_enters_success_latency: false
+  rejected_enters_goodput_denominator: true
+  rejected_latency_reported_separately: true
+  deadline_exceeded_is_error: true
+  backend_failure_is_error: true
+  protocol_failure_is_error: true
+  invalid_request_is_not_offered_to_backend: true
+slos_do_not_allow:
+  - moving_thresholds_after_seeing_results
+  - dropping_rejects_from_the_offered_denominator
+  - using_runtime_ttft_as_client_ttft
+  - reporting_mean_only
+notes: >
+  Client TTFT (t_first_byte_client - t_send) is the primary SLO clock; server
+  TTFT may be reported alongside but must keep its prefix (details README §8).

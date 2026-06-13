@@ -1,0 +1,289 @@
+kind: hqsb.serving.error_catalog
+name: s08_frozen_error_catalog
+description: >
+  Frozen error matrix for the OpenAI-compatible subset (details/S08/E08-01 §8).
+  Every entry fixes HTTP status, stable code, retryability, the pipeline stage it
+  is raised at, and whether a Backend request may exist. Permanent errors must
+  not be disguised as 500, and overload must not be disguised as input error.
+schema_version: "1.0.0"
+envelope_fields:
+  - message
+  - type
+  - code
+  - param
+stages:
+  - transport
+  - parse
+  - schema
+  - semantic
+  - identity
+  - budget
+  - admission
+  - routing
+  - backend
+  - stream
+  - lifecycle
+retryable_values:
+  - "yes"
+  - "no"
+  - conditional
+entries:
+  - code: not_found
+    http_status: 404
+    stage: transport
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: path is not part of the frozen compatible subset
+  - code: method_not_allowed
+    http_status: 405
+    stage: transport
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: HTTP method is not served for this path
+  - code: service_not_serving
+    http_status: 503
+    stage: lifecycle
+    category: unavailable
+    retryable: "yes"
+    backend_request_created: false
+    message: the service is draining or closed and accepts no new business request
+  - code: body_too_large
+    http_status: 413
+    stage: transport
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: request body exceeds the frozen transport limit
+  - code: header_too_large
+    http_status: 431
+    stage: transport
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: request headers exceed the frozen transport limit
+  - code: invalid_json
+    http_status: 400
+    stage: parse
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: body is not valid JSON
+  - code: missing_required_field
+    http_status: 400
+    stage: schema
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: a required field is missing
+  - code: wrong_type
+    http_status: 400
+    stage: schema
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: a field has the wrong JSON type
+  - code: unknown_field
+    http_status: 400
+    stage: schema
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: an unknown field is refused rather than silently dropped
+  - code: unsupported_parameter
+    http_status: 400
+    stage: schema
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: the parameter is outside the frozen compatible subset
+  - code: unsupported_combo
+    http_status: 400
+    stage: semantic
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: the parameter combination is not supported
+  - code: empty_messages
+    http_status: 400
+    stage: semantic
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: messages/prompt must not be empty
+  - code: invalid_role
+    http_status: 400
+    stage: semantic
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: message role is not in the frozen role set
+  - code: invalid_sampling
+    http_status: 400
+    stage: semantic
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: sampling parameter is outside its allowed range
+  - code: invalid_stop
+    http_status: 400
+    stage: semantic
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: stop sequence/encoding is invalid or too many sequences
+  - code: unknown_model
+    http_status: 404
+    stage: identity
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: model alias does not resolve to a registered ModelArtifact
+  - code: model_revision_mismatch
+    http_status: 409
+    stage: identity
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: resolved ModelArtifact revision differs from the frozen identity
+  - code: precision_not_approved
+    http_status: 409
+    stage: identity
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: requested precision/quality class is not quality-approved
+  - code: context_length_exceeded
+    http_status: 400
+    stage: budget
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: prompt plus reserved output exceeds the model/runtime context
+  - code: max_tokens_exceeded
+    http_status: 400
+    stage: budget
+    category: invalid
+    retryable: "no"
+    backend_request_created: false
+    message: max_tokens exceeds the frozen completion limit
+  - code: queue_full
+    http_status: 503
+    stage: admission
+    category: overload
+    retryable: conditional
+    backend_request_created: false
+    message: the bounded request queue is full
+  - code: token_budget_exceeded
+    http_status: 503
+    stage: admission
+    category: overload
+    retryable: conditional
+    backend_request_created: false
+    message: the in-flight token budget cannot admit this request
+  - code: kv_budget_exceeded
+    http_status: 503
+    stage: admission
+    category: overload
+    retryable: conditional
+    backend_request_created: false
+    message: the predicted KV budget cannot admit this request
+  - code: deadline_infeasible
+    http_status: 504
+    stage: admission
+    category: timeout
+    retryable: "no"
+    backend_request_created: false
+    message: predicted completion exceeds the remaining deadline
+  - code: tenant_rate_limited
+    http_status: 429
+    stage: admission
+    category: overload
+    retryable: "yes"
+    backend_request_created: false
+    message: caller/tenant rate or quota limit reached
+  - code: service_overloaded
+    http_status: 503
+    stage: admission
+    category: overload
+    retryable: "yes"
+    backend_request_created: false
+    message: service is shedding load while the pressure state machine recovers
+  - code: no_feasible_backend
+    http_status: 503
+    stage: routing
+    category: unavailable
+    retryable: conditional
+    backend_request_created: false
+    message: no candidate satisfies the hard capability/identity/health filters
+  - code: backend_unavailable
+    http_status: 503
+    stage: backend
+    category: unavailable
+    retryable: conditional
+    backend_request_created: true
+    message: the selected backend is unavailable (circuit open or process gone)
+  - code: backend_oom
+    http_status: 503
+    stage: backend
+    category: unavailable
+    retryable: conditional
+    backend_request_created: true
+    message: the selected backend reported an out-of-memory condition
+  - code: backend_internal
+    http_status: 500
+    stage: backend
+    category: internal
+    retryable: conditional
+    backend_request_created: true
+    message: the backend failed internally (not a caller error)
+  - code: backend_identity_mismatch
+    http_status: 502
+    stage: backend
+    category: correctness
+    retryable: "no"
+    backend_request_created: true
+    message: the backend answered with a different model/precision identity
+  - code: deadline_exceeded
+    http_status: 504
+    stage: backend
+    category: timeout
+    retryable: "no"
+    backend_request_created: true
+    message: the request deadline expired while the backend was working
+  - code: client_cancelled
+    http_status: 499
+    stage: lifecycle
+    category: lifecycle
+    retryable: "no"
+    backend_request_created: true
+    message: the client cancelled the request (no error body is required)
+  - code: client_disconnected
+    http_status: 499
+    stage: lifecycle
+    category: lifecycle
+    retryable: "no"
+    backend_request_created: true
+    message: the client disconnected before the terminal frame
+  - code: stream_error_after_commit
+    http_status: 200
+    stage: stream
+    category: internal
+    retryable: "no"
+    backend_request_created: true
+    message: >
+      stream already committed bytes; the failure is reported inside the stream
+      as an explicit error/terminal frame because the HTTP status cannot change
+  - code: protocol_failure
+    http_status: 502
+    stage: stream
+    category: correctness
+    retryable: "no"
+    backend_request_created: true
+    message: SSE framing/sequence/terminal contract violated
+notes: >
+  `retryable: conditional` means "only before the streaming commit point and only
+  inside the retry budget" (details/S08/E08-01 §9, E08-05 §8, E08-09 §2).
+  Client 4xx, user cancel and admission reject must never be counted as backend
+  failures by the circuit breaker.

@@ -1,0 +1,116 @@
+kind: hqsb.serving.admission_spec
+name: s08_overload_admission_spec
+description: >
+  Overload governance (details/S08/E08-05): a bounded queue, a pressure state
+  machine with hysteresis and minimum dwell, a token/KV/deadline admission cost
+  model, and an explicit 429/503/Retry-After policy. The unbounded queue exists
+  only as a short, guarded counter-example.
+schema_version: "1.0.0"
+preregistration_status: template
+pressure_states:
+  - NORMAL
+  - SOFT_PRESSURE
+  - HARD_PRESSURE
+  - SHEDDING
+  - RECOVERING
+transitions:
+  - from: NORMAL
+    to: SOFT_PRESSURE
+    enter_signal: queue_depth_ratio
+    enter_threshold: 0.5
+  - from: SOFT_PRESSURE
+    to: NORMAL
+    exit_signal: queue_depth_ratio
+    exit_threshold: 0.3
+  - from: SOFT_PRESSURE
+    to: HARD_PRESSURE
+    enter_signal: queue_depth_ratio
+    enter_threshold: 0.75
+  - from: HARD_PRESSURE
+    to: SOFT_PRESSURE
+    exit_signal: queue_depth_ratio
+    exit_threshold: 0.55
+  - from: HARD_PRESSURE
+    to: SHEDDING
+    enter_signal: queue_depth_ratio
+    enter_threshold: 0.9
+  - from: SHEDDING
+    to: RECOVERING
+    exit_signal: queue_depth_ratio
+    exit_threshold: 0.5
+  - from: RECOVERING
+    to: NORMAL
+    exit_signal: queue_depth_ratio
+    exit_threshold: 0.3
+min_dwell_windows: 2
+window_ms: 1000
+signals:
+  - queue_depth_ratio
+  - queue_age_ms
+  - inflight_requests
+  - inflight_tokens
+  - predicted_kv_bytes
+  - backend_health
+  - deadline_slack_ms
+  - recent_slo_violation_ratio
+  - buffered_socket_bytes
+  - process_rss_bytes
+hard_caps:
+  max_queued_requests: 256
+  max_queued_tokens: 262144
+  max_queued_bytes: 268435456
+  max_inflight_requests: 64
+  max_inflight_tokens: 131072
+  max_kv_bytes: 8589934592
+  max_buffered_socket_bytes: 67108864
+  unbounded_queue_is_a_guarded_counterexample_only: true
+  unbounded_queue_max_duration_sec: 30
+  unbounded_queue_kill_guard_required: true
+admission_cost_model:
+  estimated_prefill_tokens: max(0, input_tokens - expected_prefix_hit)
+  estimated_decode_tokens: f(max_tokens, class_history, policy)
+  estimated_kv_tokens: input_tokens + reserved_output_tokens
+  reserved_output_tokens_policy: min(max_tokens, class_default)
+  deadline_slack_formula: deadline - now - estimated_queue - estimated_service
+  record_estimate_actual_error: true
+  calibration_curve_required: true
+  conservative_when_uncertain: true
+reject_policy:
+  queue_full: queue_full
+  token_budget: token_budget_exceeded
+  kv_budget: kv_budget_exceeded
+  deadline: deadline_infeasible
+  health: backend_unavailable
+  tenant_rate: tenant_rate_limited
+  retry_after_only_when_recovery_estimate_exists: true
+  reject_before_expensive_tokenization: true
+  reject_must_not_create_backend_state: true
+  reject_must_not_change_model_semantics: true
+retry_policy:
+  max_attempts_per_request: 2
+  max_elapsed_budget_ms: 2000
+  base_backoff_ms: 20
+  max_backoff_ms: 500
+  jitter_ratio: 0.3
+  server_wide_retry_budget_ratio: 0.1
+  obey_retry_after: true
+  no_transparent_retry_after_stream_commit: true
+  layers_must_not_multiply: true
+  amplification_must_be_bounded: true
+recovery:
+  ramp_windows: 3
+  exit_requires_all_signals_below_exit_threshold: true
+  oscillation_report_required: true
+safety_invariants:
+  - every_queue_has_a_hard_cap
+  - admission_reject_creates_no_backend_or_kv_state
+  - expired_requests_do_not_keep_running
+  - shed_order_follows_the_fairness_policy
+  - rejects_do_not_change_model_or_quality_semantics
+  - retries_never_duplicate_output_tokens
+  - pressure_state_returns_to_normal_after_load_drops
+  - health_endpoint_is_not_starved_by_the_business_queue
+  - emergency_stop_leaves_no_half_state
+notes: >
+  A low reject rate is not itself evidence of good behaviour, and overload must
+  not be answered with limitless retries.

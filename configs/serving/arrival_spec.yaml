@@ -1,0 +1,96 @@
+kind: hqsb.serving.arrival_spec
+name: s08_replayable_arrival_spec
+description: >
+  Replayable arrival processes (details/S08/E08-03 §4/§6/§12). Every trace is
+  generated offline from a seed and hashed before the run, so a slow service can
+  never change the future t_sched. "A loop that sleeps" is not a defined burst.
+schema_version: "1.0.0"
+preregistration_status: template
+seeds:
+  - 20260918
+  - 20260919
+  - 20260920
+mean_rate_source: capacity_per_point
+distributions:
+  constant:
+    inter_arrival: 1_over_lambda
+  poisson:
+    inter_arrival: exponential
+    cv_target: 1.0
+  on_off_burst:
+    model: periodic_on_off
+    peak_rate_multiplier: 4.0
+    base_rate_multiplier: 0.25
+    burst_duration_sec: 5.0
+    off_duration_sec: 15.0
+  batch_burst:
+    model: fixed_size_batch_at_period
+    batch_size: 8
+    period_sec: 10.0
+  compound_poisson:
+    model: poisson_events_with_random_batch
+    event_rate_multiplier: 0.25
+    batch_size_mean: 4.0
+    batch_size_distribution: geometric
+  trace_replay:
+    model: recorded_timestamps_scaled
+    requires_desensitisation_note: true
+    requires_representativeness_note: true
+comparability:
+  same_measurement_duration: true
+  same_offered_requests_tolerance_rel: 0.05
+  same_payload_sequence_or_paired_permutation: true
+  same_length_tenant_prefix_distribution: true
+  same_stream_mode: true
+  same_timeout_and_retry_off: true
+  same_initial_cache_state: true
+  same_warmup_and_drain: true
+  same_loadgen_resources: true
+fidelity_gate:
+  mean_rate_rel_tolerance: 0.05
+  lag_p95_max_ms: 20.0
+  drop_ratio_max: 0.001
+  reported_statistics:
+    - mean_median_p95_p99_inter_arrival
+    - stddev_and_cv
+    - peak_to_mean
+    - max_qps_windows_10ms_100ms_1s_10s
+    - burst_duration_size_duty_cycle
+    - fano_factor
+    - autocorrelation_or_onoff_structure
+load_bands:
+  - low
+  - mid
+  - cliff
+  - overload
+overload_band_requires_bounded_policy: true
+recovery_metrics:
+  - queue_peak
+  - time_to_peak
+  - burst_end_time
+  - time_to_queue_baseline
+  - time_to_slo_recovery
+  - rejected_during_burst
+  - wasted_compute_after_deadline
+arrival_payload_separation: true
+arrival_trace_fields:
+  - request_id
+  - payload_id
+  - distribution
+  - version
+  - seed
+  - scheduled_offset_ns
+  - actual_send_ns
+  - inter_arrival_intended_ns
+  - inter_arrival_actual_ns
+  - burst_id
+  - phase
+  - request_class
+  - tenant
+  - loadgen_worker
+  - send_lag_ns
+  - drop_reason
+notes: >
+  Mean QPS equality alone never proves the generator is right: intended and
+  actual arrival are recorded separately, and a production-invalid generator
+  (drops/lag) is labelled instead of being blamed on the service.

@@ -1,0 +1,77 @@
+kind: hqsb.serving.capacity_spec
+name: s08_capacity_spec_template
+description: >
+  Open-loop capacity / SLO-cliff protocol (details/S08/E08-02). The load grid,
+  windows, saturation criteria and stopping rules are frozen before the formal
+  run; the grid below is a template that the owner must confirm.
+schema_version: "1.0.0"
+preregistration_status: template
+stream_mode: stream_true
+stream_and_non_stream_separate: true
+primary_load_model: open_loop_constant_or_poisson
+secondary_load_model: closed_loop_fixed_concurrency
+secondary_may_not_replace_primary: true
+offered_qps_grid:
+  - 1.0
+  - 2.0
+  - 4.0
+  - 8.0
+  - 12.0
+  - 16.0
+  - 24.0
+  - 32.0
+per_point:
+  duration_sec: 120
+  min_requests: 200
+  repeats: 3
+  independent_processes_required: true
+sweep_plan:
+  - low_load_control
+  - coarse_up_sweep
+  - fine_sweep_near_cliff
+  - high_to_low_sweep_for_hysteresis
+  - longer_confirmation_run_at_candidate_g_star
+order_policy: randomized_block
+run_isolated_processes: true
+per_point_reset_required: true
+client_retry: false
+client_retry_reason: >
+  client-side retries would multiply the offered load and make the capacity
+  curve a function of the client, not the service (details §5)
+steady_state_criteria:
+  offered_vs_actual_rate_rel_tolerance: 0.05
+  loadgen_lag_p95_max_ms: 20.0
+  queue_depth_slope_max_per_sec: 0.1
+  queue_age_slope_max_per_sec: 0.1
+  memory_slope_max_bytes_per_s: 1048576
+  completed_rate_drift_max_ratio: 0.05
+  thermal_regime_change_allowed: false
+saturation_may_be_caused_by:
+  - backend_compute
+  - kv_capacity
+  - scheduler_cpu
+  - gateway_cpu
+  - socket_or_network
+  - backend_queue
+  - loadgen
+must_identify_with_trace: true
+tail_rules:
+  min_samples_for_p99: 200
+  insufficient_tail_label: INSUFFICIENT_TAIL_SAMPLES
+  timeouts_are_not_deleted: true
+  rejected_kept_separate: true
+  drain_residual_counts_towards_run: true
+recovery:
+  window_sec: 120
+  criteria:
+    - queue_depth_back_to_baseline
+    - oldest_age_back_to_baseline
+    - memory_back_to_baseline
+    - state_back_to_normal
+loadgen_validity:
+  invalid_label: LOADGEN_INVALID
+  invalid_must_not_be_attributed_to_the_service: true
+notes: >
+  A peak-throughput point whose P99 is already broken is not deployable
+  capacity; the deliverable is the full offered→queue→tail→error→goodput curve
+  plus the maximum in-SLO goodput G* with repeats and confidence intervals.
