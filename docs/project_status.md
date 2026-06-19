@@ -2,12 +2,13 @@
 
 > 生成时间：2026-08-17
 > 跨架构补验：2026-09-18（RTX 3090 / sm_86）
-> 基线 Commit：`9b403aa`（`chore: stop tracking the stage-experiment tree`，2026-06-02）
-> 当前阶段：S06（框架集成与图优化）—— **接口/代码层就位；实验层 BLOCKED**（S04.5 M4 与 S05 P0 前置缺失，见 §4、§13）
-> 下一阶段：S04.5（真实模型算子回接）→ S05 实验执行 → S06 实验执行
+> 当前工作树基线：`3c2453e`（`chore: update README for S06 integration layer`，工作树干净）
+> 历史基线 Commit：`9b403aa`（`chore: stop tracking the stage-experiment tree`，2026-06-02）
+> 当前阶段：S08（ServeFabric 与性能治理）—— **接口/代码层就位；实验层 BLOCKED**（S07 P0 等 7 条前置缺失，见 §15）
+> 下一阶段：S07 实验执行（P0）→ S04.5（真实模型算子回接）→ S05/S06 实验执行 → S08 实验执行
 >
-> 说明：本报告正文生成于 `4dda6f8`，其后仓库推进到 `9b403aa`（HEAD，tracked 343
-> 文件），S05/S06 两轮交付在其上追加；历史条目保留不改，新增章节见 §12/§13。
+> 说明：本报告正文生成于 `4dda6f8`，其后仓库推进到 `9b403aa` 并在其上追加
+> S05/S06/S07/S08 四轮交付；历史条目保留不改，新增章节见 §12/§13/§14/§15。
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -33,9 +34,10 @@ before claim。**
 
 | 判定项 | 结论 |
 |---|---|
-| 当前所处阶段 | **S04（Triton、CUTLASS/CuTe 与 Kernel DSL）** |
-| 判定依据 | S03 已完成验收；`ops` 增加 Triton/cuBLAS 对照 + 统一 dispatcher/capability 并通过测试 |
-| 前序阶段 | S00 → S01 → S02 → S03 —— 均已完成 |
+| 当前所处阶段 | **S08（ServeFabric 与性能治理）—— 接口/代码层就位；实验层 BLOCKED** |
+| 判定依据 | `hqsb/serving/` 26 模块 + `scripts/serving/run_e08.py` + `configs/serving/` 12 份冻结配置；E08-01~E08-11 全部 264 步的接口解析通过（418 接口）、131 个新增测试、依赖边界 gate R1–R6 0 违规；`run_e08.py --experiment E08-01 --prerequisites` 实测 7/8 前置 MISS → 全部实验 `BLOCKED`（§15） |
+| 前序阶段 | S00 → S01 → S02 → S03 → S04 已完成验收；S04.5/S05/S06/S07 为「接口层就位、实验层 BLOCKED」 |
+| 待解除阻塞 | S07 P0 verdict、双后端注册、冻结请求夹具、冻结 SLO、拓扑记录、loadgen 校准、协议树内环境指纹（§15.4） |
 
 S04 实测环境能力（**Triton 3.7.1 / CUTLASS 4.7.0 / TileLang 0.1.13 三个 DSL 在
 sm_87 全部可用**、cuBLAS 可用），实现 Triton RMSNorm/GEMM、CUTLASS GEMM 对照、
@@ -79,6 +81,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `hardware/jetson.py` | Jetson 实验协议（温度/冷却/电源模式） | **S02 新增**，Implemented |
 | `quant/` | 量化语义/RTN/golden/packing/artifact/compat/faults/stats/calibration/coverage/apply/quality/execution/oracle/model_eval/adapters/units/sensitivity/policy/activation/kv/decision/experiment/interface_map/config_io + fixtures（28 模块） | **S05 新增**，Implemented（test-verified，见 `evidence_ledger.md` §11） |
 | `integration/` | 框架集成与图优化：specs / dispatch / meta / graph / patterns / guards / cache / lowering / cuda_graph / taxonomy / abi / lifecycle / adapter / differential / telemetry / policies / experiment / interface_map（18 模块） | **S06 新增**，Implemented（test-verified，见 `evidence_ledger.md` §12） |
+| `runtime/` | 推理 Runtime：request / adapter / parity / trace / kv / scheduler / prefix_cache / graph_route / spec_decode / failure / comparison / policy_ab / metrics / telemetry / specs / experiment / interface_map（18 模块） | **S07 新增**，Implemented（test-verified，见 `evidence_ledger.md` §13） |
 | `serving/` | 空目录（S08 规划占位） | Planned |
 
 ### 3.2 `ops/`（算子）
@@ -129,6 +132,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `backends/` | 空（.gitkeep） | Planned |
 | `quantization/` | RTN W8/W4/非对称、scheme 矩阵、校准、kernel、激活、KV、决策 spec + policy 示例（10 份，均经 `config_io.load_any` 严格校验） | **S05 新增**，Implemented |
 | `integration/` | 算子契约、pattern 声明、编译策略、cache 规格、graph 规格、资源规格、复用规格（7 份，均经 `policies.load_directory` 严格校验 + 与代码逐字段审计） | **S06 新增**，Implemented |
+| `runtime/` | request / kv / scheduler / prefix / graph+attention / spec-decode / failure / comparison 冻结配置（8 份，均经 `specs.RuntimeSpecs.load` 严格校验 + 契约漂移审计） | **S07 新增**，Implemented |
 
 ### 3.5 `scripts/`
 
@@ -148,6 +152,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `bench/ncu_profile.sh` | Nsight Compute 采集 runner | **S02 新增**，Implemented |
 | `bench/run_jetson_baseline.sh` | Jetson CUDA baseline 一键脚本 | Implemented |
 | `integration/run_e06.py` | S06 实验驱动（status/preregister/interface-map/self-check/execute，默认不产结论） | **S06 新增**，Implemented |
+| `runtime/run_e07.py` | S07 实验驱动（status/preregister/interface-map/self-check/execute，默认不产结论） | **S07 新增**，Implemented |
 | `env/collect_jetson_env.sh` | 环境采集脚本 | Implemented |
 | `common/git_commit.sh` | 本地 git 历史改写辅助（**已 gitignore，勿入库**） | 本地工具，见 §8 |
 
@@ -173,6 +178,7 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | `property/test_percentile_property.py` | 百分位不变量属性测试 | **S01 新增** |
 | `unit/quant/`、`unit/ops/test_quant_kernels.py`、`property/test_quant_properties.py` | 量化单元/属性/kernel 测试 | **S05 新增**，Implemented |
 | `unit/integration/`（10 文件）、`property/test_integration_invariants.py` | S06 接口层测试 371 项（schema/dispatch/meta/graph/pattern/guard/cache/lowering/cuda_graph/lifecycle/adapter/taxonomy/ABI/differential/telemetry/脚手架/依赖边界） | **S06 新增**，Implemented |
+| `unit/runtime/`（13 文件）、`property/test_runtime_invariants.py` | S07 接口层测试 460 项（request/capability、adapter/probe、parity、trace/账本、KV、调度、prefix、graph+attention、spec decode、失败矩阵、比较/A-B、脚手架/配置/接口表、依赖边界、属性不变量） | **S07 新增**，Implemented |
 | `correctness/` `integration/` `test_vectors/` | 空（.gitkeep） | Planned（S04.5 起填充真实模型正确性矩阵） |
 
 ### 3.7 `docs/` 与 `reports/`
@@ -209,7 +215,8 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | S04.5 | 真实模型算子回接 | **已定义，未开始**（`docs/stages/S04.5_真实模型算子回接.md`，本轮新增） |
 | S05 | 量化与低精度推理 | **接口/代码层就位（E05-01~E05-10 共 190 步能力接口）；实验层 BLOCKED**（S04.5 M4 前置缺失） |
 | S06 | 框架集成与图优化 | **接口/代码层就位（E06-01~E06-11 共 218 步能力接口 + 371 新增测试）；实验层 BLOCKED**（S04.5 M4 与 S05 P0 前置缺失）。`hqsb/integration/` 18 模块 + `scripts/integration/run_e06.py` + `configs/integration/` 7 份；CUDA Graph 记 `NOT_CLAIMED` |
-| S07–S15 | Runtime / Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
+| S07 | 推理 Runtime 内核 | **接口/代码层就位（E07-01~E07-10 共 200 步能力接口 + 460 新增测试）；实验层 BLOCKED**（S04.5 M4 / S05 P0 / S06 P0 前置缺失）。`hqsb/runtime/` 18 模块 + `scripts/runtime/run_e07.py` + `configs/runtime/` 8 份；CUDA Graph 与 speculative/MTP 均记 `NOT_RUN` |
+| S08–S15 | Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
 
 **S05 准入判定（2026-09-18）**：**放行**，附加两条约束——
 S04.5 的「未量化 HQSB 算子路径」数值基线必须先建（否则无法区分量化误差与算子
@@ -474,3 +481,143 @@ S04.5 验收报告、六 workload FP16 基线、S05 P0 verdict、环境指纹）
 
 S06 报告：`docs/reports/S06_开发报告.md`、`docs/reports/S06_阶段验收报告.md`、
 `docs/reports/S06_graph_integration_design.md`。
+
+---
+
+## 14. S07 补齐内容（接口/代码层，实验层 BLOCKED）
+
+按任务约束「提供接口、不执行实验」，S07 交付了 E07-01~E07-10 全部 **200 个
+实验步骤**的能力接口与测试，**未执行任何正式实验、未产出任何 TTFT/TPOT/TPS/
+容量/碎片/命中率/显存/能耗结论数字**。
+
+1. **请求语义与能力协商**：`request.py`（canonical `RequestSpec`/`SamplingSpec`/
+   `StopSpec`/`ModelIdentity`/`BackendSpec`、capability 六态、requested→resolved
+   与 silent-degradation 拒绝、唯一主 runtime 校验）。
+2. **Adapter 契约与探测**：`adapter.py`（七类操作、生命周期状态机、stream 校验、
+   cancel 三时刻、dummy/reference adapter、注册表、`find_spec` 诚实探测——本机
+   vllm/sglang/tensorrt_llm/llama_cpp 实测 `NOT_INSTALLED`，主 runtime 选择 `ok=False`）。
+3. **语义 oracle**：`parity.py`（greedy 逐 step + 首差异、多 seed 分布比较并拒绝
+   单 seed 断言、streaming 拼接、边界 case、参数生效矩阵、unsupported 负向矩阵）。
+4. **Trace 与账本**：`trace.py`（请求状态机、C7 span（显式 request 上下文 +
+   脱敏）、iteration 账本与 token 守恒、时钟校准、插桩开销、hot path、
+   由 raw 生成的状态机/调用链）。
+5. **KV**：`kv.py`（几何、block 生命周期状态机与不变量、refcount/共享、
+   碎片**命名分类**与预测—实测对账、容量二分、**每个 kind 一条有限 OOM 阶梯**、
+   上下文最早层拒绝、长稳斜率）。
+6. **调度**：`scheduler.py`（static/continuous/chunked 确定性调度、token/sequence
+   budget、按完整 ISL 预留的 admission、preemption/recompute、chunk 覆盖审计、
+   Jain 公平、拥塞点、策略曲线；所有 payload 带 `simulated=True`）。
+7. **Prefix cache**：`prefix_cache.py`（15+2 字段 key 绑定、digest 敏感性、
+   两种碰撞政策与伪造记录 fixture、多 KV group 交集、refcount/eviction 保护、
+   净收益模型）。
+8. **Graph/Attention**：`graph_route.py`（桶与越界 fallback、replay 区分度、
+   capture break-even、attention 逐字段能力判定、2×2 factorial 与交互项、
+   phase 分离、claim 门、惰性复用 S06 CUDA Graph 契约）。
+9. **Speculative/MTP（P1）**：`spec_decode.py`（算法具名、精确有理数 acceptance/
+   residual、greedy exactness、多 seed 分布门、KV commit/rollback 审计、
+   cycle 成本与收益模型、MTP 自带契约、`claim_status → NOT_RUN`）。
+10. **失败与恢复**：`failure.py`（28 例冻结矩阵、10 条公共不变量、cancel 时间线、
+    有界 OOM 序列、上下文滥用检查、并发释放/load-close 场景、分段斜率与
+    「稳态仍增长即阻塞 PASS」、run 分离）。
+11. **公平比较**：`comparison.py`（tier A–D 自动派生、common/best-valid 两表分离、
+    从 raw 统一重算、token 三分母审计、冷热相位、per hardware×workload Pareto、
+    limitations、S08 稳定接口面）。
+12. **策略 A/B**：`policy_ab.py`（选题门禁、ADR、唯一变量 identity、ABBA/随机区组、
+    配对效应与 guard band、因果链四条件、回归包线、消融、按预注册裁决、pilot 隔离）。
+13. **口径与投影**：`metrics.py`（时间口径、三分母守恒、run 级分布与配对 bootstrap）、
+    `telemetry.py`（C6 20 字段 + C7 span 链投影与覆盖审计，不改冻结 schema）。
+14. **驱动与配置**：`scripts/runtime/run_e07.py`
+    （status/preregister/interface-map/self-check/execute，默认拒绝产结论）、
+    `configs/runtime/*.yaml`（8 份严格校验 + 契约审计）、
+    `hqsb/runtime/interface_map.py`（200 步 / 308 接口 / 429 引用全部解析）。
+15. **测试**：全量 **1763 passed**（本阶段新增 460：415 单元 + 45 属性）；
+    依赖边界 gate 规则 R1–R4 0 违规 0 环（`RULES_VERSION` 1.1.0）；
+    ruff 本阶段文件全绿；wheel 142 entries 含 18 个 runtime 模块。
+
+### 14.1 阻塞与交接
+
+**阻塞**：8 条硬前提中 7 条未满足——S04.5 M4 执行标记、S05 quality/kernel verdict、
+S06 稳定 capability verdict、冻结请求夹具、runtime capability probe、主 runtime
+选择、协议树内环境指纹。`run_e07.py --mode execute --confirm-execute` 如实拒绝
+（退出码 7），不产结论。
+
+**前置门收紧（防自我解锁）**：指纹与 probe/selection 只接受 `docs/stage_experiments/**`
+（协议证据树，本阶段代码从不写入）；脚手架写在 `experiment_results/` 的指纹**不计入**
+（回归测试 `test_scaffolding_written_fingerprint_does_not_satisfy_the_gate`）。
+
+**既有问题（未修，已登记）**：`scripts/audit/run_e01_06_*.py` 的 `overall=FAIL`
+（`logs_joinable`、`schema_missing_required_field`、`schema_unknown_field`）在干净
+HEAD 工作树上同样 FAIL，属既有 `schema_field_gap` / `run_trace_linkage_gap`；
+S06 报告中的「PASS（22/22）」指 case 数，不是 overall。
+
+**既有文档债务（未修）**：`docs/stage_experiments/details/*/README.md` 43 处相对链接
+断裂（S04/S04.5 清单随 `9b403aa` 移出树；控制平面文档实际位于 `docs/architecture/`）。
+协议目录冻结。
+
+**未覆盖边界**：真实 runtime 适配器未实现（引擎均未安装）；prefix cache 仅支持
+offset 0 的 block chain；调度器是确定性模拟器；CUDA Graph 与 speculative/MTP 均
+`NOT_RUN`。
+
+S07 报告：`docs/reports/S07_开发报告.md`、`docs/reports/S07_阶段验收报告.md`、
+`docs/reports/S07_runtime_architecture.md`。
+
+---
+
+## 15. S08（ServeFabric 与性能治理）—— 接口/代码层就位，实验层 BLOCKED
+
+> 追加时间：2026-09-18。S08 按任务约束「提供接口、不执行实验」交付
+> E08-01~E08-11 全部 **264 个实验步骤**的能力接口与测试，**未执行任何正式实验、
+> 未产出任何容量/延迟/吞吐/goodput/命中率/显存/能耗结论数字**。实验层 `BLOCKED`。
+
+### 15.1 新增模块（`hqsb/serving/`，26 个）
+
+1. **协议平面**：`protocol.py`（`ProtocolProfile`/`ErrorCatalog`/canonical 请求路径/
+   响应 oracle/负向语料/一致性矩阵）、`sse.py`（编解码/增量解析/framing oracle/
+   流-非流配对）。
+2. **网关平面**：`gateway.py`（请求状态机/SSE 交付/取消/drain）、`transport.py` +
+   `transport_http.py`（抽象 + stdlib HTTP/1.1+SSE）、`timing.py`（五种 TTFT/时钟域/
+   时间守恒）、`pipeline.py`（投递账本/五层缓冲/取消线性化）。
+3. **策略平面**：`slo.py`（SLO 预注册/goodput/计数漏斗/G*）、`arrival.py`（可重放
+   到达/保真门/突发恢复）、`loadgen.py`（开闭环/客户端有效性/no-op 校准）、
+   `clients.py`（可重放客户端行为脚本）、`fairness.py`（成本模型/Jain/饥饿/HOL）、
+   `policies.py`（FIFO/严格优先级/加权公平统一接口）。
+4. **后端平面**：`router.py`（注册表/硬过滤/评分/route-vs-actual）、`circuit.py`
+   （熔断/隔离/恢复）、`cache_routing.py`（前缀身份/四策略净收益/倾斜）、
+   `faults.py`（故障矩阵/注入证据/尝试血缘/爆炸半径）、`admission.py`（压力状态机/
+   有界队列/重试预算/过载波形）。
+5. **证据平面**：`observability.py`（trace context/span/metrics/logs/根因）、
+   `telemetry.py`（C6/C7 投影）、`service_ab.py`（瓶颈证据表/guardrail/四态裁决）、
+   `experiment.py`（前置门/预注册/run 布局/verdict 拒绝）、`specs.py`（12 份配置
+   严格加载 + 契约审计）、`interface_map.py`（264 步对照 + 导入校验）、
+   `dummy_backend.py`（无模型协议夹具）。
+
+### 15.2 配置与驱动
+
+- `configs/serving/*.yaml` 12 份冻结配置（严格键校验 + 逐文档契约审计全绿）。
+- `scripts/serving/run_e08.py`：`--list/--prerequisites/--interface-map/--smoke/
+  --experiment`，默认拒绝产结论。
+
+### 15.3 测试与门禁
+
+- 全量 **1894 passed**（本阶段新增 131 = 125 单元 + 6 属性）。
+- 依赖边界 gate 规则升至 **R1–R6**（`RULES_VERSION` 1.2.0）0 违规 0 环；
+  `module_ownership.md` 1.3.0 新增 `serving` 区域。
+- 接口解析：264 步 / 418 唯一接口 / 791 引用全部解析。
+- ruff：`hqsb/serving`、`tests/unit/serving`、`tests/property/test_serving_invariants.py`、
+  `scripts/serving` 全绿；仓库其余 74 处为既有问题，未新增。
+
+### 15.4 阻塞与交接
+
+**阻塞**：7 条硬前置未满足——S07 P0 verdict、双后端注册、冻结请求夹具、冻结 SLO、
+拓扑记录、loadgen 校准、协议树内环境指纹。`run_e08.py --experiment E08-01
+--prerequisites` 如实报告 `satisfied=false`；`--execute` 仍拒绝，不产结论。
+
+**前置门收紧（防自我解锁）**：前置证据只接受 `docs/stage_experiments/S08/**`（协议
+树）；脚手架写在 `experiment_results/` 的指纹不计入（回归测试
+`test_prerequisites_do_not_self_unlock`）。
+
+**未覆盖边界**：真实 Backend/引擎未接入（`dummy_backend.claim_allowed()` 恒 False）；
+HTTP 绑定为 stdlib 参考实现；真实并发/竞态需真实后端实验。
+
+S08 报告：`docs/reports/S08_开发报告.md`、`docs/reports/S08_阶段验收报告.md`、
+`docs/reports/S08_serving_architecture.md`。

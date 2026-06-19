@@ -1,9 +1,9 @@
 # HQSB Evidence Ledger（证据台账 / Claim Ledger）
 
 > 生成时间：2026-08-17
-> 基线 Commit：`4dda6f8`
-> 当前阶段：S04（已完成；§10 于 2026-09-18 追加跨架构补验）
-> 追加章节：§10（RTX 3090 / sm_86 跨架构补验，2026-09-18）
+> 基线 Commit：`4dda6f8`（历史正文）；当前工作树基线 `3c2453e`
+> 当前阶段：S08（接口/代码层就位，实验层 BLOCKED；§14）
+> 追加章节：§10（RTX 3090 / sm_86 跨架构补验）、§11（S05）、§12（S06）、§13（S07）、§14（S08）
 
 每个声明（claim）按证据强度分级：
 
@@ -359,4 +359,110 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 
 > 本节不含任何实验结果数字。S6-36/S6-37 是本机测试与驱动行为证据（`development`
 > 级别），**不是** E06 实验结论；E06-01~E06-11 实验层全部 BLOCKED。
+
+---
+
+## 13. S07 声明台账（接口/代码层，2026-09-18）
+
+> 背景：S07（推理 Runtime 内核）按任务约束「提供接口、不执行实验」交付了
+> E07-01~E07-10 全部 **200 个实验步骤**的能力接口与测试，**未执行任何正式实验、
+> 未产出任何 TTFT/TPOT/TPS/容量/碎片/命中率/显存/能耗结论数字**。本节条目为
+> `test-verified`（接口正确性）或本机 `development` 级别的驱动/测试行为证据；
+> **实验层判定为 `BLOCKED`**（见 S7-BLOCK）。配套报告：
+> `docs/reports/S07_开发报告.md`、`docs/reports/S07_阶段验收报告.md`、
+> `docs/reports/S07_runtime_architecture.md`。
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S7-1 | capability 协商可审计：六态词表、UNKNOWN 默认拒绝 claim、EMULATED 必须给测量成本、requested≠actual 必须带 reason（silent 降级在构造期被拒绝） | test-verified | `hqsb/runtime/request.py`；`tests/unit/runtime/test_request_capability.py` |
+| S7-2 | 请求语义冻结在 token ID 层：`RequestSpec.request_hash` 对 model/input/sampling/stop 敏感且稳定；greedy 与 sampling 不可混用 | test-verified | `hqsb/runtime/request.py`；`test_request_capability.py::TestModelIdentityAndRequest`、`TestSamplingAndStop` |
+| S7-3 | Adapter 七类操作 + 生命周期状态机：非法迁移与 close 后 generate 被拒；close 幂等；stream 序号/重复/丢失/final/文本被校验；cancel 需声明 in-flight 政策 | test-verified | `hqsb/runtime/adapter.py`；`test_adapter_parity.py::TestDummyAdapter`、`TestStreamAndCancelContracts` |
+| S7-4 | 引擎能力来自**探测**而非文档：`probe_environment()` 用 `find_spec`，只有 `AVAILABLE` 才可用；`select_primary_engine` 在无唯一可用引擎时 `ok=False` | test-verified + runtime-verified（本机） | `hqsb/runtime/adapter.py`；本机实测 vllm/sglang/tensorrt_llm/llama_cpp 全部 `NOT_INSTALLED`，`run_e07.py --mode self-check` 输出 `primary_selection_ok=false` |
+| S7-5 | 语义 parity：greedy 逐 step 比较并定位首分歧；logit 容差独立判定；sampling 分布比较要求 ≥2 seed，单 seed 与 INCONCLUSIVE 均拒绝声称等价 | test-verified | `hqsb/runtime/parity.py`；`test_adapter_parity.py::TestParityOracles` |
+| S7-6 | 参数逐项生效门禁：每个 claimable 字段必须有「输出变化」或 telemetry 证据；unsupported 字段必须以 REJECT/FALLBACK 且带 reason，`SILENT_IGNORE` 判失败 | test-verified | `parity.parameter_effect_matrix`、`parity.unsupported_negative_matrix`；`TestParameterAndUnsupportedMatrices` |
+| S7-7 | 请求状态机与终态约束：非法迁移被拒；取消/超时后不得重新 admit；非终态收尾被拒；取消后 emitted token 可检出 | test-verified | `hqsb/runtime/trace.py`；`tests/unit/runtime/test_trace_ledger.py::TestRequestStateMachine` |
+| S7-8 | C7 span 关联：跨请求 parent 与缺 source symbol 被检出；敏感属性脱敏；iteration 账本 token 守恒（`previous + scheduled - rollback == new` 非零即拒绝） | test-verified | `trace.SpanCollector.join_audit`、`trace.conservation_audit`；`test_trace_ledger.py::TestSpans`、`TestIterationLedger` |
+| S7-9 | 插桩开销分级：off/minimal/full/profiler 分开测量，full/profiler 永不可用于计时 | test-verified | `trace.instrumentation_overhead`；`test_trace_ledger.py::TestClocksAndOverhead` |
+| S7-10 | KV 几何与记账：`bytes_per_token` 公式与量化侧数据分离；内部碎片定义为 slot 浪费；未命名内存类别被拒；残差超容差即 `explained=False`（不允许叫「碎片」） | test-verified | `hqsb/runtime/kv.py`；`tests/unit/runtime/test_kv_blocks.py::TestGeometry`、`TestMemoryReconciliation` |
+| S7-11 | block 生命周期不变量：free 无 owner/reader、refcount 与 readers 一致、无瞬时状态残留、active/shared 不可 evict、free 后访问被拒（双 free 被吸收、refcount 错误被不变量检出） | test-verified | `kv.BlockPool.invariant_report` 及三个 fault fixture；`TestBlockPool` |
+| S7-12 | 容量与 OOM 有界：容量二分对脏下界/无上界拒绝；**每个 OOM kind 一条有限阶梯且必然以 `reject`/`fail` 结束**；超长 context 按最早可知层拒绝（先占后拒 = 缺陷） | test-verified | `kv.find_capacity_boundary`、`kv.OOM_LADDERS`、`kv.oom_action`、`failure.ContextAbuseCheck`；`TestCapacityAndOOM`、`test_failure_matrix.py::TestOomPolicy`、`test_runtime_invariants.py::TestKvAccounting` |
+| S7-13 | 调度守恒与预留：逐轮 token 守恒（随机 trace 属性测试）；chunk 区间精确 tile prompt；`admission_reserve_full_isl` 按 `prompt + max_new` 预留 block，防止过度接纳与 thrash；公平/拥塞指标有界 | test-verified | `hqsb/runtime/scheduler.py`；`tests/unit/runtime/test_scheduler_batching.py`、`test_runtime_invariants.py::TestSchedulerConservation` |
+| S7-14 | 调度输出标注为结构而非测量：所有 payload 带 `simulated=True`，时间字段为 0 或来自真实 run | test-verified | `scheduler.SimulationResult.as_dict`；`test_scheduler_batching.py::TestSimulationInvariants::test_simulation_payload_is_labelled_simulated` |
+| S7-15 | prefix cache key 绑定全部 KV 语义：任一 key 字段（15 字段 + parent chain + block token hash）变化必然改变 digest；负向 fixture 在 key 上变异而非在 identity dict 上 | test-verified | `hqsb/runtime/prefix_cache.py`；`tests/unit/runtime/test_prefix_cache.py::TestPrefixKey`、`TestNegativeFixtures`、`test_runtime_invariants.py::TestPrefixKeySensitivity` |
+| S7-16 | 碰撞政策有真实差异：`digest_plus_token_equality` 拒绝伪造记录并计数，`strong_digest` 会被同一伪造记录欺骗（对照组）；多 KV group 命中取交集，单组命中不得虚报 | test-verified | `prefix_cache.collision_is_detected`、`PrefixCache.lookup`；`TestCollisionPolicy`、`TestLookupSemantics::test_block_groups_take_the_intersection` |
+| S7-17 | refcount/eviction 保护：refcount>0 的 entry 拒绝丢弃；eviction 遵守字节上限；release 可选择保留；不变量报告检出 refcount 漂移 | test-verified | `PrefixCache._drop`、`PrefixCache.evict`；`TestLifecycleAndEviction` |
+| S7-18 | graph 路由可证：bucket 命中/越界带 fallback 与 reason 与 padding；bucket 数 > `max_graphs` 拒绝；同输入多 replay 被检出；break-even 与无摊销点分开；claim 门在未执行/证据不全/spec 不声称时分别为 `NOT_RUN`/`NOT_CLAIMED` | test-verified | `hqsb/runtime/graph_route.py`；`tests/unit/runtime/test_graph_attention.py::TestGraphSpec`、`TestReplayAccounting`、`TestPhaseAndClaim` |
+| S7-19 | attention 能力逐字段判定：dtype/kv dtype/head_dim/GQA/phase/paged/context/alignment/graph 可捕获性逐项给 reason 与 fallback；`API 配置 ≠ 实际 kernel` | test-verified | `graph_route.check_attention_support`、`attention_matrix`；`TestAttentionCapability` |
+| S7-20 | 2×2 factorial 与符号确定性：graph 主效应按 `cuda_graph − eager`、attention 主效应按 `candidate − default` 计算，因子顺序由调用方声明（不随命名/字母序翻转符号）；不兼容 cell 记 `UNSUPPORTED` 且禁止外推；缺 metric 不得凭空补 | test-verified | `graph_route.two_factor_analysis`；`TestFactorial` |
+| S7-21 | speculative 数学精确：acceptance `min(1, p/q)` 与 residual `normalize(max(0, p-q))` 用 `Fraction` 精确校验（含零概率与退化情形拒绝）；golden case 覆盖 all-accept/first-reject/零概率 | test-verified | `hqsb/runtime/spec_decode.py`；`tests/unit/runtime/test_spec_decode.py::TestAcceptanceMathematics` |
+| S7-22 | speculative 守恒与收益：`advanced = accepted + correction`（混淆即拒绝）；`rollback = proposed - accepted` 且无 stale token；收益用 cycle 成本公式给出 effective TPOT 与 target calls/token；无 advanced 时拒绝除法 | test-verified | `CycleRecord`、`kv_commit_rollback_audit`、`BenefitModel`；`TestCyclesAndRollback`、`TestBenefitModel` |
+| S7-23 | MTP 不得借用严格采样保证（除非自证目标分布保持）；P1 claim 默认 `NOT_RUN`，证据不全 `NOT_CLAIMED`；`configs/runtime/spec_decode_spec.yaml: claim: false` | test-verified | `spec_decode.assert_mtp_does_not_borrow`、`claim_status`；`TestMtpAndClaim` |
+| S7-24 | 失败矩阵完整且冻结：28 例覆盖 request_control/resource/runtime，每例声明 expected action 与 extra-output 政策并共享 10 条公共不变量；表中缺失/重复/失败都被报出 | test-verified | `hqsb/runtime/failure.py`；`tests/unit/runtime/test_failure_matrix.py::TestFailureMatrix`、`TestOutcomeTable` |
+| S7-25 | cancel 时间语义：五时刻单调校验；`no_extra_token` 契约下不得输出额外 token；observation/block-release/cleanup 延迟可计算 | test-verified | `failure.CancelTimeline`；`TestCancelTimeline` |
+| S7-26 | 长稳判据：warmup/steady 分段拟合，稳态仍增长即 `GROWING` 并阻塞 PASS；`allocator reserve` 不自动等于泄漏；无稳态段直接拒绝 | test-verified | `failure.resource_slope_report`、`leak_blocks_pass`；`TestRecoveryAndLongRun` |
+| S7-27 | 公平比较分级：tier A–D 由受控变量自动派生；common-denominator 与 best-valid 两表分离（后者需预注册）；不可比行必须带 reason；质量门失败的行不得进入对照表 | test-verified | `hqsb/runtime/comparison.py`；`tests/unit/runtime/test_comparison_policyab.py::TestTiers`、`TestRowsAndModes` |
+| S7-28 | 统一口径重算：所有速率从 raw 重算；自报 TPS 与重算不一致即审计失败；token 三分母（logical/useful/model-computed）分离，取消/超时/recompute 不从分母删除 | test-verified | `comparison.recompute_metrics`、`comparison.token_denominator_audit`、`metrics.TokenLedger`；`TestMetricRecompute`、`tests/unit/runtime/test_metrics_tokens.py::TestTokenLedger` |
+| S7-29 | 冷热分离与 Pareto：install/build 只报告不得混入稳态；Pareto 按 hardware × workload 分别计算，被支配点保留可见；no-winner 当 CI 跨零 | test-verified | `comparison.cold_warm_report`、`pareto_front`、`compare_runs`；`TestColdWarmAndPareto` |
+| S7-30 | A/B 选题门禁：七项条件不全或没有证据引用即拒绝；ADR 必须声明 metrics/workloads/invariants/rollback；A/B identity 只允许 patch/build 不同（其余差异被点名）；ABBA/随机区组平衡且拒绝长连续段；pilot 数据不得进入 final | test-verified | `hqsb/runtime/policy_ab.py`；`TestSelectionGateAndAdr`、`TestAbIdentityAndSchedule` |
+| S7-31 | 因果链与裁决：E2E 变化而近因未变 → 不可归因；近因变而 E2E 未变 → Amdahl 限制（合法负结果）；correctness/safety 失败或 guardrail 回归 → `ROLLBACK`；attributable 且无显著收益 → `PASS_NEGATIVE`；其余 `INCONCLUSIVE`；裁决必须使用预注册 primary，换指标即拒绝 | test-verified | `policy_ab.causal_chain_check`、`decide`；`TestCausalChainAndDecision` |
+| S7-32 | C6/C7 投影完整且不破坏冻结 schema：C6 20 个字段全部可寻址（`missing=[]`）、C7 span 链（11 类）全部映射到合法事件（`invalid=[]`）、run/request/parent/单调可关联 | test-verified | `hqsb/runtime/telemetry.py`；`test_s07_experiment_scaffolding.py::TestTelemetryProjection` |
+| S7-33 | 配置即冻结：8 类 YAML 严格加载（未知键/重复 kind 拒绝）、与代码词表逐字段审计（fragment/oom/eviction/tier/phase/objective 等） | test-verified | `hqsb/runtime/specs.py`、`configs/runtime/*.yaml`；`TestConfigs` |
+| S7-34 | 运行脚手架默认不产结论：verdict 在未执行/无 raw/前置未满足时一律落 `BLOCKED`；报告骨架标注 `NOT_RUN` 且不含数字；run layout 覆盖 §18 全部子目录 | test-verified | `hqsb/runtime/experiment.py`；`TestRunDirectory` |
+| S7-35 | 前置门不可被本阶段脚手架自我解锁：指纹与 probe/selection 只接受 `docs/stage_experiments/**`；脚手架写在 `experiment_results/` 的指纹不计入 | test-verified | `experiment.check_prerequisites`；`TestPrerequisites::test_scaffolding_written_fingerprint_does_not_satisfy_the_gate` |
+| S7-36 | 接口对照表 200 步 / 308 接口 / 429 引用全部 import 解析成功（含 dataclass 字段与类注解形式的接口） | test-verified | `hqsb/runtime/interface_map.py`；`resolve_interfaces()` → `ok=True`；`TestInterfaceMap` |
+| S7-37 | 依赖方向：`hqsb.runtime` 模块级不 import torch/triton/numpy、不 import `ops`；`core`/`models`/`benchmark`/`backends`/`hardware`/`quant`/`integration` 不 import runtime；gate 规则 R1–R4 0 违规 0 环（rules 1.1.0） | test-verified + runtime-verified（本机） | `tests/unit/runtime/test_runtime_import_boundaries.py`；`scripts/audit/import_dependency_gate.py`（PASS，138 files / 313 edges） |
+| S7-38 | 全量测试 **1763 passed, 0 failed**（4 deselected；本阶段新增 460：415 单元 + 45 属性） | runtime-verified（本机） | `.venv/bin/python -m pytest tests/ -q -m "not hardware and not e2e and not performance"` |
+| S7-39 | 实验驱动默认拒绝：`--mode status` 7/8 前置 MISS（+C6/C7 OK）→ 全部 `BLOCKED`；`--mode execute --confirm-execute` 退出码 7；`--mode preregister` 只写预注册与 `NOT_RUN` 骨架；`--mode interface-map` 输出 200 步对照表 | runtime-verified（本机） | `scripts/runtime/run_e07.py`；`docs/reports/S07_阶段验收报告.md` §7 |
+| S7-40 | CPU-minimal 打包包含 S07 交付：wheel（142 entries）含 18 个 `hqsb/runtime/` 模块 | runtime-verified（本机，`development`） | `.venv/bin/python -m pip wheel . --no-deps --no-build-isolation` |
+| S7-41 | e01_06 的 `overall=FAIL`（`logs_joinable`、`schema_missing_required_field`、`schema_unknown_field`）为**既有**问题 | runtime-verified（本机，对照工作树） | 在 `git worktree add /tmp/hqsb-head HEAD` 的干净树上实测同样 FAIL；脚本自述为 `schema_field_gap` / `run_trace_linkage_gap` |
+| S7-42 | 手册 §4 统一记录可执行化：`ExperimentRecord` 字段与顺序对齐手册 §4（另含 §5.7 要求的 `fallback_reason`）；结论状态必须带 `decision` 与 raw evidence URI（`performance_samples_uri`/`profile_artifacts_uri`），模板不可带结论状态 | test-verified | `hqsb/runtime/experiment.py`；`test_s07_experiment_scaffolding.py::TestExperimentRecord`；`run_e07.py --mode self-check`（`conclusion_without_evidence_refused=true`） |
+| S7-43 | C2 对齐审计：WorkloadSpec 的 14 个字段逐一映射到 runtime 载体（token IDs/sampling/stop/budget/warmup-steady/run 级重复/确定性 arrival offset…），并计入前置门 `c6_c7_schema_available`（C2+C6+C7 同时可用才放行） | test-verified | `telemetry.c2_alignment`、`experiment.check_prerequisites`；`test_s07_experiment_scaffolding.py::TestTelemetryProjection::test_c2_alignment_covers_every_workload_field` |
+| S7-BLOCK | S07 **实验层 BLOCKED**：8 条硬前提中 7 条未满足（S04.5 M4 标记、S05 verdict、S06 verdict、冻结请求夹具、capability probe、主 runtime 选择、协议树内环境指纹） | source-only（缺失事实，由 `check_prerequisites` 实测登记） | `hqsb/runtime/experiment.py::check_prerequisites`；`run_e07.py --mode status` |
+| S7-CLAIM | CUDA Graph 与 speculative/MTP 均**未声称**：`claim_cuda_graph: false`、`claim: false` → `claim_status(executed=False)` = `NOT_RUN` | source-only | `configs/runtime/graph_attention_spec.yaml`、`configs/runtime/spec_decode_spec.yaml`；`graph_route.claim_status`、`spec_decode.claim_status` |
+| S7-LIMIT | 未覆盖边界（如实登记）：真实 runtime 适配器未实现（引擎均未安装）；prefix cache 仅支持 offset 0 的 block chain；调度器是确定性模拟器（时间数字必须来自真实 run） | source-only | `hqsb/runtime/adapter.py::CANDIDATE_ENGINES`；`prefix_cache.py` 模块 docstring；`scheduler.SimulationResult.simulated` |
+
+> 本节不含任何实验结果数字。S7-38/S7-39/S7-40 是本机测试与驱动行为证据
+> （`development` 级别），**不是** E07 实验结论；E07-01~E07-10 实验层全部 BLOCKED。
+
+---
+
+## 14. S08 声明台账（接口/代码层，2026-09-18）
+
+> 背景：S08（ServeFabric 与性能治理）按任务约束「提供接口、不执行实验」交付了
+> E08-01~E08-11 全部 **264 个实验步骤**的能力接口与测试，**未执行任何正式实验、
+> 未产出任何容量/延迟/吞吐/goodput/命中率/显存/能耗结论数字**。本节条目为
+> `test-verified`（接口正确性）或本机 `development` 级别的驱动/测试行为证据；
+> **实验层判定为 `BLOCKED`**（见 S8-BLOCK）。配套报告：
+> `docs/reports/S08_开发报告.md`、`docs/reports/S08_阶段验收报告.md`、
+> `docs/reports/S08_serving_architecture.md`。
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S8-1 | 协议子集冻结并可审计：`ProtocolProfile`（wire/schema/语义/生命周期四类兼容声明）、未知字段拒绝而非丢弃、默认值展开进入 `normalized` | test-verified | `hqsb/serving/protocol.py`；`tests/unit/serving/test_protocol_sse.py::TestProtocolProfile`、`TestValidation` |
+| S8-2 | 错误目录自洽：状态/码/重试性/阶段一致；永久错误不得伪装 500、过载不得伪装入参错误；未登记码分类时显式报错 | test-verified | `hqsb/serving/protocol.py::ErrorCatalog.validate`、`slo.classify_failure`；`test_protocol_sse.py::TestErrorCatalog`、`test_policy_planes.py::TestSloFunnel` |
+| S8-3 | SSE 线缆级：增量解析器容忍任意 TCP 边界（含 UTF-8 码点内切分）；framing oracle（序列单调/终帧唯一且最后）；流-非流配对；token 静默丢失被拒 | test-verified | `hqsb/serving/sse.py`；`test_protocol_sse.py::TestSseCodec`、`tests/property/test_serving_invariants.py::TestSseReassemblerComposition` |
+| S8-4 | 请求状态机：非法迁移被拒；传输层拒绝也记录完整轨迹；断连/超时后直接传播取消 | test-verified | `hqsb/serving/gateway.py::RequestStateMachine`；`test_gateway_lifecycle.py::TestRequestStateMachine` |
+| S8-5 | 网关端到端（模拟传输）：非流/流/拒绝/取消/断连/故障/drain 全路径；投递账本审计通过 | test-verified | `hqsb/serving/gateway.py`、`transport.py`、`dummy_backend.py`；`test_gateway_lifecycle.py`（24 项） |
+| S8-6 | 错误模型/重复 token 门禁：身份不匹配映射 502 且不返回错误模型内容；外部提交后透明重试被禁；尝试血缘检出跨尝试 token | test-verified | `test_gateway_lifecycle.py::test_identity_mismatch_never_returns_a_success`、`test_backend_evidence_planes.py::TestFaults` |
+| S8-7 | SLO 预注册：模板未冻结拒绝评估 goodput/`G*`；good 需协议成功+身份+TTFT+TPOT+E2E 四条件；计数漏斗单调且逐差归因 | test-verified | `hqsb/serving/slo.py`；`test_policy_planes.py::TestSloFunnel`、`test_serving_invariants.py::TestFunnelConservation` |
+| S8-8 | 到达过程可重放：五种分布（恒定/泊松/on-off/批量/复合）长程均值对齐；trace 内容 hash 稳定；保真门标注 `LOADGEN_INVALID` | test-verified | `hqsb/serving/arrival.py`、`loadgen.py`；`test_policy_planes.py::TestArrival`、`test_serving_invariants.py::TestArrivalMeanRate` |
+| S8-9 | 公平性：Jain 只含 backlogged 租户；成本模型版本化；slowdown 需隔离基线；HOL trace 六构型 | test-verified | `hqsb/serving/fairness.py`；`test_policy_planes.py::TestFairness` |
+| S8-10 | 队列策略统一接口：FIFO/严格优先级/加权公平同一决策记录；work-conserving 审计；退款只退未执行部分 | test-verified | `hqsb/serving/policies.py`；`test_policy_planes.py::TestPolicies` |
+| S8-11 | 准入：压力状态机需最小 dwell；有界队列硬上限拒绝；无界队列有 kill guard；重试预算尊重提交边界 | test-verified | `hqsb/serving/admission.py`；`test_policy_planes.py::TestAdmission` |
+| S8-12 | 路由：注册表拒绝重复 id、代际原子替换；硬过滤先于评分；缺失遥测不为 0；route-vs-actual 守恒；no-feasible 稳定拒绝 | test-verified | `hqsb/serving/router.py`；`test_backend_evidence_planes.py::TestRouter` |
+| S8-13 | 熔断：排除类不计数、未知类报错、隔离非退避、半开探测恢复、迁移可复算 | test-verified | `hqsb/serving/circuit.py`；`test_backend_evidence_planes.py::TestCircuit` |
+| S8-14 | cache-aware：身份负向夹具全部改变 digest；版本失效；匹配器与 oracle 一致；联合策略净收益；倾斜上界 | test-verified | `hqsb/serving/cache_routing.py`；`test_backend_evidence_planes.py::TestCacheRouting`、`TestPrefixMatcherBounds` |
+| S8-15 | 可观测性：traceparent 校验与信任边界；prompt 文本脱敏；直方图分位从 raw 重算；根因需反事实 | test-verified | `hqsb/serving/observability.py`；`test_backend_evidence_planes.py::TestObservability` |
+| S8-16 | C6/C7 投影不改冻结 schema，字段/span 覆盖审计通过 | test-verified | `hqsb/serving/telemetry.py`；`test_s08_experiment_scaffolding.py::TestSpecs` |
+| S8-17 | 12 份冻结配置严格键校验 + 逐文档契约审计全绿；未知键拒绝、缺失文档拒绝 | test-verified | `hqsb/serving/specs.py`；`test_s08_experiment_scaffolding.py::TestSpecs` |
+| S8-18 | 实验脚手架：前置门不自我解锁（只读协议树）；模板不可带结论状态；无 raw samples 拒绝结论 | test-verified | `hqsb/serving/experiment.py`；`test_s08_experiment_scaffolding.py::TestPrerequisites`、`TestVerdictRefusal` |
+| S8-19 | 接口对照：264 步 / 418 唯一接口 / 791 引用全部解析；每步映射到真实可导入符号 | test-verified | `hqsb/serving/interface_map.py`；`test_s08_experiment_scaffolding.py::TestInterfaceMap` |
+| S8-20 | 依赖边界：serving 无模块级 torch/triton/numpy、不 import ops、下游不反向依赖；gate R1–R6 0 违规 0 环 | test-verified | `tests/unit/serving/test_serving_import_boundaries.py`；`scripts/audit/import_dependency_gate.py`（rules=1.2.0） |
+| S8-21 | 全量测试 **1894 passed, 0 failed**（4 deselected；本阶段新增 131 = 125 单元 + 6 属性） | runtime-verified（本机） | `.venv/bin/python -m pytest -m "not hardware and not e2e and not performance" -q` |
+| S8-22 | 驱动默认拒绝：`--prerequisites` 实测 7/8 前置 MISS → 全部 `BLOCKED`；`--smoke` 无模型夹具经网关 200、SSE/账本校验通过（标注 smoke）；`--interface-map` 输出 264 步对照 | runtime-verified（本机） | `scripts/serving/run_e08.py`；`docs/reports/S08_阶段验收报告.md` §5 |
+| S8-BLOCK | S08 **实验层 BLOCKED**：7 条硬前置未满足（S07 P0 verdict、双后端注册、冻结请求夹具、冻结 SLO、拓扑、loadgen 校准、协议树指纹） | source-only（缺失事实，由 `check_prerequisites` 实测登记） | `hqsb/serving/experiment.py::check_prerequisites`；`run_e08.py --experiment E08-01 --prerequisites` |
+| S8-LIMIT | 未覆盖边界（如实登记）：真实 Backend/引擎未接入（`dummy_backend.claim_allowed()` 恒 False）；HTTP 绑定为 stdlib 参考实现；真实并发/竞态需真实后端实验 | source-only | `hqsb/serving/dummy_backend.py`、`transport_http.py` |
+
+> 本节不含任何实验结果数字。S8-21/S8-22 是本机测试与驱动行为证据
+> （`development` 级别），**不是** E08 实验结论；E08-01~E08-11 实验层全部 BLOCKED。
 
