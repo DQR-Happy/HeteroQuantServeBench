@@ -10,35 +10,38 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-**S06（框架集成与图优化）—— 接口/代码层就位；实验层 BLOCKED。**
+**S08（ServeFabric 与性能治理）—— 接口/代码层就位；实验层 BLOCKED。**
 
-S06 已交付 E06-01~E06-11 全部 **218 个实验步骤**的能力接口（`hqsb/integration/`
-18 模块：算子 schema/dispatcher、Meta/FakeTensor、图 IR、pattern 重写、guard 与
-recompile 记账、compile cache、lowering、CUDA Graph 契约、错误/ABI 分类、
-生命周期、adapter 与反硬编码、四级 differential、C6/C7 投影）+
-`scripts/integration/run_e06.py` 驱动 + `configs/integration/` 7 份冻结配置，
-由 371 个新增测试（全量 1303 passed）、依赖边界 gate、接口解析（218 步 / 381 接口）、
-契约漂移审计与 smoke 自检证明。**未执行任何正式实验、未产出任何图/编译/性能/
-内存/命中率结论**。
+S08 已交付 E08-01~E08-11 全部 **264 个实验步骤**的能力接口（`hqsb/serving/`
+26 模块：协议兼容子集与错误目录、SSE 线缆级一致性、网关与请求状态机、传输与
+背压、SLO 预注册与计数漏斗、可重放到达过程与 loadgen、公平性与队列策略、
+准入/熔断/路由/cache-aware 路由、故障注入、端到端可观测性、服务级严格 A/B、
+S08 实验脚手架）+ `scripts/serving/run_e08.py` 驱动 + `configs/serving/` 12 份
+冻结配置，由 131 个新增测试（全量 1894 passed）、依赖边界 gate（规则 R1–R6）、
+接口解析（264 步 / 418 接口 / 791 引用）、契约审计与 smoke 自检证明。
+**未执行任何正式实验、未产出任何容量/延迟/吞吐/goodput/命中率/能耗结论**。
 
-实验层为 `BLOCKED`：S06 的 7 条硬前提中 6 条未满足（S04.5 执行证据标记、S04.5
-证据目录与验收报告、六 workload FP16 基线、S05 P0 verdict、环境指纹）。
-CUDA Graph（P1）未声称（`NOT_CLAIMED`）。驱动入口默认拒绝产结论：
+实验层为 `BLOCKED`：S08 的 8 条前置中 7 条未满足（S07 P0 verdict、双后端注册、
+冻结请求夹具、冻结 SLO、拓扑记录、loadgen 校准、协议树内的环境指纹）。驱动入口
+默认拒绝产结论：
 
 ```bash
-python3 scripts/integration/run_e06.py --mode status                 # 逐项前置门 → BLOCKED
-python3 scripts/integration/run_e06.py --mode interface-map          # 218 步 / 381 接口对照表
-python3 scripts/integration/run_e06.py --mode self-check --json      # 接口 smoke 自检
-python3 scripts/integration/run_e06.py --experiment E06-01 --mode execute --confirm-execute  # 退出码 7（拒绝）
+python3 scripts/serving/run_e08.py --list                    # 11 实验 / 264 步
+python3 scripts/serving/run_e08.py --experiment E08-01 --prerequisites  # 前置门 → BLOCKED
+python3 scripts/serving/run_e08.py --interface-map           # 264 步 / 418 接口对照表
+python3 scripts/serving/run_e08.py --smoke                   # 无模型夹具 smoke（标注 smoke）
+python3 scripts/serving/run_e08.py --experiment E08-01 --execute          # 仍拒绝（前置缺失）
 ```
 
-详见 `docs/reports/S06_开发报告.md`（含「实验步骤 → 代码接口」对照表）、
-`docs/reports/S06_阶段验收报告.md`（区分代码层验收与实验层 BLOCKED）与
-`docs/reports/S06_graph_integration_design.md`（Design 制品）。
+详见 `docs/reports/S08_开发报告.md`（含「实验步骤 → 代码接口」对照表）、
+`docs/reports/S08_阶段验收报告.md`（区分代码层验收与实验层 BLOCKED）与
+`docs/reports/S08_serving_architecture.md`（Design 制品）。
 
-S05（量化）与 S04（Triton/CUTLASS/Kernel DSL）已完成代码/接口层交付；S04 跨架构
+S07（推理 Runtime 内核，200 步 / 1763 测试）与 S06（框架集成与图优化）、
+S05（量化）、S04（Triton/CUTLASS/Kernel DSL）已完成代码/接口层交付；S04 跨架构
 补验（2026-09-18，RTX 3090 / sm_86）见 `docs/reports/S04_阶段验收报告.md` §8。
-下一阶段顺序：**S04.5（真实模型算子回接）→ S05 实验执行 → S06 实验执行**。
+下一阶段顺序：**S07 实验执行（P0）→ S04.5（真实模型算子回接）→ S05/S06 实验执行 →
+S08 实验执行**。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -64,7 +67,7 @@ python3 -m pytest -q                 # 全量
 python3 -m pytest -m unit -q         # 纯单元测试
 python3 -m pytest -m property -q     # 属性/不变量测试
 # CI/开发机口径（排除硬件/E2E/性能用例）：
-python3 -m pytest -m "not hardware and not e2e and not performance" -q   # 613 passed
+python3 -m pytest -m "not hardware and not e2e and not performance" -q   # 1894 passed（S08 口径）
 ```
 
 ### 2. CUDA 算子库（RMSNorm 多版本 + fused + correctness + benchmark）
@@ -156,7 +159,7 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | Triton GEMM（reference + autotune） | Verified | `ops/triton/gemm.py` | autotune 随 shape 选不同 tile（E04-01） |
 | S04 跨架构 tile/autotune 迁移实验 | Verified | `scripts/audit/run_e04_01_cross_arch_tile_transfer.py` | `docs/stage_experiments/S04/E04-01/raw/` |
 | 模型制品门禁（客户端缓存元数据排除） | Verified | `hqsb/models/manifest.py` | `verify_qwen3_hashes.py` → 13/14 PASS |
-| CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（1303 passed，2026-09-18，S06 口径） |
+| CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（1894 passed，2026-09-18，S08 口径） |
 | QuantLab 量化语义/RTN/golden/packing/制品 | Implemented | `hqsb/quant/{spec,rounding,rtn,golden,packing,artifact}.py` | `tests/unit/quant/`（936 passed 子集） |
 | QuantLab 兼容/故障注入/校准/统计 | Implemented | `hqsb/quant/{compat,faults,calibration,stats,fixtures}.py` | `tests/unit/quant/test_artifact_compat.py`、`test_calibration_stats.py` |
 | QuantLab 模型级评估（coverage/apply/quality/execution/oracle/model_eval） | Implemented | `hqsb/quant/` | `test_coverage_apply_quality.py`、`test_execution_model_eval.py` |
@@ -184,9 +187,36 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | 实验驱动入口（默认不产结论） | Implemented | `scripts/integration/run_e06.py`、`hqsb/integration/experiment.py` | `--mode execute` 退出码 7；`test_s06_experiment_scaffolding.py` |
 | 实验步骤→接口对照表（218 步 / 381 接口） | Implemented | `hqsb/integration/interface_map.py` | `test_s06_experiment_scaffolding.py::TestInterfaceMap` |
 | S06 实验执行 | **BLOCKED**（S04.5 M4 / S05 P0 前置缺失） | `docs/stage_experiments/details/S06/` | `run_e06.py --mode status` |
+| Runtime 请求语义与 capability 协商（六态、silent 降级拒绝） | Implemented | `hqsb/runtime/request.py` | `tests/unit/runtime/test_request_capability.py` |
+| Runtime adapter 契约（七类操作/状态机/诚实探测/注册表） | Implemented | `hqsb/runtime/adapter.py` | `test_adapter_parity.py::TestDummyAdapter`、`TestProbe` |
+| 语义 parity oracle（greedy/多 seed 分布/streaming/参数生效矩阵） | Implemented | `hqsb/runtime/parity.py` | `test_adapter_parity.py::TestParityOracles` |
+| 请求状态机 / C7 span / iteration 账本 / token 守恒 | Implemented | `hqsb/runtime/trace.py` | `tests/unit/runtime/test_trace_ledger.py` |
+| Paged KV 几何/生命周期/碎片分类/容量/有界 OOM | Implemented | `hqsb/runtime/kv.py` | `tests/unit/runtime/test_kv_blocks.py` |
+| Static/continuous/chunked 调度（确定性模拟 + 账本） | Implemented | `hqsb/runtime/scheduler.py` | `tests/unit/runtime/test_scheduler_batching.py` |
+| Prefix cache（key 绑定/碰撞政策/refcount/净收益模型） | Implemented | `hqsb/runtime/prefix_cache.py` | `tests/unit/runtime/test_prefix_cache.py` |
+| Graph 桶与 attention 能力矩阵（含 2×2 factorial 与 claim 门） | Implemented（`NOT_RUN`） | `hqsb/runtime/graph_route.py` | `tests/unit/runtime/test_graph_attention.py` |
+| Speculative/MTP 契约（精确 acceptance/residual、rollback、P1 门） | Implemented（`NOT_RUN`） | `hqsb/runtime/spec_decode.py` | `tests/unit/runtime/test_spec_decode.py` |
+| 失败矩阵与资源恢复（28 例 + 有界 OOM + 长稳判据） | Implemented | `hqsb/runtime/failure.py` | `tests/unit/runtime/test_failure_matrix.py` |
+| 公平比较（tier/两表分离/统一重算/token 分母审计/Pareto） | Implemented | `hqsb/runtime/comparison.py` | `test_comparison_policyab.py::TestMetricRecompute` |
+| 策略 A/B（选题门禁/唯一变量/ABBA/因果链/裁决） | Implemented | `hqsb/runtime/policy_ab.py` | `test_comparison_policyab.py::TestCausalChainAndDecision` |
+| Runtime 时间与 token 口径（三分母 + 配对 CI） | Implemented | `hqsb/runtime/metrics.py` | `tests/unit/runtime/test_metrics_tokens.py` |
+| S07 C6/C7 投影 + 字段/事件覆盖审计 | Implemented | `hqsb/runtime/telemetry.py` | `test_s07_experiment_scaffolding.py::TestTelemetryProjection` |
+| Runtime 冻结配置（8 份严格加载 + 契约审计） | Implemented | `configs/runtime/*.yaml`、`hqsb/runtime/specs.py` | `test_s07_experiment_scaffolding.py::TestConfigs` |
+| 手册 §4 统一实验记录（结论必须带 raw evidence） | Implemented | `hqsb/runtime/experiment.py`（`ExperimentRecord`） | `test_s07_experiment_scaffolding.py::TestExperimentRecord` |
+| C2/C6/C7 对齐审计（runtime 指标 ↔ workload 契约） | Implemented | `hqsb/runtime/telemetry.py`（`c2_alignment`） | `test_s07_experiment_scaffolding.py::TestTelemetryProjection` |
+| 实验驱动入口（默认不产结论） | Implemented | `scripts/runtime/run_e07.py`、`hqsb/runtime/experiment.py` | `--mode execute` 退出码 7；`test_s07_experiment_scaffolding.py` |
+| 实验步骤→接口对照表（200 步 / 308 接口） | Implemented | `hqsb/runtime/interface_map.py` | `test_s07_experiment_scaffolding.py::TestInterfaceMap` |
+| S07 实验执行 | **BLOCKED**（S04.5 M4 / S05 P0 / S06 P0 前置缺失） | `docs/stage_experiments/details/S07/` | `run_e07.py --mode status` |
+| ServeFabric 协议平面（ProtocolProfile/ErrorCatalog/SSE 一致性） | Implemented | `hqsb/serving/{protocol,sse}.py` | `tests/unit/serving/test_protocol_sse.py` |
+| ServeFabric 网关平面（请求状态机/SSE 交付/取消/drain） | Implemented | `hqsb/serving/{gateway,transport,transport_http,timing,pipeline}.py` | `test_gateway_lifecycle.py` |
+| ServeFabric 策略平面（SLO/到达/loadgen/公平/准入/路由/熔断/cache） | Implemented | `hqsb/serving/{slo,arrival,loadgen,fairness,policies,admission,router,circuit,cache_routing,clients}.py` | `test_policy_planes.py`、`test_backend_evidence_planes.py` |
+| ServeFabric 证据平面（观测/服务 A/B/实验脚手架/接口对照） | Implemented | `hqsb/serving/{observability,telemetry,service_ab,experiment,specs,interface_map,faults}.py` | `test_s08_experiment_scaffolding.py`、`test_serving_import_boundaries.py` |
+| ServeFabric 冻结配置（12 份严格加载 + 契约审计） | Implemented | `configs/serving/*.yaml`、`hqsb/serving/specs.py` | `test_s08_experiment_scaffolding.py::TestSpecs` |
+| ServeFabric 实验驱动入口（默认不产结论） | Implemented | `scripts/serving/run_e08.py` | `run_e08.py --smoke`；`--execute` 拒绝 |
+| ServeFabric 实验步骤→接口对照表（264 步 / 418 接口） | Implemented | `hqsb/serving/interface_map.py` | `test_s08_experiment_scaffolding.py::TestInterfaceMap` |
+| S08 实验执行 | **BLOCKED**（S07 P0 等 7 条前置缺失） | `docs/stage_experiments/details/S08/` | `run_e08.py --experiment E08-01 --prerequisites` |
 | KernelLab（CUTLASS/Ascend C） | Planned | `ops/ascend/`（CUTLASS 待网络恢复） | S05/S09 |
-| Runtime adapters（vLLM/TensorRT/llama.cpp） | Planned | `hqsb/backends/`（dummy/pytorch 已有） | S07 |
-| ServeFabric（OpenAI-compatible gateway） | Planned | `hqsb/serving/` | — |
+| 真实 Runtime 适配器（vLLM/SGLang/TensorRT-LLM/llama.cpp） | Planned（本机均未安装，探测实测 `NOT_INSTALLED`） | `hqsb/runtime/adapter.py`（契约/注册表/探测已就位） | S07 实验执行 |
 | BenchLab（跨硬件统一 benchmark） | Planned | `benchmarks/` | — |
 
 ## Planned components
@@ -194,7 +224,7 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 - **QuantLab**：RTN、GPTQ、AWQ、SmoothQuant 与论文方法复现
 - **KernelLab**：CUDA、Triton 与 Ascend C 算子
 - **Runtime adapters**：TensorRT、llama.cpp、vLLM 与 Ascend 运行时
-- **ServeFabric**：OpenAI-compatible 异构推理网关
+- **ServeFabric**：OpenAI-compatible 异构推理网关（S08 接口/代码层已就位，实验层 BLOCKED）
 - **BenchLab**：latency、throughput、memory、accuracy、energy 报告
 
 ## Hardware
