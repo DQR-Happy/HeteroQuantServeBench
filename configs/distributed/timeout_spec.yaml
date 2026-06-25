@@ -1,0 +1,72 @@
+kind: hqsb.distributed.timeout_spec
+name: S10 timeout and watchdog policy (template)
+description: >-
+  E10-03 的 timeout 设计模板：init/collective/watchdog/job-kill-grace/post-cleanup 五类阈值、
+  基于健康 P99 的倍率公式、延迟阶梯与清理顺序。
+notes: >-
+  preregistration_status=template 表示尚未冻结；正式 fault run 前必须由实验所有者冻结
+  （multiplier/最小值/最大值在看到 fault 时间之后不得修改）。
+schema_version: "1.0.0"
+
+preregistration_status: template
+preregistration_note: >-
+  阈值必须基于 E10-02 主消息 P99 × 安全倍数，并在 fault 之前写入 docs/stage_experiments/S10/**；
+  本文件是模板，不能直接用于正式 fault 判定。
+
+families:
+  - ordinary
+  - fault
+  - profiler
+
+timeouts:
+  init_timeout_s: 120.0
+  collective_timeout_s: 0.0
+  watchdog_heartbeat_timeout_s: 10.0
+  job_kill_grace_s: 30.0
+  post_cleanup_probe_timeout_s: 60.0
+
+multiplier: 3.0
+minimum_operational_timeout_s: 0.5
+maximum_timeout_s: 300.0
+healthy_p99_source: E10-02 主消息 P99（同一 op/size/dtype/topology）
+
+watchdog_layers:
+  - name: process_heartbeat
+    watches: process liveness
+    answer: a rank died
+  - name: collective_seq_progress
+    watches: collective sequence advance
+    answer: a rank is stuck
+  - name: request_deadline
+    watches: per-request budget
+    answer: one request overran
+  - name: device_health
+    watches: device health/errors
+    answer: the device is unhealthy
+  - name: job_grace
+    watches: job-level abort grace
+    answer: the whole group must stop
+
+delayed_rank_ladder:
+  - case: no_delay
+    delay_ratio: 0.0
+    expected: completes
+  - case: below_threshold
+    delay_ratio: 0.25
+    expected: completes
+  - case: near_threshold
+    delay_ratio: 0.9
+    expected: completes
+  - case: just_above
+    delay_ratio: 1.1
+    expected: bounded failure
+  - case: far_above
+    delay_ratio: 3.0
+    expected: bounded failure
+
+cleanup_order:
+  - abort in-flight work handles
+  - destroy communicators in reverse dependency order
+  - release buffers/streams/events
+  - close sockets/fds and remove rendezvous artifacts
+  - run the post-cleanup probe with a new epoch

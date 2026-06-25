@@ -1,0 +1,77 @@
+kind: hqsb.distributed.tolerance_spec
+name: S10 shared tolerance policy (template)
+description: >-
+  E10-02/E10-04 的预注册容差模板：按 (op, dtype) 唯一；同一对不允许出现两个不同的门限，
+  也不允许为某个后端放宽。模板状态表示数值尚未冻结，正式 run 前必须冻结。
+notes: >-
+  整数/可精确表示向量的 collective 用精确检测；浮点 reduction 用 tolerance 并说明
+  非结合性误差。TP 与单卡 reference 使用共同 tolerance。
+schema_version: "1.0.0"
+
+preregistration_status: template
+rel_floor: 1.0e-6
+no_backend_relaxation: true
+
+collective_tolerances:
+  - op: all_reduce
+    dtype: fp16
+    max_abs: 0.0
+    mean_abs: 0.0
+    rmse: 0.0
+    max_rel: 0.0
+    exact_integer_vectors: true
+    note: rank-coded 整数向量做精确检测；浮点 payload 另按 dtype 预注册
+  - op: all_gather
+    dtype: fp16
+    max_abs: 0.0
+    mean_abs: 0.0
+    rmse: 0.0
+    max_rel: 0.0
+    exact_integer_vectors: true
+    note: 顺序敏感：按 group rank 顺序拼接，用双 rank 编码验证
+  - op: reduce_scatter
+    dtype: fp16
+    max_abs: 0.0
+    mean_abs: 0.0
+    rmse: 0.0
+    max_rel: 0.0
+    exact_integer_vectors: true
+    note: 明确 total input count 与 per-rank recv count
+  - op: all_to_all
+    dtype: fp16
+    max_abs: 0.0
+    mean_abs: 0.0
+    rmse: 0.0
+    max_rel: 0.0
+    exact_integer_vectors: true
+    note: 每 src→dst 分片独立编码，验证 permutation/offset/count 守恒
+  - op: broadcast
+    dtype: fp16
+    max_abs: 0.0
+    mean_abs: 0.0
+    rmse: 0.0
+    max_rel: 0.0
+    exact_integer_vectors: true
+    note: root 扫描；非 root 的原输入不得泄入结果
+
+model_tolerances:
+  - level: prefill_logits
+    dtype: fp16
+    max_abs: 0.0
+    max_rel: 0.0
+    note: 数值待 S07 单卡 reference 冻结后填写；模板状态不得用于判定
+  - level: decode_logits
+    dtype: fp16
+    max_abs: 0.0
+    max_rel: 0.0
+    note: 多步 decode 逐 token 对齐 logits/top-k/KL/token/EOS
+  - level: kv_state
+    dtype: fp16
+    max_abs: 0.0
+    max_rel: 0.0
+    note: KV shard ownership 与追加语义必须与单卡一致
+
+gates:
+  - 任一 correctness gate 失败时，性能数字只能用于调试
+  - tolerance 按算子/dtype/误差传播预注册，不使用一套全局阈值
+  - 不允许为 TP/Ascend/HCCL 单独放宽同一 (op, dtype) 的门限

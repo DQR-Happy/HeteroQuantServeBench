@@ -1,0 +1,88 @@
+kind: hqsb.distributed.topology_spec
+name: S10 topology identity policy
+description: >-
+  E10-01 的冻结策略：拓扑身份的分支、节点/边类型、边置信级别、漂移分级与降级边处置。
+  未查询到的字段一律记为 UNAVAILABLE(reason)，不得填 0。
+notes: 与 hqsb/distributed/topology.py 的常量逐字段审计（specs.audit_documents）。
+schema_version: "1.0.0"
+
+branches:
+  - cuda_nccl
+  - ascend_hccl
+  - both
+
+node_kinds:
+  - accelerator
+  - cpu_numa
+  - host_memory
+  - pcie_switch
+  - nvswitch_or_hccs
+  - nic_port
+  - network_fabric
+  - host
+
+edge_types:
+  - pcie
+  - nvlink
+  - hccs
+  - roce_rdma
+  - ethernet
+  - cpu_interconnect
+
+edge_confidence:
+  - DECLARED
+  - QUERY_VERIFIED
+  - DATA_PATH_VERIFIED
+  - MEASURED
+  - DEGRADED
+
+link_states:
+  - UP
+  - DOWN
+  - DEGRADED
+  - UNKNOWN
+
+drift_levels:
+  - IDENTITY_ONLY
+  - HEALTH_CONTEXT
+  - PLACEMENT_RELEVANT
+  - PERFORMANCE_RELEVANT
+  - COMPATIBILITY_BREAKING
+  - TOPOLOGY_CLASS_CHANGE
+
+degraded_policy:
+  action: DENY
+  reason: >-
+    默认拒绝：degraded/unknown 快速路径边不进入 healthy baseline；如确需使用，必须在
+    Placement/DegradedLinkPolicy 中显式列边并写明理由（EXPLICIT_ALLOW）。
+  explicit_allow_edges: []
+  downstream_actions:
+    DENY: 该边不参与任何 baseline 或对照曲线
+    AVOID: 允许运行但必须单列，不与 healthy 曲线配对
+    EXPLICIT_ALLOW: 需要书面理由，并在报告中标注
+
+hard_invariants:
+  - unique(global_rank)
+  - unique(process_id within job)
+  - unique(device_uuid for one-rank-per-device plan)
+  - planned_world_size == observed_rank_count
+  - all(group members exist in observed ranks)
+  - all(planned fast-path edges are not DOWN/UNKNOWN)
+  - actual_device_uuid(rank) == planned_device_uuid(rank)
+
+raw_probe_commands:
+  - device_query
+  - npu_query
+  - cpu_numa
+  - numa_hardware
+  - pcie_tree
+  - topo_matrix
+  - nic_ports
+  - rdma_links
+  - rdma_devices
+  - hccl_config
+
+redaction_rules:
+  - 脱敏 IP/用户名/主机名等敏感字段，但保留稳定别名（后续 job 仍可 diff）
+  - raw 工具输出必须保留，normalized 表不得替代 raw
+  - 主机绝对路径不写入受版本控制的配置

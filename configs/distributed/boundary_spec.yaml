@@ -1,0 +1,75 @@
+kind: hqsb.distributed.boundary_spec
+name: S10 PP/CP/SP boundary policy (P1)
+description: >-
+  E10-07 的 P1 选择门禁：激活条件、候选定义要求、rubric 因子与权重、
+  采用/拒绝标准、重新评估触发条件、分层 health probe 与 unsupported 用例。
+notes: 未声称 PP/CP/SP 时状态为 NOT_RUN_NOT_CLAIMED，不是 PASS/FAIL；不得只写 SP=true。
+schema_version: "1.0.0"
+
+activation:
+  claiming_parallelism: false
+  tp_satisfies_goal: true
+  reason: >-
+    当前对外声明只覆盖 TP；PP/CP/SP 未声明，因此 E10-07 记为 NOT_RUN_NOT_CLAIMED。
+  claim_scope: ""
+  status: NOT_RUN_NOT_CLAIMED
+
+candidate_kinds:
+  - pp
+  - cp
+  - sp
+
+cp_sp_algorithms:
+  - ulysses_all_to_all
+  - ring_attention
+  - megatron_sequence_split
+  - chunked_sequence_shard
+
+rubric_factors:
+  - weights_do_not_fit
+  - long_kv_attention_memory
+  - high_concurrency_fills_pipeline
+  - low_concurrency_interactive
+  - inter_layer_imbalance_risk
+  - alltoall_or_ring_topology_dependency
+  - current_runtime_support
+
+rubric_table:
+  weights_do_not_fit: {pp: high, cp: low, sp: low}
+  long_kv_attention_memory: {pp: medium, cp: high, sp: high}
+  high_concurrency_fills_pipeline: {pp: high, cp: medium, sp: medium}
+  low_concurrency_interactive: {pp: low, cp: medium, sp: medium}
+  inter_layer_imbalance_risk: {pp: risk, cp: low, sp: low}
+  alltoall_or_ring_topology_dependency: {pp: low, cp: high, sp: high}
+  current_runtime_support: {pp: medium, cp: medium, sp: medium}
+
+adopt_criteria:
+  - correctness and quality gates
+  - capacity problem solved or primary metric improved
+  - no unacceptable TTFT/TPOT/P99 regression
+  - max-rank memory inside the safety bound
+  - communication ledger closed
+  - fault/cleanup semantics viable
+  - complexity justified by the target workload frequency
+
+re_evaluation_triggers:
+  - model layer count changes
+  - context length distribution changes
+  - interconnect/topology changes
+  - runtime version changes
+  - target concurrency profile changes
+
+probe_chain:
+  - device
+  - p2p_network
+  - small_collective
+  - tp_block
+  - qwen_tiny
+  - representative_short_request
+
+unsupported_cases:
+  - microbatch_not_divisible
+  - sequence_not_divisible
+  - stage_oom
+  - rank_mismatch
+  - timeout
