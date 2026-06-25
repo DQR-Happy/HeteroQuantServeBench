@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "classification": "pre_unification_legacy_evidence",
+  "evidence_scope": {
+    "paths": [
+      "docs/stage_experiments",
+      "reports"
+    ],
+    "observed_stage_directories": [
+      "S00",
+      "S01",
+      "S02",
+      "S03",
+      "S04",
+      "S05"
+    ],
+    "latest_observed_experiments": [
+      "E05-01",
+      "E05-02"
+    ]
+  },
+  "source_snapshots": {
+    "mac": {
+      "head": "f08e1d8019682993a1948a0a7b9a66df94c255d7",
+      "dirty": true,
+      "archive": "/Users/dengqirui/Documents/HQSB-recovery-20260919T182513Z/mac-original-full.tar.gz",
+      "archive_sha256": "ac009a5c2a45a0faaaf8cda894e038f909b227ef92e2263fccb0e98f6482f38d"
+    },
+    "jetson": {
+      "head": "526e86b6aa63376dd85d19bf495b8661e83d084a",
+      "dirty": true,
+      "archive": "/Users/dengqirui/Documents/HQSB-recovery-20260919T182513Z/jetson-original-full.tar.gz",
+      "archive_sha256": "00cfb005d06957589f30dbc5acd9cc02cfd54eb29d50f9133263d752ba7e202d"
+    }
+  },
+  "source_relationship": {
+    "mac_and_jetson_nonignored_source": "byte_identical_except_private_mac_rule_and_empty_jetson_tmp_md",
+    "evidence_selection": "mac_snapshot_content_superset_merged_without_deletion"
+  },
+  "unified_worktree": {
+    "branch": "recovery/unified",
+    "base_head": "a3c73552f43c613857dd1d5df282aad1505cec06",
+    "new_commit_created": false,
+    "jetson_path": "/home/jetson/work/HeteroQuantServeBench"
+  },
+  "attribution": {
+    "generated_by_unified_worktree": false,
+    "replayed_on_unified_worktree": false,
+    "may_claim_historical_metrics_as_unified_results": false
+  },
+  "post_integration_validation": {
+    "historical_experiments_regenerated": false,
+    "full_pytest": "3484 passed in 71.81s in canonical Jetson mirror",
+    "ctest": "3/3 passed",
+    "cuda_build_targets": 38,
+    "compute_sanitizer": "blocked_gpu_debugging_features_disabled"
+  }
+}
