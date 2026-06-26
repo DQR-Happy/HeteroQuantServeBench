@@ -1,0 +1,60 @@
+kind: hqsb.distributed.moe_spec
+name: S10 MoE expert-parallel policy
+description: >-
+  E10-08 的冻结策略：完成层级与允许声明、skew profile 集合、overflow 政策、
+  路由统计字段、placement 策略与 holdout 漂移阈值。
+notes: dense Qwen 的 synthetic route 只能声明 MoE collective micro，不得冒充完整 MoE/EP。
+schema_version: "1.0.0"
+
+claim_levels:
+  - L0
+  - L1
+  - L2
+  - L3
+  - L4
+
+claim_level_table:
+  L0: routing-distribution analysis only
+  L1: dispatch/combine semantics implemented (CPU oracle)
+  L2: MoE collective micro (real AllToAll(V) + skew/placement)
+  L3: EP runtime layer (router → expert → combine)
+  L4: full MoE/EP model quality and end-to-end performance
+
+skew_profiles:
+  - uniform
+  - mild_zipf
+  - severe_zipf
+  - single_hot_expert
+  - hot_pair_same_rank
+  - hot_pair_different_rank
+  - per_source_correlated
+  - prefill_large_token
+  - decode_small_batch
+  - time_varying_hot_expert
+
+overflow_policies:
+  - dynamic
+  - padding
+  - drop
+  - reroute
+
+routing_stats_fields:
+  - n_tokens
+  - n_assignments
+  - tokens_per_expert_before_capacity
+  - tokens_per_expert_after_capacity
+  - tokens_per_rank
+  - send_count_matrix
+  - dropped_assignments
+  - rerouted_assignments
+  - duplicated_assignments
+  - padding_slots
+  - gate_weight_sum_per_token
+
+placement_kinds:
+  - round_robin
+  - topology_aware
+  - framework_default
+
+holdout_divergence_threshold: 0.25
+l4_requires_real_artifact: true

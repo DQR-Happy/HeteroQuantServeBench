@@ -1,0 +1,73 @@
+kind: hqsb.distributed.overlap_spec
+name: S10 communication–computation overlap policy
+description: >-
+  E10-06 的冻结策略：三组 schedule 定义、chunk 候选、stream/group 规则、race probe、
+  ABBA 确认、guardrail 与因果裁决矩阵。
+notes: >-
+  async_op 返回快不等于重叠；overlap 只能由区间集合（union ∩ union）计算，
+  且当差值落到时钟不确定度量级时结论降为 INCONCLUSIVE。
+schema_version: "1.0.0"
+
+schedules:
+  - blocking_baseline
+  - async_no_overlap
+  - overlap
+
+chunk_strategies:
+  - whole_message
+  - few_large_chunks
+  - natural_module_boundaries
+  - smaller_candidates
+
+stream_policy:
+  compute_stream: compute
+  comm_stream: comm
+  priority: default
+  max_streams: 4
+  collective_sequence_rule: same order on every rank within a group
+  note: 不在运行中隐式创建无限 stream；跨 group 异步使用必须正确 wait/event
+
+race_probe:
+  repeats: 32
+  delay_ladder_ns:
+    - 0
+    - 2000
+    - 20000
+    - 200000
+  reverse_start_order: true
+
+abba_blocks:
+  pattern:
+    - A
+    - B
+    - B
+    - A
+  runs_per_arm: 3
+
+guardrails:
+  - tensor/logit/token/KV correctness
+  - no race/deadlock/timeout
+  - collective seq/order preserved
+  - P99 regression within the preregistered bound
+  - no memory/workspace/event/stream leak
+  - compute/comm singles do not collapse from contention
+  - non-target workloads do not regress
+
+causal_matrix:
+  - observation: API returns early, timeline shows no intersection
+    verdict: must not be called overlap
+  - observation: timeline intersects but exposed comm does not drop
+    verdict: no end-to-end causality
+  - observation: exposed comm drops but wait rises elsewhere
+    verdict: net gain is zero
+  - observation: overlap rises while both compute and comm slow down
+    verdict: decide on net E2E
+  - observation: smaller chunks start comm earlier but add events/α
+    verdict: pick the knee, not the maximum ratio
+  - observation: B is correct and E2E improves with the near cause in the same direction
+    verdict: enter confirmation
+  - observation: tuning improves, holdout regresses
+    verdict: the policy must not be published
+
+clock_uncertainty_ms: 0.0
+profiler_runs_separate: true

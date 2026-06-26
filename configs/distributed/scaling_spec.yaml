@@ -1,0 +1,85 @@
+kind: hqsb.distributed.scaling_spec
+name: S10 scaling protocol (template)
+description: >-
+  E10-05 的扩展实验协议模板：strong/weak/capacity 三种定义分开、卡数矩阵、容量阶梯、
+  预注册要求、pairability 字段与裁决词汇。
+notes: >-
+  缺失资源格必须保留为 MISSING 并注明原因，不得补 0；模型单卡放不下时不得伪造 T1。
+schema_version: "1.0.0"
+
+preregistration_status: template
+
+scaling_kinds:
+  - strong
+  - weak
+  - capacity
+
+weak_definitions:
+  - request_weak
+  - token_weak
+  - model_capacity_weak
+  - sequence_weak
+  - per_device_active_tokens
+  - per_device_batch_share
+
+device_counts:
+  - 1
+  - 2
+  - 4
+  - 8
+
+node_families:
+  - single_node
+  - multi_node_2
+  - multi_node_4
+
+capacity_ladder:
+  - 512
+  - 1024
+  - 2048
+  - 4096
+  - 8192
+
+oom_margin_fraction: 0.1
+independent_runs: 3
+block_order: randomized_block
+
+pairability_fields:
+  - model_artifact_hash
+  - tokenizer_hash
+  - precision
+  - quant_quality_id
+  - token_ids_hash
+  - input_tokens
+  - output_tokens
+  - global_batch
+  - stop_rule
+  - parallel_semantics_hash
+  - kv_layout_hash
+  - graph_policy
+  - custom_kernel_policy
+  - timing_boundary
+  - topology_family
+  - backend
+  - actual_backend
+
+verdicts:
+  - PASS_POSITIVE_LATENCY
+  - PASS_POSITIVE_CAPACITY
+  - PASS_NEGATIVE
+  - INCONCLUSIVE
+  - FAIL
+
+stop_rules:
+  correctness_failure: stop that TP degree
+  memory_above_safety_margin: stop growing the workload
+  health_link_clock_anomaly: flag the run and re-request resources; do not retry forever
+  collective_timeout_in_normal_mode: go to E10-03/E10-10
+  high_variance_after_repeats: INCONCLUSIVE; do not pick the fastest value
+  capacity_search_instability: the maximum point needs its own stable run
+  confirmation_failure: do not keep tuning and still call it the same holdout
+
+non_extrapolation:
+  rule: 只在已测 p 范围内解释；不得把 8 卡结论外推到 64 卡作为事实
+  missing_cell_representation: status=MISSING + reason，数值列为 null
+  t1_rule: 无真实单卡 T1 时只报 speedup_from_p0，不得称 strong scaling efficiency

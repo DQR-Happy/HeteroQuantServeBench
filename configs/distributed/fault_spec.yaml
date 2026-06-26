@@ -1,0 +1,173 @@
+kind: hqsb.distributed.fault_spec
+name: S10 distributed fault matrix and recovery policy (template)
+description: >-
+  E10-03/E10-10 的冻结策略模板：错误分类、恢复级别、检测层、故障矩阵（含每类的最低恢复级别）、
+  停止条件、oracle 必填字段、隔离要求与部分验证政策。
+notes: >-
+  preregistration_status=template 表示尚未冻结；正式 fault run 前必须由实验所有者在
+  docs/stage_experiments/S10/** 中冻结阈值与 oracle，且 fault 后不得再改。
+schema_version: "1.0.0"
+
+preregistration_status: template
+
+error_classes:
+  - RANK_EXIT
+  - RANK_STUCK
+  - DEVICE_OOM
+  - NETWORK
+  - COMM_ASYNC
+  - TIMEOUT
+  - MISMATCH
+  - BOOTSTRAP
+  - COMMUNICATOR_ALLOC
+  - DEVICE_ERROR
+  - PROFILER_FAILURE
+  - UNKNOWN
+
+recovery_levels:
+  - REQUEST_ABORT_ONLY
+  - COMMUNICATOR_RECREATE
+  - PROCESS_GROUP_RESTART
+  - NODE_QUARANTINE
+  - JOB_RESTART_FROM_ARTIFACT
+  - UNRECOVERABLE_IN_SCOPE
+
+detection_layers:
+  - process_control_heartbeat
+  - collective_progress_timeout
+  - allocator_or_load_barrier
+  - init_timeout_or_preflight
+  - backend_async_error
+  - external_watchdog_or_ras
+  - profiler_supervisor
+  - request_state
+
+fault_matrix:
+  - fault: clean_rank_exit
+    injection: rank exits at a chosen phase/seq
+    first_detectable_layer: process_control_heartbeat
+    expected_normalized_error: hqsb.rank.exit
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+  - fault: sigterm
+    injection: coordinator sends SIGTERM to an experiment rank
+    first_detectable_layer: process_control_heartbeat
+    expected_normalized_error: hqsb.rank.exit
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: sigkill
+    injection: coordinator sends SIGKILL (no cleanup)
+    first_detectable_layer: external_watchdog_or_ras
+    expected_normalized_error: hqsb.rank.exit
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+  - fault: rank_hang
+    injection: rank stays alive but stops collective progress
+    first_detectable_layer: collective_progress_timeout
+    expected_normalized_error: hqsb.rank.stuck
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+  - fault: compute_straggler_timeout
+    injection: controlled delay either side of the timeout
+    first_detectable_layer: collective_progress_timeout
+    expected_normalized_error: hqsb.comm.timeout
+    minimum_recovery_level: REQUEST_ABORT_ONLY
+  - fault: shard_load_oom
+    injection: allocator budget/fault hook during shard load
+    first_detectable_layer: allocator_or_load_barrier
+    expected_normalized_error: hqsb.device.oom
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+  - fault: runtime_workspace_oom
+    injection: workspace/activation OOM on one rank/layer
+    first_detectable_layer: allocator_or_load_barrier
+    expected_normalized_error: hqsb.device.oom
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: kv_growth_oom
+    injection: KV growth to the budget or a fault hook
+    first_detectable_layer: allocator_or_load_barrier
+    expected_normalized_error: hqsb.device.oom
+    minimum_recovery_level: REQUEST_ABORT_ONLY
+  - fault: communicator_alloc_failure
+    injection: failure during init/recreate
+    first_detectable_layer: init_timeout_or_preflight
+    expected_normalized_error: hqsb.comm.alloc_failure
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+  - fault: bootstrap_failure
+    injection: wrong rendezvous/rank table fixture
+    first_detectable_layer: init_timeout_or_preflight
+    expected_normalized_error: hqsb.comm.bootstrap
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+  - fault: inflight_network_error
+    injection: isolated in-flight disconnect
+    first_detectable_layer: backend_async_error
+    expected_normalized_error: hqsb.network.error
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+    note: requires an authorised isolated network, otherwise PARTIALLY_VALIDATED
+  - fault: link_delay_loss
+    injection: controlled traffic shaping/proxy
+    first_detectable_layer: collective_progress_timeout
+    expected_normalized_error: hqsb.comm.timeout
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: post_error_reuse
+    injection: issue another collective after a fatal error
+    first_detectable_layer: request_state
+    expected_normalized_error: hqsb.comm.async_error
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: op_mismatch
+    injection: one rank uses a different op at the same seq
+    first_detectable_layer: init_timeout_or_preflight
+    expected_normalized_error: hqsb.collective.mismatch
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: count_mismatch
+    injection: one rank changes logical count/shape
+    first_detectable_layer: init_timeout_or_preflight
+    expected_normalized_error: hqsb.collective.mismatch
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: dtype_mismatch
+    injection: same byte count, different dtype
+    first_detectable_layer: init_timeout_or_preflight
+    expected_normalized_error: hqsb.collective.mismatch
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: root_mismatch
+    injection: broadcast with different roots
+    first_detectable_layer: init_timeout_or_preflight
+    expected_normalized_error: hqsb.collective.mismatch
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+  - fault: skipped_collective
+    injection: one rank skips the call but keeps heartbeating
+    first_detectable_layer: collective_progress_timeout
+    expected_normalized_error: hqsb.rank.stuck
+    minimum_recovery_level: PROCESS_GROUP_RESTART
+  - fault: duplicate_seq
+    injection: reuse a wrong buffer/sequence
+    first_detectable_layer: request_state
+    expected_normalized_error: hqsb.collective.mismatch
+    minimum_recovery_level: COMMUNICATOR_RECREATE
+
+stop_conditions:
+  affects_non_experiment: "a fault touched a non-experiment PID/node/network: stop and escalate"
+  watchdog_cannot_control_all_ranks: "stop real hang/crash injection"
+  device_health_unknown_or_critical: "quarantine; never auto-reset"
+  resources_grow_after_cleanup_window: "stop further faults and locate the leak first"
+  unrecoverable_repeat: "keep the evidence; do not retry the same fault forever"
+  network_isolation_insufficient: "use a mock and mark PARTIALLY_VALIDATED"
+  timeout_exceeds_scheduler_kill: "redesign; do not fake application recovery with an external kill"
+
+required_oracle_fields:
+  - first_detectable_layer
+  - expected_normalized_error
+  - maximum_detection_time_s
+  - maximum_global_abort_time_s
+  - expected_failed_ranks / all-rank terminal state
+  - output_validity = INVALID
+  - communicator_post_state = ABORTED
+  - allowed_recovery_level
+  - resource_delta_limit
+  - post_recovery_probe
+
+isolation_requirements:
+  dedicated_job: true
+  external_watchdog_available: false
+  non_experiment_pids_protected: true
+  shared_network_untouched: true
+  network_faults_need_approval_reference: true
+
+partial_validation_policy: >-
+  无权限/无隔离网络时使用 mock 注入，并显式标记 PARTIALLY_VALIDATED 与理由；
+  不得把模拟链路故障写成真实网络故障结果。
