@@ -1,0 +1,101 @@
+kind: hqsb.distributed.collective_spec
+name: S10 collective microbenchmark policy
+description: >-
+  E10-02 的冻结策略：op/dtype/count 语义、size grid、算法组、clean sweep 顺序、
+  bandwidth 公式登记表与停止规则。
+notes: 小消息 latency 区必须覆盖；payload 定义与公式 ID 必须随结果保存以便复算。
+schema_version: "1.0.0"
+
+ops:
+  - all_reduce
+  - all_gather
+  - reduce_scatter
+  - all_to_all
+  - all_to_all_v
+  - broadcast
+
+required_error_hashed:
+  - all_reduce
+  - all_gather
+  - reduce_scatter
+  - all_to_all
+  - broadcast
+
+count_semantics:
+  all_reduce: count = elements per rank; every rank sends and receives `count`
+  all_gather: count = elements contributed per rank; output has p*count, concatenated by group rank
+  reduce_scatter: total_input_count = p * per_rank_recv_count; each rank keeps its 1/p segment
+  all_to_all: count = per-rank per-destination elements; symmetric matrix
+  all_to_all_v: send_counts[src][dst] may be unbalanced; global send == global recv
+  broadcast: count = elements at the root; root is the only producer
+
+size_grid:
+  min_bytes: 8
+  max_bytes: 134217728
+  factor: 2.0
+  include_non_power_of_two: true
+  model_payload_neighbourhood: true
+  categories:
+    - latency
+    - transition
+    - bandwidth
+    - model_neighbourhood
+    - boundary
+
+dtypes:
+  - int8
+  - uint8
+  - fp16
+  - bf16
+  - fp32
+  - int32
+  - fp64
+  - int64
+
+algorithm_groups:
+  primary: auto
+  forced:
+    - op: all_reduce
+      algorithm: ring
+      protocol: auto
+    - op: all_reduce
+      algorithm: tree
+      protocol: auto
+  rule: 只对官方支持且有研究问题的组合做受控强制；必须读取实际生效算法证据
+
+order_policy: randomized_block
+independent_jobs: 3
+
+bandwidth_formulas:
+  - id: hqsb.algbw.v1
+    definition: algbw = logical_payload_bytes / latency_s
+    units: GB/s (10^9 bytes/s)
+  - id: hqsb.bus_correction.v1
+    definition: nccl-tests correction factor per op and world size
+    source: NVIDIA nccl-tests PERFORMANCE.md
+  - id: hqsb.normalized_nccltests_bus_correction.v1
+    definition: >-
+      derived column for cross-table analysis only; it must not be reported as an HCCL-native
+      bus bandwidth or as physical link traffic
+  - id: hqsb.alpha_beta.v1
+    definition: "T ≈ alpha + bytes * beta, fitted per segment with residuals"
+
+stop_rules:
+  correctness_failure: stop that communicator's performance runs immediately
+  repeated_timeout_or_device_error: stop the job, go to E10-03/E10-10, do not retry blindly
+  variance_above_threshold: add independent jobs, not more iterations in the same process
+  near_memory_limit: stop growing the message size; record the capacity
+  bandwidth_plateau_not_seen: extend size if resources allow, else report 'no plateau observed'
+  crossover_between_two_coarse_points: densify in that interval without changing the confirmation set
+  profiler_overhead_too_high: shrink the profile window; keep the clean result
+
+official_tool_crosscheck:
+  required: true
+  tools:
+    - nccl-tests
+    - hccl-test
+  must_explain:
+    - payload/count definitions
+    - iteration and barrier semantics
+    - in-place vs out-of-place
+    - derived vs vendor-native bandwidth columns
