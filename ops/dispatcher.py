@@ -124,7 +124,9 @@ class OperatorDispatcher:
 
             return rmsnorm_optimized(x, weight, epsilon=epsilon), decision
 
-        from ops.triton.rmsnorm import rmsnorm_torch
+        # The reference lives outside ``ops.triton``.  Importing a fallback
+        # must not require the optional package that just failed capability.
+        from ops.reference import rmsnorm_torch
 
         return rmsnorm_torch(x, weight, epsilon=epsilon), decision
 
