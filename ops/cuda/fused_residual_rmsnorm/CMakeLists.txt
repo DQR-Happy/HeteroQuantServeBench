@@ -6,6 +6,7 @@
 
 add_library(hqsb_fused_residual_rmsnorm STATIC
   src/fused_residual_rmsnorm.cu
+  ${PROJECT_SOURCE_DIR}/ops/cuda/rmsnorm/src/rmsnorm_v2.cu
 )
 
 target_include_directories(
@@ -13,10 +14,33 @@ target_include_directories(
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/ops/cuda/rmsnorm/include
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/ops/cuda/rmsnorm/src
 )
 
 target_compile_options(
   hqsb_fused_residual_rmsnorm
+  PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:-O3;-lineinfo>
+)
+
+add_library(hqsb_fused_residual_rmsnorm_shared SHARED
+  src/fused_residual_rmsnorm.cu
+  src/fused_residual_rmsnorm_c_api.cu
+  ${PROJECT_SOURCE_DIR}/ops/cuda/rmsnorm/src/rmsnorm_v2.cu
+)
+
+target_include_directories(
+  hqsb_fused_residual_rmsnorm_shared
+  PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/ops/cuda/rmsnorm/include
+  PRIVATE
+  ${PROJECT_SOURCE_DIR}/ops/cuda/rmsnorm/src
+)
+
+target_compile_options(
+  hqsb_fused_residual_rmsnorm_shared
   PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:-O3;-lineinfo>
 )

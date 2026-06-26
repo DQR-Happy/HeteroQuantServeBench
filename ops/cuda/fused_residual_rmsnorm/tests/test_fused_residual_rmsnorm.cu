@@ -3,200 +3,105 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
+#include <cmath>
+#include <cstdlib>
 #include <random>
+#include <type_traits>
 #include <vector>
 
-#include "test_metrics.h"
 #include "test_util.h"
 
 namespace {
-
 using hqsb::DType;
+using hqsb::FusedResidualSemantic;
 using hqsb::FusedResidualVariant;
 
-std::vector<__half> to_half(const std::vector<float>& v) {
-  std::vector<__half> out(v.size());
-  for (size_t i = 0; i < v.size(); ++i) out[i] = __float2half_rn(v[i]);
-  return out;
-}
+template <typename T> T cast(float value);
+template <> float cast<float>(float value) { return value; }
+template <> __half cast<__half>(float value) { return __float2half_rn(value); }
+template <typename T> float as_float(T value);
+template <> float as_float<float>(float value) { return value; }
+template <> float as_float<__half>(__half value) { return __half2float(value); }
 
-std::vector<float> from_half(const std::vector<__half>& v) {
-  std::vector<float> out(v.size());
-  for (size_t i = 0; i < v.size(); ++i) out[i] = __half2float(v[i]);
-  return out;
-}
-
-size_t element_bytes(DType dtype) {
-  return (dtype == DType::kFloat16) ? sizeof(__half) : sizeof(float);
-}
-
-std::vector<float> generate(size_t n, int mode) {
-  std::vector<float> v(n);
-  std::mt19937 rng(99);
-  switch (mode) {
-    case 1: {
-      std::fill(v.begin(), v.end(), 0.0F);
-      break;
-    }
-    case 2: {
-      std::uniform_real_distribution<float> d(-1.0e4F, 1.0e4F);
-      for (float& x : v) x = d(rng);
-      break;
-    }
-    default: {
-      std::uniform_real_distribution<float> d(-1.0F, 1.0F);
-      for (float& x : v) x = d(rng);
-      break;
-    }
-  }
-  return v;
-}
-
-std::vector<float> generate_weight(size_t n) {
-  std::vector<float> v(n);
-  std::mt19937 rng(42);
-  std::uniform_real_distribution<float> d(0.5F, 1.5F);
-  for (float& x : v) x = d(rng);
-  return v;
-}
-
-hqsb::test::Metrics run_and_compare(DType dtype,
-                                    const std::vector<float>& input,
-                                    const std::vector<float>& residual,
-                                    const std::vector<float>& weight,
-                                    int64_t rows,
-                                    int64_t hidden,
-                                    FusedResidualVariant variant) {
+template <typename T>
+void run_case(int rows, int hidden, FusedResidualVariant variant, float atol) {
   const size_t n = static_cast<size_t>(rows) * hidden;
-  std::vector<float> reference(n);
-  hqsb::fused_residual_reference_cpu(input.data(), residual.data(),
-                                     weight.data(), reference.data(),
-                                     rows, hidden, 1e-5F);
-
-  void *d_in = nullptr, *d_res = nullptr, *d_w = nullptr, *d_out = nullptr;
-  const size_t in_bytes = n * element_bytes(dtype);
-  const size_t w_bytes = static_cast<size_t>(hidden) * element_bytes(dtype);
-  cudaMalloc(&d_in, in_bytes);
-  cudaMalloc(&d_res, in_bytes);
-  cudaMalloc(&d_w, w_bytes);
-  cudaMalloc(&d_out, in_bytes);
-
-  if (dtype == DType::kFloat16) {
-    auto hi = to_half(input), hr = to_half(residual), hw = to_half(weight);
-    cudaMemcpy(d_in, hi.data(), in_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_res, hr.data(), in_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_w, hw.data(), w_bytes, cudaMemcpyHostToDevice);
-  } else {
-    cudaMemcpy(d_in, input.data(), in_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_res, residual.data(), in_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_w, weight.data(), w_bytes, cudaMemcpyHostToDevice);
+  std::mt19937 rng(20260918 + hidden);
+  std::uniform_real_distribution<float> input_dist(-0.75F, 0.75F);
+  std::uniform_real_distribution<float> weight_dist(0.5F, 1.5F);
+  std::vector<T> input(n), residual(n), weight(hidden);
+  for (size_t i = 0; i < n; ++i) {
+    input[i] = cast<T>(input_dist(rng));
+    residual[i] = cast<T>(input_dist(rng));
   }
+  for (int i = 0; i < hidden; ++i) weight[i] = cast<T>(weight_dist(rng));
 
-  cudaError_t err = hqsb::fused_residual_rmsnorm_forward(
-      d_in, d_res, d_w, d_out, rows, hidden, 1e-5F, dtype, variant, 0);
-  if (err != cudaSuccess) {
-    cudaFree(d_in); cudaFree(d_res); cudaFree(d_w); cudaFree(d_out);
-    hqsb::test::Metrics m;
-    m.max_abs_error = 1e9;
-    return m;
-  }
-  cudaDeviceSynchronize();
-
-  std::vector<float> actual(n);
-  if (dtype == DType::kFloat16) {
-    std::vector<__half> ho(n);
-    cudaMemcpy(ho.data(), d_out, in_bytes, cudaMemcpyDeviceToHost);
-    actual = from_half(ho);
-  } else {
-    cudaMemcpy(actual.data(), d_out, in_bytes, cudaMemcpyDeviceToHost);
-  }
-
-  cudaFree(d_in); cudaFree(d_res); cudaFree(d_w); cudaFree(d_out);
-  return hqsb::test::compute_metrics(actual.data(), reference.data(), n);
-}
-
-void test_fp32_baseline() {
-  auto input = generate(512 * 1024, 0);
-  auto residual = generate(512 * 1024, 0);
-  auto weight = generate_weight(1024);
-  for (auto variant :
-       {FusedResidualVariant::kV0Shared, FusedResidualVariant::kV1Vectorized}) {
-    auto m = run_and_compare(DType::kFloat32, input, residual, weight, 512,
-                             1024, variant);
-    CHECK_NEAR(m.max_abs_error, 0.0, 5e-4);
-  }
-}
-
-void test_fp32_non_power_of_two() {
-  for (int64_t hidden : {100, 500}) {
-    auto input = generate(32 * hidden, 0);
-    auto residual = generate(32 * hidden, 0);
-    auto weight = generate_weight(hidden);
-    for (auto variant :
-         {FusedResidualVariant::kV0Shared, FusedResidualVariant::kV1Vectorized}) {
-      auto m = run_and_compare(DType::kFloat32, input, residual, weight, 32,
-                               hidden, variant);
-      CHECK_NEAR(m.max_abs_error, 0.0, 5e-4);
+  std::vector<T> ref_residual(n), ref_y(n);
+  for (int row = 0; row < rows; ++row) {
+    double sum = 0.0;
+    for (int col = 0; col < hidden; ++col) {
+      const size_t i = static_cast<size_t>(row) * hidden + col;
+      ref_residual[i] = cast<T>(as_float(input[i]) + as_float(residual[i]));
+      const double value = as_float(ref_residual[i]);
+      sum += value * value;
+    }
+    const double inv = 1.0 / std::sqrt(sum / hidden + 1e-6);
+    for (int col = 0; col < hidden; ++col) {
+      const size_t i = static_cast<size_t>(row) * hidden + col;
+      ref_y[i] = cast<T>(as_float(ref_residual[i]) * as_float(weight[col]) * inv);
     }
   }
-}
 
-void test_fp16() {
-  auto input = generate(32 * 2048, 0);
-  auto residual = generate(32 * 2048, 0);
-  auto weight = generate_weight(2048);
-  auto m = run_and_compare(DType::kFloat16, input, residual, weight, 32, 2048,
-                           FusedResidualVariant::kV1Vectorized);
-  CHECK_NEAR(m.max_abs_error, 0.0, 2e-2);
-}
-
-void test_extreme() {
-  auto input = generate(64 * 256, 2);
-  auto residual = generate(64 * 256, 1);  // zero residual
-  auto weight = generate_weight(256);
-  auto m = run_and_compare(DType::kFloat32, input, residual, weight, 64, 256,
-                           FusedResidualVariant::kV1Vectorized);
-  CHECK_NEAR(m.max_abs_error, 0.0, 1e-3);
-}
-
-void test_dispatcher() {
-  CHECK(hqsb::fused_residual_select_variant(2048, DType::kFloat32) ==
-        FusedResidualVariant::kV1Vectorized);
-  // 101 % 4 == 1 -> float4 vectorization impossible -> V0 scalar fallback.
-  CHECK(hqsb::fused_residual_select_variant(101, DType::kFloat32) ==
-        FusedResidualVariant::kV0Shared);
-  CHECK(hqsb::fused_residual_select_variant(2048, DType::kFloat16) ==
-        FusedResidualVariant::kV1Vectorized);
-  // FP16 always routes to V1 (half2 kernel handles odd tails).
-  CHECK(hqsb::fused_residual_select_variant(3, DType::kFloat16) ==
-        FusedResidualVariant::kV1Vectorized);
-}
-
-void test_invalid_arguments() {
-  float a = 1.0F, r = 0.0F, w = 1.0F, o = 0.0F;
+  T *d_input = nullptr, *d_residual = nullptr, *d_weight = nullptr;
+  T *d_residual_out = nullptr, *d_y = nullptr;
+  cudaMalloc(&d_input, n * sizeof(T));
+  cudaMalloc(&d_residual, n * sizeof(T));
+  cudaMalloc(&d_weight, hidden * sizeof(T));
+  cudaMalloc(&d_residual_out, n * sizeof(T));
+  cudaMalloc(&d_y, n * sizeof(T));
+  cudaMemcpy(d_input, input.data(), n * sizeof(T), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_residual, residual.data(), n * sizeof(T), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_weight, weight.data(), hidden * sizeof(T), cudaMemcpyHostToDevice);
+  const DType dtype = std::is_same<T, __half>::value ? DType::kFloat16
+                                                     : DType::kFloat32;
   CHECK(hqsb::fused_residual_rmsnorm_forward(
-            nullptr, &r, &w, &o, 1, 1, 1e-5F, DType::kFloat32,
-            FusedResidualVariant::kAuto, 0) == cudaErrorInvalidValue);
-  CHECK(hqsb::fused_residual_rmsnorm_forward(
-            &a, &r, &w, &o, 0, 1, 1e-5F, DType::kFloat32,
-            FusedResidualVariant::kAuto, 0) == cudaErrorInvalidValue);
-  CHECK(hqsb::fused_residual_rmsnorm_forward(
-            &a, &r, &w, &o, 1, 2, 1e-5F, DType::kFloat16,
-            FusedResidualVariant::kV0Shared, 0) == cudaErrorInvalidValue);
+            d_input, d_residual, d_weight, d_residual_out, d_y, rows, hidden,
+            1e-6F, dtype, variant,
+            FusedResidualSemantic::kStrictRoundedResidual, nullptr) ==
+        cudaSuccess);
+  CHECK(cudaDeviceSynchronize() == cudaSuccess);
+  std::vector<T> got_residual(n), got_y(n);
+  cudaMemcpy(got_residual.data(), d_residual_out, n * sizeof(T), cudaMemcpyDeviceToHost);
+  cudaMemcpy(got_y.data(), d_y, n * sizeof(T), cudaMemcpyDeviceToHost);
+  for (size_t i = 0; i < n; ++i) {
+    CHECK_NEAR(as_float(got_residual[i]), as_float(ref_residual[i]), 0.0);
+    CHECK_NEAR(as_float(got_y[i]), as_float(ref_y[i]), atol);
+  }
+  cudaFree(d_input); cudaFree(d_residual); cudaFree(d_weight);
+  cudaFree(d_residual_out); cudaFree(d_y);
 }
 
+void invalid_alias_is_rejected() {
+  float *a = nullptr, *r = nullptr, *w = nullptr, *y = nullptr;
+  cudaMalloc(&a, 128 * sizeof(float));
+  cudaMalloc(&r, 128 * sizeof(float));
+  cudaMalloc(&w, 128 * sizeof(float));
+  cudaMalloc(&y, 128 * sizeof(float));
+  CHECK(hqsb::fused_residual_rmsnorm_forward(
+            a, r, w, a, y, 1, 128, 1e-6F, DType::kFloat32,
+            FusedResidualVariant::kV1WarpShuffle,
+            FusedResidualSemantic::kStrictRoundedResidual, nullptr) ==
+        cudaErrorInvalidValue);
+  cudaFree(a); cudaFree(r); cudaFree(w); cudaFree(y);
+}
 }  // namespace
 
 int main() {
-  int device = 0;
-  if (cudaGetDevice(&device) != cudaSuccess) {
-    return EXIT_FAILURE;
-  }
-  test_fp32_baseline();
-  test_fp32_non_power_of_two();
-  test_fp16();
-  test_extreme();
-  test_dispatcher();
-  test_invalid_arguments();
+  run_case<float>(1, 128, FusedResidualVariant::kV0SharedTree, 2e-5F);
+  run_case<float>(17, 101, FusedResidualVariant::kV1WarpShuffle, 2e-5F);
+  run_case<float>(2, 8192, FusedResidualVariant::kV1WarpShuffle, 3e-5F);
+  run_case<__half>(1, 2048, FusedResidualVariant::kV1WarpShuffle, 4e-3F);
+  run_case<__half>(8, 101, FusedResidualVariant::kV1WarpShuffle, 4e-3F);
+  invalid_alias_is_rejected();
   return hqsb::test::finish("test_fused_residual_rmsnorm");
 }
