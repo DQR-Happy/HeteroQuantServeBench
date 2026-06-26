@@ -42,10 +42,23 @@ cudaError_t rmsnorm_v2(const void* input,
                        int block_size,
                        cudaStream_t stream);
 
+// Scalar-safe FP32/FP16 implementation used for explicit testing and for
+// auto/hybrid fallback when vector alignment or row-width predicates fail.
+cudaError_t rmsnorm_scalar_safe(const void* input,
+                                const void* weight,
+                                void* output,
+                                int64_t rows,
+                                int64_t hidden,
+                                float epsilon,
+                                DType dtype,
+                                int block_size,
+                                cudaStream_t stream);
+
 // Occupancy queries (theoretical max active blocks per SM) for the
 // benchmark harness's occupancy-constraint reporting.
 int rmsnorm_v0_occupancy(int block_size);
 int rmsnorm_v1_occupancy(int block_size);
 int rmsnorm_v2_occupancy(DType dtype, int block_size);
+int rmsnorm_scalar_safe_occupancy(DType dtype, int block_size);
 
 }  // namespace hqsb

@@ -125,6 +125,26 @@ target_compile_options(
 
 add_test(NAME rmsnorm_correctness COMMAND hqsb_rmsnorm_test)
 
+# E03-07 standalone Compute Sanitizer harness.  It loads the production
+# shared libraries with dlopen so that the injected negative-control kernels
+# below can never become part of either operator library.
+add_executable(
+  hqsb_e03_07_sanitizer_harness
+  tests/e03_07_sanitizer_harness.cu
+)
+
+target_link_libraries(
+  hqsb_e03_07_sanitizer_harness
+  PRIVATE
+  ${CMAKE_DL_LIBS}
+)
+
+target_compile_options(
+  hqsb_e03_07_sanitizer_harness
+  PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:-O3;-lineinfo>
+)
+
 # ── Benchmark (sweeps block size via the internal launchers) ──────────
 
 add_executable(hqsb_rmsnorm_bench bench/bench_rmsnorm.cu)

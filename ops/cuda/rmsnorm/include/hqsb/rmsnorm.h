@@ -33,7 +33,44 @@ enum class RmsNormVariant : int {
   kV0Shared = 2,    // V0: shared-memory tree reduction (S00 baseline)
   kV1WarpShuffle = 3,  // V1: warp-shuffle reduction + warp-level combine
   kV2Vectorized = 4,   // V2: vectorized (float4/half2) load + warp shuffle
+  kScalarSafe = 5,     // scalar load/store + warp shuffle (all alignments/tails)
+  kV2VectorizedStrict = 6,  // V2 fast path; reject unmet vector predicates
 };
+
+// Machine-readable reasons why the vector fast path is not eligible.  The
+// values form a bit mask because a single view may violate more than one
+// predicate (for example an odd H and a misaligned output pointer).
+enum RmsNormDispatchReason : uint32_t {
+  kDispatchEligibleVector = 0,
+  kDispatchHiddenTail = 1u << 0,
+  kDispatchInputMisaligned = 1u << 1,
+  kDispatchWeightMisaligned = 1u << 2,
+  kDispatchOutputMisaligned = 1u << 3,
+  kDispatchRowStrideMisaligned = 1u << 4,
+  kDispatchUnsupportedDType = 1u << 5,
+  kDispatchUnsupportedVariant = 1u << 6,
+};
+
+struct RmsNormDispatchInfo {
+  RmsNormVariant requested_variant;
+  RmsNormVariant actual_variant;
+  uint32_t reason_mask;
+  int vector_width_elements;
+  int required_alignment_bytes;
+  int actual_load_width_bytes;
+  bool vector_eligible;
+};
+
+// Resolve the exact load path for concrete pointers.  This function launches
+// nothing and is shared by the forward dispatcher and the E03-03 audit API,
+// so the recorded ``actual`` path is the path production code will execute.
+cudaError_t rmsnorm_resolve_dispatch(const void* input,
+                                     const void* weight,
+                                     const void* output,
+                                     int64_t hidden,
+                                     DType dtype,
+                                     RmsNormVariant requested,
+                                     RmsNormDispatchInfo* info);
 
 // Forward RMSNorm: out = (in / rms(in)) * weight, per row.
 //

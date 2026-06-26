@@ -56,6 +56,10 @@ const char* rmsnorm_variant_name(RmsNormVariant variant) {
       return "v1_warp_shuffle";
     case RmsNormVariant::kV2Vectorized:
       return "v2_vectorized";
+    case RmsNormVariant::kScalarSafe:
+      return "scalar_safe";
+    case RmsNormVariant::kV2VectorizedStrict:
+      return "v2_vectorized_strict";
   }
   return "unknown";
 }
