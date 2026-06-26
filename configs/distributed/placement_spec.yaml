@@ -1,0 +1,55 @@
+kind: hqsb.distributed.placement_spec
+name: S10 placement policy
+description: >-
+  E10-01 的 PlacementPlan 策略：一 rank 一 device 不变量、launcher 映射生成规则、
+  planned/actual 校验要求，以及替代 placement 对照的声明方式。
+notes: 计划是意图，验收必须比较进程内部实际绑定；不得用 local index 猜物理卡。
+schema_version: "1.0.0"
+
+invariants:
+  - unique(global_rank)
+  - unique(device_uuid)
+  - planned_world_size == observed_rank_count
+  - planned_fast_path_edges_not_down_or_unknown
+  - actual_device_uuid == planned_device_uuid
+
+launcher_kinds:
+  - torchrun
+  - mpirun
+  - hccl_hostfile
+  - local
+
+launcher_env_keys:
+  - CUDA_VISIBLE_DEVICES
+  - ASCEND_RT_VISIBLE_DEVICES
+  - LOCAL_RANK
+  - RANK
+  - WORLD_SIZE
+  - MASTER_ADDR
+  - MASTER_PORT
+  - NCCL_DEBUG
+  - HCCL_IF_IP
+
+high_bandwidth_domain_policy:
+  description: >-
+    按 TP/EP 通信模式，把高频/大消息 group 优先放在同一高带宽域（NVLink/NVSwitch/HCCS）；
+    跨域 rank 必须在报告中列出并解释。
+  domain_examples:
+    - nvlink_domain
+    - hccs_domain
+    - pcie_host_bridge
+  requires_edge_confidence: true
+
+alternative_placement:
+  purpose: 拓扑方向 sanity 对照，不是速度结论
+  method: 交换两个 rank 的 device 绑定，构造跨 NUMA/跨较慢路径的合法 placement
+  expected_direction: no_difference_expected
+  reason_if_no_difference: >-
+    控制组是方向性 sanity 检查；无差异不证明拓扑没有影响（消息太小、算法绕过或测量能力不足）
+  is_performance_claim: false
+
+planned_actual_requirements:
+  - 每 rank 同时记录 launcher 环境、runtime 可见列表、current device→物理 UUID
+  - 比较 planned/actual 的 device/local_rank/CPU affinity
+  - 发现计划外 rank、重复绑定或遗漏必须硬失败（preflight，先于 communicator 初始化）
+  - 替代 placement 只改变 expert/rank 映射或 device 绑定，不改变模型语义

@@ -1,0 +1,58 @@
+kind: hqsb.distributed.parallel_plan_spec
+name: S10 tensor-parallel plan policy
+description: >-
+  E10-04 的 TP 计划策略：KV-head 切分策略、replication policy、embedding 策略、
+  不整除处置、correctness 层级与 direct-shard-load 要求。
+notes: 不允许截断 heads/hidden；fallback 不得隐式改变 TP degree。
+schema_version: "1.0.0"
+
+kv_strategies:
+  - SPLIT_EVEN
+  - REPLICATE
+  - UNEVEN
+  - REJECT
+
+replication_policies:
+  - REPLICATED
+  - SHARDED
+  - LOCAL_COMPLETE
+
+embedding_strategies:
+  - replicated
+  - vocab_parallel
+
+unsupported_policies:
+  - PAD
+  - UNEVEN
+  - REJECT
+
+shard_axes:
+  - row
+  - column
+  - none
+
+collective_triggers:
+  - all_reduce
+  - reduce_scatter
+  - all_gather
+  - scatter
+  - none
+
+correctness_layers:
+  - weight_roundtrip
+  - linear_block
+  - attention_mlp_block
+  - layer_hidden
+  - prefill_logits
+  - decode_multistep
+  - greedy_token
+  - kv_resume
+
+max_tp_degree: 8
+require_direct_shard_load: true
+
+vocab_parallel_requirement:
+  default: replicated
+  note: >-
+    v0 允许复制小 embedding/LM head，但复制成本必须进入 per-rank memory 账本，
+    不得写成“全模型完全切分”；vocab_parallel 需要整除 vocab_size 并计入 gather/top-k 通信。
