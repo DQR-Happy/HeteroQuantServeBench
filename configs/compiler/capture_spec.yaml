@@ -1,0 +1,88 @@
+kind: hqsb.compiler.capture_spec
+name: capture_spec
+schema_version: "1.0.0"
+description: S11 E11-01 前端捕获轴、break 原因目录与 coverage 口径（冻结策略，非结果）。
+notes: >
+  与 hqsb/compiler/capture.py 的常量逐字段审计（hqsb.compiler.specs.audit_documents）：
+  capture_modes/regions/workloads/layout_cases/backend_modes/repeat_cases/break_reason_codes/
+  coverage_metrics/metadata_dimensions/trace_phases/missing_reasons 必须与代码完全一致。
+  正式执行前不得改动本文件；任何变更必须走阶段文档修订。
+
+capture_modes:
+  - dynamo_debug_backend
+  - compile_default
+  - fullgraph_probe
+  - export_strict
+  - export_non_strict
+
+regions:
+  - operator
+  - block
+  - prefill
+  - decode_step
+  - decode_multi_step
+
+workloads:
+  - tiny
+  - short
+  - balanced
+  - long_prefill
+  - decode_heavy
+  - long_balanced
+
+layout_cases:
+  - contiguous
+  - valid_non_contiguous
+  - unsupported_layout
+
+backend_modes:
+  - eager
+  - custom_op_enabled
+  - quantized
+
+repeat_cases:
+  - same_process_repeat
+  - cold_process_repeat
+
+break_reason_codes:
+  - CAPTURE_UNSUPPORTED_PYTHON
+  - CAPTURE_GRAPH_BREAK
+  - EXPORT_CONSTRAINT
+  - DATA_DEPENDENT_BRANCH
+  - MISSING_FAKE_META
+  - SIDE_EFFECT_ORDER
+  - EXPLICIT_DISABLE
+  - COMPILER_BUG_WORKAROUND
+  - UNKNOWN_BREAK
+
+coverage_metrics:
+  - op_count_coverage
+  - weighted_time_coverage
+  - hotspot_coverage
+  - phase_coverage
+  - pattern_opportunity_coverage
+
+metadata_dimensions:
+  - source
+  - shape
+  - layout
+  - effect
+
+trace_phases:
+  - tiny
+  - short
+  - tiny_again
+  - balanced
+  - long_prefill
+  - decode_multi_step
+  - non_contiguous
+  - unsupported_dtype
+  - restore_compiled_shape
+  - cold_process_replay
+
+missing_reasons:
+  - not_exposed_by_framework
+  - custom_op_without_schema
+  - broken_stack_trace
+  - symbolic_only
+  - not_collected

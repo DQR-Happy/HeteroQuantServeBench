@@ -1,0 +1,32 @@
+kind: hqsb.compiler.tolerance_spec
+name: tolerance_spec
+schema_version: "1.0.0"
+description: S11 正确性 tolerance 口径（沿用 S06 共同门，本阶段不得放宽）。
+notes: >
+  S11 的 rewrite/lowering 必须使用冻结的 common_s06 tolerance；本文件只是把口径与禁止项
+  固化，供 E11-02/E11-03 的 correctness gate 引用。审计检查 policy_id 与
+  forbidden_relaxations 非空。
+
+policy_id: common_s06
+policy_owner: hqsb.integration.differential.default_tolerance_registry
+
+dtype_tolerances:
+  fp32:
+    rtol: 1.0e-4
+    atol: 1.0e-4
+  fp16:
+    rtol: 1.0e-2
+    atol: 1.0e-2
+  bf16:
+    rtol: 2.0e-2
+    atol: 2.0e-2
+
+rules:
+  - operator/block/prefill/decode 使用同一 tolerance policy，禁止给 rewrite 路径单独放宽
+  - 误差指标至少包含 max/mean/RMSE/cosine/L2 relative，并给出首错位置
+  - token 一致性（greedy 多步 decode）与 logits/top-k/KL 必须同时报告
+
+forbidden_relaxations:
+  - 用扩大 tolerance 掩盖 near-miss 语义差异
+  - 为让候选通过而修改 reference 或 golden
+  - 只在最终 token 层比较、跳过中间张量

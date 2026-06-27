@@ -1,0 +1,54 @@
+kind: hqsb.compiler.guard_spec
+name: guard_spec
+schema_version: "1.0.0"
+description: S11 E11-05 guard 分类、失败动作、variant 策略与重编译触发目录（冻结策略）。
+notes: >
+  与 hqsb/compiler/guards.py 常量逐字段审计：categories / actions / strategies /
+  variant_limit_behaviours / compile_triggers / semantic_categories。
+  semantic_categories 中的 guard 不允许以“性能”为理由删除。
+
+categories:
+  - semantic_input
+  - python_control
+  - shape_range
+  - relational
+  - layout
+  - dtype_device
+  - target
+  - performance
+  - state
+
+actions:
+  semantic_input: error_or_semantic_fallback
+  python_control: new_graph_or_break
+  shape_range: another_bucket_or_recompile_or_fallback
+  relational: error_or_fallback
+  layout: copy_or_another_variant_or_fallback
+  dtype_device: compatible_candidate_or_fallback
+  target: not_registered_or_another_candidate
+  performance: generic_variant_no_semantic_error
+  state: runtime_state_path_never_stale_binary
+
+strategies:
+  - S0_static
+  - S1_automatic
+  - S2_declared_bounded
+  - S3_broad_dynamic
+  - S4_manual_buckets
+
+variant_limit_behaviours:
+  - fallback
+  - error
+
+compile_triggers:
+  - guard_failure
+  - new_shape_bucket
+  - python_path
+  - state_epoch
+  - explicit
+  - unexplained
+
+semantic_categories:
+  - semantic_input
+  - relational
+  - state
