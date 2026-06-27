@@ -1,0 +1,76 @@
+kind: hqsb.distributed.trace_spec
+name: S10 multi-rank trace and straggler attribution policy
+description: >-
+  E10-09 的冻结策略：trace 模式、时钟域、metric manifest 字段、根因类别与证据矩阵、
+  注入种类、未映射时间阈值与深度计数器约束。
+notes: >-
+  只看 rank 0 或不同步时钟的截图不能定位谁先慢；结论必须能回到 request/iteration/layer。
+schema_version: "1.0.0"
+
+modes:
+  - marker_only
+  - api_collective_timeline
+  - deep_device_network_counters
+  - clean_benchmark
+
+clock_domains:
+  - host_monotonic
+  - wall_clock
+  - device
+  - profiler
+
+metric_manifest_fields:
+  - platform
+  - profiler_version
+  - fields
+  - units
+  - sampling_rate
+  - rank_coverage
+  - clock_domain
+  - collection_conflicts
+  - unavailable
+
+root_cause_classes:
+  - HOST_LATE_SUBMIT
+  - COMPUTE_SLOW
+  - MEMORY_PRESSURE
+  - ARRIVAL_SKEW
+  - LINK_SLOW
+  - COLLECTIVE_ALGORITHM
+  - LOAD_IMBALANCE
+  - SYNC_SERIALIZATION
+  - RETRY_ERROR
+  - UNKNOWN
+
+evidence_matrix:
+  HOST_LATE_SUBMIT:
+    must_see: host gap appears first, device idle, collective arrival late
+    counter_evidence: low CPU utilisation alone is not evidence
+  COMPUTE_SLOW:
+    must_see: a same-shape kernel slows first, health/clock or resource evidence agrees
+    counter_evidence: an early-arriving rank waiting is not a slow compute
+  LOAD_IMBALANCE:
+    must_see: uneven shard/token/expert work moves in the same direction as time
+    counter_evidence: equal token counts can still differ by per-expert cost
+  LINK_SLOW:
+    must_see: arrivals are close and a specific src→dst transit/error is abnormal
+    counter_evidence: arrival skew makes an API span look like network slowness
+  ARRIVAL_SKEW:
+    must_see: one rank arrives late at the collective while transit time is normal
+    counter_evidence: a slow link would also change transit time
+  UNKNOWN:
+    must_see: unmapped/clock/metric evidence is insufficient
+    counter_evidence: do not hard-pick the most plausible class
+
+injection_kinds:
+  - rank_arrival_delay
+  - rank_compute_slowdown
+  - host_submission_delay
+  - expert_skew
+  - alternative_slow_topology
+  - link_shaping
+
+unmapped_ratio_threshold: 0.05
+deep_counter_policy: >-
+  深度计数器只在标记模式与 clean benchmark 分离时启用；overhead 必须与 clean latency 分开报告
+synchronised_clocks_required: true
