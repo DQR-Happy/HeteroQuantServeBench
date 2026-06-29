@@ -1,0 +1,79 @@
+kind: hqsb.compiler.pattern_spec
+name: pattern_spec
+schema_version: "1.0.0"
+description: S11 E11-02 冻结语义 pattern、谓词顺序、near-miss 变异轴与允许 epsilon（冻结策略）。
+notes: >
+  与 hqsb/compiler/pattern_library.py 常量逐字段审计：patterns / pattern_version /
+  predicate_order / match_classes / mutation_axes / allowed_eps / decomposition_cast_ops /
+  role_order。pattern ID 与 Qwen Python 类名无关。
+
+patterns:
+  - hqsb.pattern.residual_add_rmsnorm
+  - hqsb.pattern.rmsnorm_quantize
+
+pattern_version: "1.0.0"
+
+predicate_order:
+  - structural_match
+  - dtype_cast
+  - shape_reduction
+  - epsilon
+  - users_liveness
+  - alias_mutation_effect
+  - layout
+  - return_contract
+
+match_classes:
+  - positive_canonical
+  - positive_decomposed
+  - epsilon_difference
+  - reduction_difference
+  - accumulation_difference
+  - order_difference
+  - extra_user
+  - mutation
+  - alias_view
+  - weight_broadcast
+  - stride_layout
+  - dtype_autocast
+  - nan_inf_edge
+  - already_fused
+
+mutation_axes:
+  - epsilon_value
+  - epsilon_position
+  - reduction_axis
+  - reduction_kind
+  - cast_order
+  - accumulation_dtype
+  - operation_order
+  - extra_user
+  - inplace_add
+  - alias_view
+  - weight_shape
+  - return_values
+
+allowed_eps:
+  - "1e-05"
+  - "1e-06"
+  - "0.0001"
+
+decomposition_cast_ops:
+  - canonical
+  - explicit_cast_before_reduce
+  - rsqrt_as_pow_neg_half
+  - mean_via_sum_div
+
+role_order:
+  - weight_mul
+  - scale
+  - rsqrt
+  - eps_add
+  - mean
+  - pow
+  - add_residual
+
+forbidden_relaxations:
+  - 以 allclose 通过为由接受 near-miss（必须由 predicate 决定合法性）
+  - 为提高 recall 关闭任何一个 predicate
+  - 用扩大 tolerance 接受累积精度不同（cast 顺序）的候选

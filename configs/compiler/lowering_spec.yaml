@@ -1,0 +1,65 @@
+kind: hqsb.compiler.lowering_spec
+name: lowering_spec
+schema_version: "1.0.0"
+description: S11 E11-03 lowering 候选类型、选择策略、dispatch 证据与正确性/性能顺序（冻结策略）。
+notes: >
+  与 hqsb/compiler/lowering.py 逐字段审计：execution_kinds / policies / evidence_kinds /
+  min_evidence_kinds / pre_launch_checks / runtime_error_policies / correctness_order /
+  performance_order / injectable_failures。
+
+execution_kinds:
+  - reference
+  - custom_kernel
+  - generated_kernel
+
+policies:
+  - reference
+  - auto_heuristic
+
+evidence_kinds:
+  - compiled_code_symbol
+  - profiler_kernel_symbol
+  - kernel_telemetry_counter
+  - controlled_fail_build
+  - candidate_disable_ablation
+
+min_evidence_kinds: 2
+
+pre_launch_checks:
+  - capability
+  - artifact_hash
+  - abi
+  - guard
+  - workspace
+  - stream
+  - evidence_coverage
+
+runtime_error_policies:
+  - FAIL_REQUEST
+  - RETRY_SAFE_ONLY
+
+correctness_order:
+  - ir_verifier
+  - reference_lowering_vs_original
+  - custom_operator_vs_reference
+  - qwen_block_selected_tensors
+  - prefill_hidden_logits_topk_kl
+  - multi_step_decode_logits_token_kv
+  - unsupported_fallback_correctness
+
+performance_order:
+  - compile_breakdown
+  - operator_steady
+  - block_steady
+  - phase_steady
+  - model_end_to_end
+  - break_even_call_weighting
+
+injectable_failures:
+  - wrong_arch
+  - missing_symbol
+  - schema_mismatch
+  - abi_mismatch
+  - guard_false
+  - compile_error
+  - runtime_error
