@@ -1,0 +1,71 @@
+kind: hqsb.compiler.target_spec
+name: target_spec
+schema_version: "1.0.0"
+description: S11 E11-03/E11-04 target 快照字段、capability 拒绝原因与导出层（冻结策略）。
+notes: >
+  与 hqsb/compiler/targets.py 逐字段审计：device_kinds / capability_reasons /
+  required_snapshot_fields（= TargetSnapshot 字段集合）。capability 是设备/软件等级属性；
+  shape/stride/eps 属于 per-call guard，不得写进 capability。
+
+device_kinds:
+  - cuda
+  - triton
+  - cutlass
+  - inductor
+  - ascend
+  - cpu_reference
+
+capability_reasons:
+  - TARGET_UNSUPPORTED
+  - DTYPE_UNSUPPORTED
+  - LAYOUT_UNSUPPORTED
+  - FEATURE_MISSING
+  - RESOURCE_INSUFFICIENT
+  - ALIGNMENT_REQUIRED
+  - WORKSPACE_EXCEEDED
+  - ABI_MISMATCH
+  - PACKAGE_MISSING
+  - EVIDENCE_MISSING
+
+required_snapshot_fields:
+  - target_id
+  - device_kind
+  - device_name
+  - device_uuid
+  - arch
+  - driver_version
+  - runtime_version
+  - compiler_version
+  - backend_versions
+  - dtypes
+  - features
+  - shared_memory_per_block_bytes
+  - registers_per_thread
+  - max_threads_per_block
+  - abi_version
+  - target_triple
+  - collector
+  - collected_at
+  - unavailable
+
+arch_features:
+  - tensor_core
+  - tensor_core_fp16
+  - tf32
+  - tma
+
+export_layers:
+  - inductor_scheduler_ir
+  - triton_ir
+  - llvm_ir
+  - ptx
+  - cubin
+  - sass
+  - resource_report
+  - nsys_timeline
+  - ncu_report
+
+required_snapshot_rules:
+  - 版本必须冻结：latest/main/空值一律拒绝（version_is_frozen）
+  - UNAVAILABLE 字段必须带 reason，不得填 0
+  - device_uuid/driver/runtime/compiler 缺失时报告必须写成 limitation

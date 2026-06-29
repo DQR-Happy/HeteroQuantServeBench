@@ -1,0 +1,85 @@
+kind: hqsb.compiler.costmodel_spec
+name: costmodel_spec
+schema_version: "1.0.0"
+description: S11 E11-07 特征组、泄漏禁用字段、基线、split 与回退策略（冻结策略）。
+notes: >
+  与 hqsb/compiler/costmodel.py 逐字段审计：feature_groups（组名）/ availability /
+  leakage_forbidden / critical_features / baselines / strong_baselines / split_strategies /
+  primary_splits / fallback_actions / policy_steps。主指标是 holdout chosen-vs-oracle regret。
+
+feature_groups:
+  - workload_shape
+  - dtype_layout
+  - candidate_schedule
+  - target
+  - ir_static_resource
+
+availability:
+  - pre_compile
+  - post_compile
+  - post_run
+
+leakage_forbidden:
+  - actual_latency
+  - measured_latency
+  - latency_ms
+  - winner
+  - winner_flag
+  - oracle_rank
+  - oracle_latency
+  - post_run_counters
+  - ncu_metrics
+  - artifact_path_label
+  - test_group_id
+  - split_id
+  - cache_key
+
+critical_features:
+  - input_dtype
+  - phase
+  - H
+
+baselines:
+  - default
+  - heuristic
+  - random_legal
+  - global_best
+  - nearest_shape
+  - oracle
+
+strong_baselines:
+  - default
+  - heuristic
+  - oracle
+
+split_strategies:
+  - random_row_diagnostic
+  - leave_shape_group_out
+  - leave_regime_out
+  - leave_graph_pattern_out
+  - leave_arch_out
+
+primary_splits:
+  - leave_shape_group_out
+  - leave_regime_out
+  - leave_graph_pattern_out
+  - leave_arch_out
+
+fallback_actions:
+  - semantic_fallback
+  - heuristic_default
+  - benchmark_topk
+  - model_selected
+
+policy_steps:
+  - no_legal_candidates
+  - ood_or_missing_feature
+  - low_confidence
+  - model_selected
+
+catastrophic_threshold: 0.5
+
+rules:
+  - cost model 只能在已通过 legality/capability/guard/evidence 的候选集中排序
+  - final test 在模型/阈值/fallback 冻结后才可运行，且只能消费一次
+  - 主结果必须报告 p95/max/catastrophic，不得只报均值

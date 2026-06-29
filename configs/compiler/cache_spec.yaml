@@ -1,0 +1,136 @@
+kind: hqsb.compiler.cache_spec
+name: cache_spec
+schema_version: "1.0.0"
+description: S11 E11-08 cache 层、key 规范、状态机、失效/损坏矩阵与 C0–C4 计时边界（冻结策略）。
+notes: >
+  与 hqsb/compiler/cache.py 逐字段审计：layers / key_fields / non_key_fields / entry_states /
+  read_reject_reasons / invalidation_matrix / corruption_cases / timing_boundaries /
+  event_kinds / eviction_strategies。安全优先级：false hit 与 corrupt execution 必须为 0。
+
+layers:
+  - frame_guard
+  - capture_graph
+  - pass_ir
+  - lowering_decision
+  - codegen_native
+  - autotune_db
+  - cost_model
+  - binary_package
+
+key_fields:
+  - semantic_graph
+  - constants_hash
+  - model_artifact_id
+  - quant_artifact_id
+  - op_schema_versions
+  - symbolic_constraints
+  - guard_domain
+  - pass_pipeline
+  - pass_options
+  - lowering_registry
+  - selected_candidate
+  - kernel_build_id
+  - kernel_abi
+  - compiler_versions
+  - compiler_flags
+  - target_triple
+  - target_arch
+  - target_features
+  - driver_compat_class
+  - autotune_db
+  - cost_model
+  - compile_mode
+
+non_key_fields:
+  - timestamp
+  - pid
+  - output_root
+  - absolute_path
+  - log_level
+  - hostname
+
+entry_states:
+  - TEMP
+  - VALIDATING
+  - COMMITTED
+  - QUARANTINED
+  - EVICTED
+
+read_reject_reasons:
+  - MISS_NOT_FOUND
+  - REJECT_METADATA_PARSE
+  - REJECT_METADATA_HASH
+  - REJECT_UNKNOWN_SCHEMA
+  - REJECT_KEY_MISMATCH
+  - REJECT_TARGET_INCOMPATIBLE
+  - REJECT_ABI_MISMATCH
+  - REJECT_GUARD_FALSE
+  - REJECT_PAYLOAD_HASH
+  - REJECT_NOT_COMMITTED
+  - REJECT_PERMISSION
+
+invalidation_matrix:
+  - change: timestamp_or_pid
+    expectation: HIT
+  - change: same_input_shape_domain
+    expectation: HIT
+  - change: shape_inside_guard
+    expectation: HIT
+  - change: guard_false
+    expectation: MISS_OR_FALLBACK
+  - change: model_weight_or_constant
+    expectation: MISS
+  - change: op_schema_or_effect_version
+    expectation: MISS
+  - change: pass_code_config_order
+    expectation: MISS
+  - change: lowering_registry_or_kernel_build
+    expectation: MISS
+  - change: compiler_or_codegen_flags
+    expectation: MISS
+  - change: target_arch_or_features
+    expectation: MISS
+  - change: debug_or_profiler_flag
+    expectation: DEPENDS
+  - change: autotune_winner_or_db
+    expectation: MISS_IF_SELECTION_CHANGES
+  - change: cost_model_or_policy
+    expectation: DECISION_CACHE_MISS
+  - change: tokenizer_only
+    expectation: RUN_IDENTITY_CHANGES
+
+corruption_cases:
+  - metadata_truncation
+  - metadata_field_edit
+  - payload_truncation
+  - payload_bit_flip
+  - metadata_payload_swap
+  - unknown_schema
+  - missing_commit_marker
+  - temp_residue
+  - permission_denied
+  - symlink_entry
+  - writer_killed
+
+timing_boundaries:
+  - C0_no_cache_cold_compile
+  - C1_same_process_memory_hit
+  - C2_new_process_disk_hit
+  - C3_prebuilt_package_load
+  - C4_warm_steady
+
+event_kinds:
+  - lookup
+  - hit
+  - miss
+  - reject
+  - write
+  - load
+  - quarantine
+  - evict
+  - compile
+
+eviction_strategies:
+  - lru
+  - ttl
+  - quota

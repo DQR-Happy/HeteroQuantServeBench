@@ -1,0 +1,69 @@
+kind: hqsb.compiler.autotune_spec
+name: autotune_spec
+schema_version: "1.0.0"
+description: S11 E11-06 搜索空间约束类别、预算梯度、split/holdout 与 tuning DB 键（冻结策略）。
+notes: >
+  与 hqsb/compiler/autotune.py 逐字段审计：constraint_categories / static_reject_reasons /
+  split_strategies / holdout_kinds / trial_splits / tuning_db_key_fields / knob_types /
+  budget_names。预算梯度由 budget_ladder() 生成，B0<B1<B2<B3 单调。
+
+constraint_categories:
+  - semantic
+  - target
+  - resource
+  - shape
+  - alignment
+
+static_reject_reasons:
+  - "AUTOTUNE_INVALID:semantic_illegal"
+  - "AUTOTUNE_INVALID:target_unsupported"
+  - "AUTOTUNE_INVALID:resource_infeasible"
+  - "AUTOTUNE_INVALID:shape_incompatible"
+  - "AUTOTUNE_INVALID:alignment_required"
+  - "AUTOTUNE_INVALID:vector_alignment"
+
+split_strategies:
+  - group_60_20_20
+  - leave_one_shape_group_out
+
+holdout_kinds:
+  - interpolation
+  - boundary_extrapolation
+  - layout_dtype
+  - target
+
+trial_splits:
+  - tuning
+  - validation
+  - holdout
+  - confirmation
+
+budget_names:
+  - B0_default
+  - B1_small
+  - B2_medium
+  - B3_exhaustive
+
+knob_types:
+  - int
+  - float
+  - choice
+  - bool
+
+tuning_db_key_fields:
+  - semantic_op
+  - schema_version
+  - shape_domain_id
+  - target_id
+  - target_arch
+  - compiler_versions
+  - kernel_build_id
+  - search_space_id
+  - search_space_version
+  - measurement_policy_id
+  - correctness_policy_id
+
+rules:
+  - invalid candidate 必须在运行前过滤，不得以 latency=inf 填充并丢失 reason
+  - stateful kernel 的每次 trial 必须重置输入/输出/KV/RNG
+  - search 与 confirmation 不得复用同一批 raw samples
