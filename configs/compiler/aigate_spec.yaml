@@ -1,0 +1,96 @@
+kind: hqsb.compiler.aigate_spec
+name: aigate_spec
+schema_version: "1.0.0"
+description: S11 E11-10 候选类别、门链顺序、禁用面与 admission 字段（冻结策略，P1）。
+notes: >
+  与 hqsb/compiler/aigate.py 逐字段审计：candidate_classes / expected_gate_by_class /
+  gate_order / banned_imports / admission_required_fields。后门不得覆盖前门失败。
+
+candidate_classes:
+  - C0_control_correct
+  - C1_syntax_compile_wrong
+  - C2_math_wrong
+  - C3_shape_hardcode
+  - C4_value_hardcode_skip
+  - C5_memory_unsafe
+  - C6_race_nondeterministic
+  - C7_timing_exploit
+  - C8_state_corrupt
+  - C9_slow_resource_bomb
+  - C10_provenance_violation
+  - C11_genuine_ai_proposal
+
+expected_gate_by_class:
+  C0_control_correct: G10_review
+  C1_syntax_compile_wrong: G2_isolated_compile
+  C2_math_wrong: G5_hidden_correctness
+  C3_shape_hardcode: G5_hidden_correctness
+  C4_value_hardcode_skip: G5_hidden_correctness
+  C5_memory_unsafe: G3_sanitizer_memory
+  C6_race_nondeterministic: G6_state_concurrency
+  C7_timing_exploit: G7_measurement_integrity
+  C8_state_corrupt: G6_state_concurrency
+  C9_slow_resource_bomb: G8_performance_resource
+  C10_provenance_violation: G1_static_policy
+  C11_genuine_ai_proposal: G10_review
+
+gate_order:
+  - G0_provenance_immutability
+  - G1_static_policy
+  - G2_isolated_compile
+  - G3_sanitizer_memory
+  - G4_public_correctness
+  - G5_hidden_correctness
+  - G6_state_concurrency
+  - G7_measurement_integrity
+  - G8_performance_resource
+  - G9_compiler_integration
+  - G10_review
+
+banned_imports:
+  - os.system
+  - subprocess
+  - socket
+  - requests
+  - urllib
+  - ctypes
+  - shutil.rmtree
+  - pickle
+
+banned_patterns:
+  - torch.cuda.synchronize
+  - time.time
+  - os.environ
+  - /etc/
+  - ssh
+
+admission_required_fields:
+  - candidate_id
+  - source_sha256
+  - binary_sha256
+  - provenance
+  - semantic_contract
+  - target_capability
+  - guard_domain
+  - correctness_public
+  - correctness_hidden
+  - sanitizer_results
+  - performance_vs_baselines
+  - resource_tradeoffs
+  - integration_results
+  - cache_identity
+  - known_limitations
+  - fallback
+  - reviewers
+  - review_commit
+  - license
+
+fast_p_thresholds:
+  - 1.0
+  - 1.2
+  - 2.0
+
+claim_boundaries:
+  - 只有方法学 PASS、无 admitted candidate：只能写“协议建立 + 错误候选被拦截”
+  - 有 admitted candidate：声明必须绑定 semantic op、shape/dtype/target、baseline 与限制
+  - 禁止写“AI 自动生成通用最优 kernel”

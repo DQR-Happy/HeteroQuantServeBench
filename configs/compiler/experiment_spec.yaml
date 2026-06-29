@@ -1,0 +1,65 @@
+kind: hqsb.compiler.experiment_spec
+name: experiment_spec
+schema_version: "1.0.0"
+description: S11 实验清单、run 目录布局、状态码与 raw 表清单（冻结策略）。
+notes: >
+  与 hqsb/compiler/experiment.py、hqsb/compiler/telemetry.py 逐字段审计：experiments /
+  run_layout / statuses / raw_tables。run 只写 experiment_results/S11/<E>/<run>/，
+  绝不写 docs/stage_experiments（协议树只读）。
+
+experiments:
+  - E11-01
+  - E11-02
+  - E11-03
+  - E11-04
+  - E11-05
+  - E11-06
+  - E11-07
+  - E11-08
+  - E11-09
+  - E11-10
+
+run_root: experiment_results/S11
+
+run_layout:
+  - identity
+  - capture
+  - passes
+  - lowering
+  - compiler
+  - autotune
+  - cost_model
+  - cache
+  - correctness
+  - benchmark
+  - profile
+  - commands
+  - stdout
+  - stderr
+
+statuses:
+  - NOT_STARTED
+  - RUNNING
+  - PASS
+  - PASS_NEGATIVE
+  - FAIL
+  - BLOCKED
+  - N/A_BY_ADR
+
+raw_tables:
+  - compile_run
+  - pattern_decision
+  - guard_event
+  - autotune_trial
+  - cost_model_decision
+  - artifact_index
+  - lowering_decision
+  - dispatch_event
+  - cache_event
+  - capture_break
+  - guard_definition
+  - verifier_issue
+
+rules:
+  - 默认拒绝产结论：write_verdict 需 allow_execute ∧ 前置满足 ∧ raw samples>0
+  - PASS_NEGATIVE 只用于性能/策略假设的严谨否定；安全/正确性/制品兼容不允许用负结果替代

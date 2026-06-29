@@ -1,0 +1,74 @@
+kind: hqsb.compiler.portable_spec
+name: portable_spec
+schema_version: "1.0.0"
+description: S11 E11-09 第二编译器栈的角色、legalisation、schedule 与 bridge 契约（冻结策略）。
+notes: >
+  与 hqsb/compiler/portable.py 逐字段审计：stacks / legality_modes / legal_statuses /
+  unmapped_policies / mapping_dimensions / schedule_steps / bridge_kinds / role_dimensions /
+  adoption_options / scope_ceiling。P0 只要求一条 runnable loop，另一条可 NOT_RUN_SCOPE_LIMITED。
+
+stacks:
+  - tvm
+  - mlir
+
+legality_modes:
+  - analysis_only
+  - partial
+  - full
+
+legal_statuses:
+  - legal
+  - dynamic_legal
+  - illegal
+  - external_fallback
+
+unmapped_policies:
+  - block
+  - external_call
+
+mapping_dimensions:
+  - semantic fused op
+  - tensor type
+  - symbolic shape
+  - reduction
+  - alias/mutation
+  - target capability
+  - fallback
+
+schedule_steps:
+  - split
+  - tile
+  - reorder
+  - fuse
+  - cache_read
+  - cache_write
+  - vectorize
+  - thread_binding
+  - unroll
+  - reduction_strategy
+
+bridge_kinds:
+  - dlpack
+  - packed_func_c_abi
+  - torch_library
+  - file_exchange
+
+role_dimensions:
+  - capture
+  - IR
+  - legality
+  - schedule
+  - codegen
+  - dynamic_shape
+  - runtime
+  - cache
+
+adoption_options:
+  - second_stack_as_target_backend
+  - schedule_oracle_offline
+  - concept_validation_only
+  - insufficient_data
+
+scope_ceiling: >
+  P0：一个真实 operator/subgraph 形成可运行闭环（high-level → loop → schedule → target →
+  runtime），不承诺完整 Qwen importer 或生产 runtime；主线仍是 FX/Inductor。
