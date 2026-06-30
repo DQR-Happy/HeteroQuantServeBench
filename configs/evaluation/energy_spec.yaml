@@ -1,0 +1,36 @@
+kind: hqsb.evaluation.energy_spec
+name: energy
+description: E12-06 能量边界、窗口策略与功率质量门。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+energy_boundaries:
+- device
+- accelerators
+- node
+- facility_adjusted
+window_policies:
+- cold_total
+- ready_to_complete
+- steady_measurement
+- phase_prefill
+- phase_decode
+- cooldown_tail
+meter_semantics:
+- instantaneous
+- averaged
+- accumulator_derived
+idle_states:
+- model_loaded
+- service_ready
+- same_device_allocation
+power_quality_checks:
+- meter_identity_unit_boundary
+- timestamps_monotonic_and_alignable
+- gap_fraction_within_threshold
+- no_unknown_reset_or_wrap
+- performance_and_power_same_run
+- request_token_accounting_closed
+- idle_policy_identical
+- no_unexplained_throttle_or_contamination
+- interval_not_falsely_precise
+- comparison_quality_and_slo_pass

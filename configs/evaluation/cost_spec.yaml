@@ -1,0 +1,53 @@
+kind: hqsb.evaluation.cost_spec
+name: cost
+description: E12-07 成本场景、成本组件与双重计数检查。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+scenario_kinds:
+- cloud_on_demand_low_utilization
+- cloud_committed_steady
+- owned_base_case
+- high_energy_price_or_power_constrained
+- high_availability_redundant
+- spot_interruptible
+purchase_models:
+- on_demand
+- reserved
+- committed
+- spot
+cloud_component_keys:
+- compute_instance
+- accelerator_surcharge
+- attached_storage
+- network_egress
+- software_license
+- orchestration
+- operations
+- interruption_retry
+owned_component_keys:
+- annualized_capex
+- financing_cost
+- residual_value_credit
+- it_energy
+- rack_network_storage
+- maintenance_support
+- operations_engineering
+- downtime_redundancy
+density_metrics:
+- goodput_per_device
+- goodput_per_node
+- goodput_per_rack_unit
+- goodput_per_kW_power_budget
+- memory_capacity_per_device
+- compliant_concurrency_per_replica
+double_count_checks:
+- goodput_already_includes_downtime
+- pue_applies_to_it_energy_only
+- host_included_in_instance_or_capex
+- operations_not_double_counted
+- utilization_not_applied_twice
+- redundancy_not_double_counted
+- energy_not_counted_by_tdp
+- downtime_not_counted_as_utilization
+- license_not_counted_in_both_layers
+- currency_and_period_consistent

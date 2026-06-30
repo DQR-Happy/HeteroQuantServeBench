@@ -1,0 +1,53 @@
+kind: hqsb.evaluation.roofline_spec
+name: roofline
+description: E12-05 roof 证据等级、瓶颈与残差分类。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+peak_evidence_levels:
+- THEORETICAL_VENDOR
+- THEORETICAL_DERIVED
+- SUSTAINABLE_MICRO
+- ACHIEVED_WORKLOAD
+memory_levels:
+- L1
+- L2
+- HBM
+- DDR
+- PCIE
+- NVLINK
+- XGMI
+- HCCS
+- NETWORK
+bottleneck_classes:
+- COMPUTE_THROUGHPUT
+- HBM_OR_DDR_BANDWIDTH
+- CACHE_OR_LOCAL_MEMORY
+- LATENCY_DEPENDENCY
+- LAUNCH_OR_HOST_RUNTIME
+- LAYOUT_CONVERSION_OR_COPY
+- LOW_OCCUPANCY_OR_TAIL_WASTE
+- REGISTER_SPILL_OR_RESOURCE
+- KV_CAPACITY_OR_MEMORY_PRESSURE
+- INTERCONNECT_OR_COLLECTIVE
+- LOAD_IMBALANCE_OR_STRAGGLER
+- QUEUE_OR_SCHEDULER
+- POWER_THERMAL_CLOCK
+- MEASUREMENT_OR_MODEL_MISSPECIFICATION
+- MIXED_OR_UNRESOLVED
+residual_classes:
+- kernel
+- layout
+- runtime
+- launch
+- interconnect
+- capacity
+- queue
+- power
+- measurement_or_model_misspecification
+operation_definitions:
+- gemm
+- reduction
+- elementwise
+- attention
+- quant_dequant
+- collective
