@@ -10,19 +10,368 @@ kernel to prove the backend works, not merely that the package imports),
 because ``import triton`` succeeding does not guarantee the JIT backend can
 compile for the installed GPU.
 
-Detection is cached (``functools.lru_cache``) because some probes (Triton JIT
-compile, ctypes load) are not free; callers get a stable snapshot.
+The legacy :func:`detect_capabilities` aggregate is retained for the S04
+operator dispatcher.  E04-01 additionally requires a structured, replayable
+failure contract; :class:`CapabilityResult`, :class:`CapabilityCache`, and
+:func:`resolve_backend` provide that contract without importing an optional
+backend at module import time.
 """
 
 from __future__ import annotations
 
 import ctypes
 import glob
+import hashlib
+import json
 import importlib.util
 import os
+import threading
+import time
 from dataclasses import dataclass, field
+from enum import Enum
 from functools import lru_cache
-from typing import Optional, Tuple
+from typing import Callable, Dict, Iterable, Mapping, Optional, Tuple
+
+from hqsb.core.errors import BackendError, CapabilityError, ExitCode
+
+
+CAPABILITY_SCHEMA_VERSION = "hqsb.capability/v1"
+CAPABILITY_POLICY_VERSION = "e04-01-v1"
+
+
+class CapabilityStage(str, Enum):
+    """Ordered stages at which an optional backend probe can stop."""
+
+    DISCOVERY = "DISCOVERY"
+    IMPORT = "IMPORT"
+    VERSION = "VERSION"
+    DEVICE = "DEVICE"
+    COMPILER = "COMPILER"
+    COMPILE = "COMPILE"
+    LOAD = "LOAD"
+    EXECUTE = "EXECUTE"
+    RESOURCE = "RESOURCE"
+    POLICY = "POLICY"
+
+
+class CapabilityReason(str, Enum):
+    """Stable reason codes; human-readable ``detail`` is never a key."""
+
+    AVAILABLE = "AVAILABLE"
+    PACKAGE_NOT_INSTALLED = "PACKAGE_NOT_INSTALLED"
+    SHARED_LIBRARY_NOT_FOUND = "SHARED_LIBRARY_NOT_FOUND"
+    VERSION_INCOMPATIBLE = "VERSION_INCOMPATIBLE"
+    ABI_MISMATCH = "ABI_MISMATCH"
+    DEVICE_UNAVAILABLE = "DEVICE_UNAVAILABLE"
+    ARCH_UNSUPPORTED = "ARCH_UNSUPPORTED"
+    COMPILER_UNAVAILABLE = "COMPILER_UNAVAILABLE"
+    COMPILE_FAILED = "COMPILE_FAILED"
+    MODULE_LOAD_FAILED = "MODULE_LOAD_FAILED"
+    SYMBOL_MISSING = "SYMBOL_MISSING"
+    RUNTIME_FAILED = "RUNTIME_FAILED"
+    OUT_OF_MEMORY = "OUT_OF_MEMORY"
+    PERMISSION_DENIED = "PERMISSION_DENIED"
+    TIMEOUT = "TIMEOUT"
+    DISABLED_BY_POLICY = "DISABLED_BY_POLICY"
+    PROBE_INTERNAL_ERROR = "PROBE_INTERNAL_ERROR"
+
+
+_DETERMINISTIC_REASONS = frozenset(
+    {
+        CapabilityReason.PACKAGE_NOT_INSTALLED,
+        CapabilityReason.SHARED_LIBRARY_NOT_FOUND,
+        CapabilityReason.VERSION_INCOMPATIBLE,
+        CapabilityReason.ABI_MISMATCH,
+        CapabilityReason.DEVICE_UNAVAILABLE,
+        CapabilityReason.ARCH_UNSUPPORTED,
+        CapabilityReason.COMPILER_UNAVAILABLE,
+        CapabilityReason.SYMBOL_MISSING,
+        CapabilityReason.DISABLED_BY_POLICY,
+    }
+)
+
+
+@dataclass(frozen=True)
+class CapabilityIdentity:
+    """All identities that can invalidate a capability decision."""
+
+    device_identity: str
+    arch: Optional[Tuple[int, int]]
+    package_version: Optional[str]
+    runtime_version: Optional[str]
+    compiler_version: Optional[str]
+    build_identity: str
+    policy_version: str = CAPABILITY_POLICY_VERSION
+
+    def as_dict(self) -> dict:
+        return {
+            "device_identity": self.device_identity,
+            "arch": list(self.arch) if self.arch else None,
+            "package_version": self.package_version,
+            "runtime_version": self.runtime_version,
+            "compiler_version": self.compiler_version,
+            "build_identity": self.build_identity,
+            "policy_version": self.policy_version,
+        }
+
+    def cache_key(self, backend: str) -> str:
+        payload = {"backend": backend, **self.as_dict()}
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class ProbeStageResult:
+    stage: CapabilityStage
+    duration_ms: float
+    status: str
+
+    def as_dict(self) -> dict:
+        return {
+            "stage": self.stage.value,
+            "duration_ms": self.duration_ms,
+            "status": self.status,
+        }
+
+
+@dataclass(frozen=True)
+class CapabilityResult:
+    """Structured result for one backend capability probe."""
+
+    backend: str
+    available: bool
+    stage: CapabilityStage
+    reason_code: CapabilityReason
+    detail: str
+    retryable: bool
+    identity: CapabilityIdentity
+    supported_dtypes: Tuple[str, ...] = ()
+    supported_layouts: Tuple[str, ...] = ()
+    supported_features: Tuple[str, ...] = ()
+    probe_stages: Tuple[ProbeStageResult, ...] = ()
+    cause_chain: Tuple[str, ...] = ()
+    probed_at: float = field(default_factory=time.time)
+    from_cache: bool = False
+
+    def __post_init__(self) -> None:
+        if self.available and self.reason_code is not CapabilityReason.AVAILABLE:
+            raise ValueError("an available backend must use reason AVAILABLE")
+        if not self.available and self.reason_code is CapabilityReason.AVAILABLE:
+            raise ValueError("an unavailable backend needs a failure reason")
+
+    @property
+    def deterministic(self) -> bool:
+        return self.reason_code in _DETERMINISTIC_REASONS
+
+    @property
+    def exit_code(self) -> int:
+        if self.available:
+            return ExitCode.SUCCESS
+        if self.stage in {
+            CapabilityStage.DISCOVERY,
+            CapabilityStage.IMPORT,
+            CapabilityStage.VERSION,
+            CapabilityStage.DEVICE,
+            CapabilityStage.COMPILER,
+            CapabilityStage.POLICY,
+        }:
+            return ExitCode.CAPABILITY
+        return ExitCode.BACKEND
+
+    def as_dict(self) -> dict:
+        return {
+            "schema_version": CAPABILITY_SCHEMA_VERSION,
+            "backend": self.backend,
+            "available": self.available,
+            "stage": self.stage.value,
+            "reason_code": self.reason_code.value,
+            "detail": self.detail,
+            "retryable": self.retryable,
+            **self.identity.as_dict(),
+            "binary_or_cache_identity": self.identity.build_identity,
+            "supported_dtypes": list(self.supported_dtypes),
+            "supported_layouts": list(self.supported_layouts),
+            "supported_features": list(self.supported_features),
+            "probe_stages": [item.as_dict() for item in self.probe_stages],
+            "cause_chain": list(self.cause_chain),
+            "probed_at": self.probed_at,
+            "from_cache": self.from_cache,
+            "deterministic": self.deterministic,
+            "exit_code": self.exit_code,
+        }
+
+    def with_cache_hit(self) -> "CapabilityResult":
+        return CapabilityResult(
+            **{
+                **self.__dict__,
+                "from_cache": True,
+            }
+        )
+
+
+@dataclass(frozen=True)
+class BackendDecision:
+    """Auditable forced/auto selection result."""
+
+    requested: str
+    actual: Optional[str]
+    reason_code: str
+    fallback: bool
+    candidate_results: Tuple[CapabilityResult, ...]
+
+    def as_dict(self) -> dict:
+        return {
+            "requested": self.requested,
+            "actual": self.actual,
+            "reason_code": self.reason_code,
+            "fallback": self.fallback,
+            "candidate_results": [result.as_dict() for result in self.candidate_results],
+        }
+
+
+class CapabilityCacheCorruption(ValueError):
+    """Raised when a serialized capability cache fails integrity checks."""
+
+
+class CapabilityCache:
+    """Identity-bound, single-flight cache with failure-aware persistence.
+
+    Successful probes and deterministic incompatibilities are cached.  A
+    transient compile timeout/runtime/OOM result is returned to the caller but
+    deliberately not retained, so the next request can recover.
+    """
+
+    def __init__(self) -> None:
+        self._values: Dict[str, CapabilityResult] = {}
+        self._locks: Dict[str, threading.Lock] = {}
+        self._guard = threading.Lock()
+
+    def _lock_for(self, key: str) -> threading.Lock:
+        with self._guard:
+            return self._locks.setdefault(key, threading.Lock())
+
+    def get_or_probe(
+        self,
+        backend: str,
+        identity: CapabilityIdentity,
+        probe: Callable[[], CapabilityResult],
+    ) -> CapabilityResult:
+        key = identity.cache_key(backend)
+        cached = self._values.get(key)
+        if cached is not None:
+            return cached.with_cache_hit()
+        with self._lock_for(key):
+            cached = self._values.get(key)
+            if cached is not None:
+                return cached.with_cache_hit()
+            result = probe()
+            if result.backend != backend or result.identity != identity:
+                raise ValueError("probe result identity does not match cache request")
+            if result.available or result.deterministic:
+                self._values[key] = result
+            return result
+
+    def clear(self) -> None:
+        with self._guard:
+            self._values.clear()
+
+    def to_payload(self) -> dict:
+        values = {key: value.as_dict() for key, value in sorted(self._values.items())}
+        digest = hashlib.sha256(
+            json.dumps(values, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        return {
+            "schema_version": CAPABILITY_SCHEMA_VERSION,
+            "values": values,
+            "sha256": digest,
+        }
+
+    @staticmethod
+    def validate_payload(payload: Mapping[str, object]) -> None:
+        if payload.get("schema_version") != CAPABILITY_SCHEMA_VERSION:
+            raise CapabilityCacheCorruption("capability cache schema mismatch")
+        values = payload.get("values")
+        if not isinstance(values, dict):
+            raise CapabilityCacheCorruption("capability cache values are not an object")
+        actual = hashlib.sha256(
+            json.dumps(values, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if payload.get("sha256") != actual:
+            raise CapabilityCacheCorruption("capability cache digest mismatch")
+
+
+def unavailable_result(
+    backend: str,
+    identity: CapabilityIdentity,
+    stage: CapabilityStage,
+    reason_code: CapabilityReason,
+    detail: str,
+    *,
+    retryable: bool,
+    cause_chain: Iterable[str] = (),
+) -> CapabilityResult:
+    """Construct an unavailable result while enforcing the stable taxonomy."""
+    return CapabilityResult(
+        backend=backend,
+        available=False,
+        stage=stage,
+        reason_code=reason_code,
+        detail=detail,
+        retryable=retryable,
+        identity=identity,
+        cause_chain=tuple(cause_chain),
+    )
+
+
+def _forced_error(result: CapabilityResult) -> Exception:
+    details = result.as_dict()
+    message = (
+        f"forced backend {result.backend!r} unavailable at {result.stage.value}: "
+        f"{result.reason_code.value}: {result.detail}"
+    )
+    if result.exit_code == ExitCode.CAPABILITY:
+        return CapabilityError(message, details=details)
+    return BackendError(message, details=details)
+
+
+def resolve_backend(
+    requested: str,
+    candidates: Iterable[CapabilityResult],
+    *,
+    reference_backend: str = "reference",
+) -> BackendDecision:
+    """Resolve an ``auto`` or forced request without silent fallback.
+
+    ``auto`` evaluates every candidate in order and records every rejection.
+    A forced request either returns that exact backend or raises a stable HQSB
+    error (exit 7 for unsupported capability, exit 6 for operational failure).
+    """
+    results = tuple(candidates)
+    by_name = {result.backend: result for result in results}
+    if requested != "auto":
+        result = by_name.get(requested)
+        if result is None:
+            identity = CapabilityIdentity("unknown", None, None, None, None, "unknown")
+            raise CapabilityError(
+                f"forced backend {requested!r} is not registered",
+                details=unavailable_result(
+                    requested,
+                    identity,
+                    CapabilityStage.DISCOVERY,
+                    CapabilityReason.PACKAGE_NOT_INSTALLED,
+                    "backend not registered",
+                    retryable=False,
+                ).as_dict(),
+            )
+        if not result.available:
+            raise _forced_error(result)
+        return BackendDecision(requested, requested, "FORCED_AVAILABLE", False, results)
+
+    for result in results:
+        if result.available:
+            return BackendDecision("auto", result.backend, "FIRST_AVAILABLE", False, results)
+    primary = results[0].reason_code.value if results else "NO_CANDIDATE"
+    return BackendDecision("auto", reference_backend, primary, True, results)
 
 # Default search path for the CUDA RMSNorm shared library (built by CMake).
 _DEFAULT_CUDA_LIB_GLOB = "build/*/ops/cuda/rmsnorm/libhqsb_rmsnorm_shared.so"
@@ -305,6 +654,18 @@ def detect_capabilities() -> BackendCapabilities:
 
 
 __all__ = [
+    "BackendDecision",
     "BackendCapabilities",
+    "CAPABILITY_POLICY_VERSION",
+    "CAPABILITY_SCHEMA_VERSION",
+    "CapabilityCache",
+    "CapabilityCacheCorruption",
+    "CapabilityIdentity",
+    "CapabilityReason",
+    "CapabilityResult",
+    "CapabilityStage",
+    "ProbeStageResult",
     "detect_capabilities",
+    "resolve_backend",
+    "unavailable_result",
 ]
