@@ -101,7 +101,14 @@ def _assert_fp16_gemm_ok(actual, reference, label: str) -> None:
 
 @pytest.mark.parametrize(
     ("m", "k", "n"),
-    [(64, 128, 64), (512, 256, 256)],
+    [
+        (64, 128, 64),
+        (63, 128, 64),   # M tail
+        (64, 128, 65),   # N tail
+        (64, 129, 64),   # K tail
+        (63, 129, 65),   # M/N/K tail
+        (512, 256, 256),
+    ],
 )
 def test_triton_gemm_matches_cublas_fp32(m, k, n):
     from ops.triton.gemm import gemm_optimized, gemm_reference
@@ -117,7 +124,15 @@ def test_triton_gemm_matches_cublas_fp32(m, k, n):
 
 @pytest.mark.parametrize(
     ("m", "k", "n"),
-    [(64, 128, 64), (1, 2048, 2048), (512, 256, 256)],
+    [
+        (64, 128, 64),
+        (63, 128, 64),
+        (64, 128, 65),
+        (64, 129, 64),
+        (63, 129, 65),
+        (1, 2048, 2048),
+        (512, 256, 256),
+    ],
 )
 def test_triton_gemm_matches_cublas_fp16(m, k, n):
     """Every backend is checked against the FP64 reference, not against each
