@@ -1,0 +1,53 @@
+kind: hqsb.evaluation.repeatability_spec
+name: repeatability
+description: E12-04 稳定性维度、健康标签与排除决策。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+stability_dimensions:
+- within_run
+- between_run
+- between_process
+- between_block
+- between_day
+- between_device
+health_labels:
+- HEALTHY_INCLUDED
+- HEALTHY_BUT_HIGH_VARIANCE
+- THERMAL_THROTTLE
+- POWER_LIMIT_THROTTLE
+- CLOCK_DEVIATION
+- CPU_CONTENTION
+- MEMORY_PRESSURE
+- SWAP_ACTIVITY
+- IO_CONTENTION
+- NEIGHBOR_PROCESS
+- ECC_RAS_OR_LINK_EVENT
+- OOM_OR_RECOVERY
+- SERVICE_BACKLOG_CONTAMINATION
+- LOADGEN_BOTTLENECK
+- TELEMETRY_GAP
+- UNKNOWN_ANOMALY
+contamination_labels:
+- THERMAL_THROTTLE
+- POWER_LIMIT_THROTTLE
+- CLOCK_DEVIATION
+- CPU_CONTENTION
+- MEMORY_PRESSURE
+- SWAP_ACTIVITY
+- IO_CONTENTION
+- NEIGHBOR_PROCESS
+- ECC_RAS_OR_LINK_EVENT
+- OOM_OR_RECOVERY
+- SERVICE_BACKLOG_CONTAMINATION
+- LOADGEN_BOTTLENECK
+- TELEMETRY_GAP
+- UNKNOWN_ANOMALY
+exclusion_decisions:
+- include
+- exclude
+- quarantine
+stability_verdicts:
+- stable
+- unstable
+- conditional
+- insufficient

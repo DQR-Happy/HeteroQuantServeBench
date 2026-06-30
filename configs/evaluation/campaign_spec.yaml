@@ -1,0 +1,32 @@
+kind: hqsb.evaluation.campaign_spec
+name: campaign
+description: S12 上游证据状态、结果类与缺失语义。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+upstream_evidence_states:
+- VERIFIED
+- VERIFIED_WITH_LIMITS
+- UNVERIFIED
+- MISSING
+- INCOMPATIBLE
+result_classes:
+- MEASURED
+- MODELED
+- SCENARIO
+evidence_levels:
+- L0
+- L1
+- L2
+- L3
+- L4
+missingness_codes:
+- NOT_APPLICABLE_CAPABILITY
+- NOT_RUN_PREREQUISITE
+- NOT_RUN_TOOL_UNAVAILABLE
+- RUN_FAILED
+- QUALITY_GATE_FAILED
+- NOT_COMPARABLE
+- MEASUREMENT_UNAVAILABLE
+- PRICE_UNAVAILABLE
+- LINEAGE_INVALID
+- NO_FEASIBLE_CANDIDATE
