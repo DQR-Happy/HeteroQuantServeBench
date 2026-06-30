@@ -1,0 +1,52 @@
+kind: hqsb.evaluation.benchmark_spec
+name: benchmark
+description: E12-03 四层重放、归一化与校验约束。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+layers:
+- operator
+- model_core
+- service
+- distributed
+load_modes:
+- open_loop
+- closed_loop
+- offline
+- single_stream
+allowed_normalizations:
+- per_request
+- per_accepted_token
+- per_input_token
+- per_device
+- per_device_second
+- utilization_vs_sustainable_peak
+- goodput_at_same_slo
+- cost_per_token_same_scenario
+- joule_per_token_same_boundary
+- unit_conversion
+forbidden_normalizations:
+- vendor_peak_flops_correction
+- linear_batch_scaling_fill
+- tdp_as_energy
+- parameter_ratio_extrapolation
+- mixed_tokenizer_ranking
+- quality_mixed_score
+- zero_fill_for_unsupported
+- micro_ratio_to_service_throughput
+validator_constraints:
+- C1_status_not_ok_has_no_numeric
+- C2_comparable_requires_contract
+- C3_benchmarked_requires_run_and_quality
+- C4_energy_requires_window_and_meter
+- C5_cost_requires_validity_and_inputs
+- C6_derived_metric_requires_sources_formula_unit
+- C7_actual_backend_required
+- C8_quality_fail_not_in_pareto
+- C9_distributed_requires_topology
+- C10_interval_requires_method_unit_confidence
+- C11_point_and_recommendation_need_ids
+estimators:
+- median
+- mean
+- p95
+- p99

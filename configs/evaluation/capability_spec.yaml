@@ -1,0 +1,56 @@
+kind: hqsb.evaluation.capability_spec
+name: capability
+description: E12-02 capability 层级、feature 层与失败分类。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+capability_levels:
+- DECLARED
+- DISCOVERED
+- VERIFIED
+- BENCHMARKED
+feature_layers:
+- platform
+- numeric
+- kernel
+- runtime
+- service
+- distributed
+- telemetry
+failure_categories:
+- UNSUPPORTED_BY_HARDWARE
+- UNSUPPORTED_BY_RUNTIME
+- MISSING_COMPONENT
+- VERSION_INCOMPATIBLE
+- PERMISSION_DENIED
+- RESOURCE_UNAVAILABLE
+- COMPILE_FAILED
+- LOAD_FAILED
+- EXECUTION_FAILED
+- TIMEOUT
+- NUMERICAL_MISMATCH
+- PROBE_BUG
+- UNKNOWN
+invalidation_triggers:
+- driver_change
+- runtime_change
+- framework_change
+- container_image_change
+- feature_implementation_change
+- arch_change
+- permission_change
+- device_instance_change
+- host_change
+telemetry_fields:
+- accelerator.power_W
+- accelerator.energy_J
+- accelerator.temperature_C
+- accelerator.clock_mhz
+- accelerator.utilization
+- accelerator.throttle_reasons
+- accelerator.ecc_errors
+- accelerator.memory_used_bytes
+- host.cpu_load
+- host.ram_used_bytes
+- host.swap_used_bytes
+- node.power_W
+registry_min_features: 69
