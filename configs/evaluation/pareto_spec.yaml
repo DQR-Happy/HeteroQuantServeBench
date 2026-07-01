@@ -1,0 +1,42 @@
+kind: hqsb.evaluation.pareto_spec
+name: pareto
+description: E12-08 业务画像、可行性与决策回归用例。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+profile_ids:
+- interactive
+- throughput
+- long_context
+- decode_heavy
+- moe
+- edge_power_limited
+directions:
+- maximize
+- minimize
+feasibility_statuses:
+- feasible
+- conditionally_feasible
+- infeasible
+- insufficient_evidence
+evidence_gate_statuses:
+- EVIDENCE_VALID
+- EVIDENCE_STALE
+- EVIDENCE_INCOMPLETE
+- EVIDENCE_NOT_COMPARABLE
+- EVIDENCE_QUALITY_FAIL
+roles:
+- primary
+- alternative
+- conditional
+- none
+decision_regression_cases:
+- clear_dominance
+- two_way_tradeoff_on_frontier
+- quality_fail_eliminated_even_if_fastest
+- missing_cost_is_not_zero
+- different_energy_boundary_not_mixed
+- interval_crossing_constraint
+- practical_tolerance_produces_near_pareto
+- all_candidates_infeasible
+- weight_change_legal_reversal
+- stale_price_invalidates_cost_recommendation

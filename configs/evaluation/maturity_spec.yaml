@@ -1,0 +1,47 @@
+kind: hqsb.evaluation.maturity_spec
+name: maturity
+description: E12-09 成熟度维度、rubric 等级与失败分类。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+maturity_dimensions:
+- installability
+- build_compile_lifecycle
+- framework_model_compatibility
+- debug_profiling_observability
+- reliability_and_recovery
+- documentation_support
+- upgrade_maintenance
+- portability_lockin
+rubric_levels:
+- '0'
+- '1'
+- '2'
+- '3'
+- '4'
+failure_taxonomy:
+- DOC_INCORRECT_OR_MISSING
+- DEPENDENCY_RESOLUTION
+- VERSION_ABI_INCOMPATIBLE
+- INSTALL_OR_PERMISSION
+- BUILD_OR_COMPILE
+- ARTIFACT_OR_CACHE
+- RUNTIME_EXECUTION
+- NUMERICAL_CORRECTNESS
+- SILENT_FALLBACK
+- DYNAMIC_SHAPE_OR_GRAPH
+- QUANT_OR_LAYOUT
+- SERVICE_OR_PROTOCOL
+- DISTRIBUTED_OR_TOPOLOGY
+- PROFILER_OR_OBSERVABILITY
+- RESOURCE_OOM_OR_LEAK
+- UPGRADE_REGRESSION
+- UNKNOWN
+tool_coverage_areas:
+- install
+- build
+- runtime
+- model
+- service
+- distributed
+- power
+task_count: 15

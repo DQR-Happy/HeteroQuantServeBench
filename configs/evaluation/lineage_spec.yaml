@@ -1,0 +1,73 @@
+kind: hqsb.evaluation.lineage_spec
+name: lineage
+description: E12-10 证据实体/活动/关系与重生成等级。
+notes: 冻结词汇表；价格/功耗/测量数值是 campaign 输入，不写入本文件。
+schema_version: 1.0.0
+entity_types:
+- model
+- config
+- code
+- environment
+- raw
+- derived
+- figure
+- report
+- price
+- meter
+- validation
+- claim
+- registry
+activity_types:
+- run
+- probe
+- profile
+- clean
+- aggregate
+- model
+- integrate
+- cost
+- pareto
+- render
+- validate
+- register
+relations:
+- used
+- generated
+- derived_from
+- invalidated_by
+- supports
+- rendered_as
+- validated_by
+regeneration_levels:
+- R0
+- R1
+- R2
+- R3
+- R4
+required_lineage_objects:
+- comparison_contract
+- capability_evidence
+- raw_events
+- normalized_matrix
+- schedule
+- telemetry
+- exclusion
+- statistics
+- roofs
+- predictions
+- residuals
+- meter
+- power_series
+- energy_window
+- price_snapshot
+- assumptions
+- capacity
+- cost
+- profile
+- constraints
+- frontier
+- recommendation
+- session
+- failure
+- rubric
+- maturity
