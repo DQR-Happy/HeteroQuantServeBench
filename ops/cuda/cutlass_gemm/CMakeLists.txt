@@ -14,6 +14,8 @@ endif()
 
 if(CUTLASS_INCLUDE_DIR AND IS_DIRECTORY "${CUTLASS_INCLUDE_DIR}")
   add_executable(hqsb_cutlass_gemm_bench bench_cutlass_gemm.cu)
+  add_executable(e04_03_sanitizer_control e04_03_sanitizer_control.cu)
+  add_executable(e04_05_cutlass_space e04_05_cutlass_space.cu)
 
   target_include_directories(
     hqsb_cutlass_gemm_bench
@@ -24,7 +26,15 @@ if(CUTLASS_INCLUDE_DIR AND IS_DIRECTORY "${CUTLASS_INCLUDE_DIR}")
     ${PROJECT_SOURCE_DIR}/ops/cuda/common
   )
 
+  target_include_directories(
+    e04_05_cutlass_space
+    PRIVATE
+    ${CUTLASS_INCLUDE_DIR}
+  )
+
   target_compile_features(hqsb_cutlass_gemm_bench PRIVATE cxx_std_17)
+  target_compile_features(e04_03_sanitizer_control PRIVATE cxx_std_17)
+  target_compile_features(e04_05_cutlass_space PRIVATE cxx_std_17)
 
   target_compile_options(
     hqsb_cutlass_gemm_bench
@@ -43,6 +53,18 @@ if(CUTLASS_INCLUDE_DIR AND IS_DIRECTORY "${CUTLASS_INCLUDE_DIR}")
     NAME cutlass_gemm_correctness
     COMMAND hqsb_cutlass_gemm_bench
             --m 64 --n 128 --k 64 --warmup 2 --iterations 3
+  )
+
+  target_compile_options(
+    e04_03_sanitizer_control
+    PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-O1;-lineinfo;-std=c++17>
+  )
+
+  target_compile_options(
+    e04_05_cutlass_space
+    PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-O3;-lineinfo;-std=c++17>
   )
 
   message(STATUS "CUTLASS found at ${CUTLASS_INCLUDE_DIR}; building GEMM comparison")
