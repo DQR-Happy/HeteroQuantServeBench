@@ -50,7 +50,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 GATE_NAME = "import_dependency_gate"
-RULES_VERSION = "1.2.0"
+RULES_VERSION = "1.6.0"
 
 #: Architectural regions. A module belongs to the first region whose dotted
 #: prefix matches it. Order matters (most specific first).
@@ -64,6 +64,9 @@ REGION_PREFIXES: List[Tuple[str, str]] = [
     ("integration", "hqsb.integration"),
     ("runtime", "hqsb.runtime"),
     ("serving", "hqsb.serving"),
+    ("distributed", "hqsb.distributed"),
+    ("compiler", "hqsb.compiler"),
+    ("evaluation", "hqsb.evaluation"),
     ("ops", "ops"),
 ]
 
@@ -166,6 +169,113 @@ RULES: List[Dict[str, Any]] = [
             "runtime",
         ],
         "forbidden_target_regions": ["serving"],
+    },
+    {
+        "id": "R7",
+        "name": "lower_layers_do_not_depend_on_distributed",
+        "description": (
+            "hqsb.distributed is the multi-device communication layer (S10); it sits "
+            "above every other region, so core/models/benchmark/backends/hardware/"
+            "integration/quant/runtime/serving may not import it (the dependency arrow "
+            "points core ← models/benchmark ← backends/integration/quant ← runtime ← "
+            "serving ← distributed)."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "integration",
+            "quant",
+            "runtime",
+            "serving",
+        ],
+        "forbidden_target_regions": ["distributed"],
+    },
+    {
+        "id": "R8",
+        "name": "distributed_does_not_import_kernel_implementations",
+        "description": (
+            "hqsb.distributed addresses kernels and collective backends through capability/"
+            "provider names, never by importing the ops package; the distributed core must "
+            "run on the CPU-minimal installation."
+        ),
+        "source_regions": ["distributed"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R9",
+        "name": "lower_layers_do_not_depend_on_compiler",
+        "description": (
+            "hqsb.compiler is the graph→IR→lowering→autotune layer (S11); it consumes the "
+            "stable contracts plus the integration/runtime/quant contracts, so core/models/"
+            "benchmark/backends/hardware/integration/quant/runtime/serving/distributed may "
+            "not import it (a lower layer importing the compiler would bind "
+            "'measurable' code to the 'optimiser')."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "integration",
+            "quant",
+            "runtime",
+            "serving",
+            "distributed",
+        ],
+        "forbidden_target_regions": ["compiler"],
+    },
+    {
+        "id": "R10",
+        "name": "compiler_does_not_import_kernel_implementations",
+        "description": (
+            "hqsb.compiler addresses kernels through capability/provider names plus artifact "
+            "locators/hashes, never by importing the ops package; the compiler layer must run "
+            "on the CPU-minimal installation and its lowering registry must stay "
+            "side-effect free at import time."
+        ),
+        "source_regions": ["compiler"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R11",
+        "name": "lower_layers_do_not_depend_on_evaluation",
+        "description": (
+            "hqsb.evaluation is the cross-hardware evaluation and unified benchmark layer (S12); "
+            "it consumes the evidence of every earlier stage, so core/models/benchmark/backends/"
+            "hardware/quant/integration/runtime/serving/distributed/compiler may not import it "
+            "(a lower layer importing the evaluator would let the 'measured' code depend on the "
+            "'measurer')."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "quant",
+            "integration",
+            "runtime",
+            "serving",
+            "distributed",
+            "compiler",
+        ],
+        "forbidden_target_regions": ["evaluation"],
+    },
+    {
+        "id": "R12",
+        "name": "evaluation_does_not_import_kernel_implementations",
+        "description": (
+            "hqsb.evaluation addresses kernels/backends through capability/provider names plus "
+            "artifact locators, never by importing the ops package; the evaluation layer must run "
+            "on the CPU-minimal installation (no module-level torch/triton/numpy) so that the "
+            "comparability/capability/cost/Pareto/lineage contracts are testable without a device."
+        ),
+        "source_regions": ["evaluation"],
+        "forbidden_target_regions": ["ops"],
     },
 ]
 

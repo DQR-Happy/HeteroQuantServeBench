@@ -2,13 +2,15 @@
 
 > 生成时间：2026-08-17
 > 跨架构补验：2026-09-18（RTX 3090 / sm_86）
-> 当前工作树基线：`3c2453e`（`chore: update README for S06 integration layer`，工作树干净）
-> 历史基线 Commit：`9b403aa`（`chore: stop tracking the stage-experiment tree`，2026-06-02）
-> 当前阶段：S08（ServeFabric 与性能治理）—— **接口/代码层就位；实验层 BLOCKED**（S07 P0 等 7 条前置缺失，见 §15）
-> 下一阶段：S07 实验执行（P0）→ S04.5（真实模型算子回接）→ S05/S06 实验执行 → S08 实验执行
+> 当前工作树基线：`b83ebde`（`docs: add S09 CUDA-Ascend mapping, backend report and troubleshooting runbook`，S10 开始前工作树干净）
+> 历史基线 Commit：`9b403aa`（`chore: stop tracking the stage-experiment tree`，2026-06-02）；`3c2453e`（S06 追加）
+> 当前阶段：S11（AI 编译器与自动优化）—— **接口/代码层就位；实验层 BLOCKED**（6 条必需前置中 3 条缺失，见 §17）
+> 下一阶段：S03/S04 硬件证据补齐 → S06 模型级 pattern correctness → S11 实验执行（E11-01…E11-10）
+> （历史路径：S07 实验执行（P0）→ S04.5（真实模型算子回接）→ S05/S06/S08 实验执行 → S10 实验执行（≥2 加速器））
 >
 > 说明：本报告正文生成于 `4dda6f8`，其后仓库推进到 `9b403aa` 并在其上追加
-> S05/S06/S07/S08 四轮交付；历史条目保留不改，新增章节见 §12/§13/§14/§15。
+> S05/S06/S07/S08 四轮交付；S09 为部分交付（见 §16.4 漂移登记）；历史条目保留不改，
+> 新增章节见 §12/§13/§14/§15/§16。
 
 本报告是仓库当前事实的 Source of Truth。任何“已完成 / 已测量”的声明都必须能
 定位到代码、测试或运行证据；无法定位的声明一律降级为 historical/planned。
@@ -216,7 +218,10 @@ CUDA shared lib 的 ctypes 绑定、统一 dispatcher/capability，并用统一 
 | S05 | 量化与低精度推理 | **接口/代码层就位（E05-01~E05-10 共 190 步能力接口）；实验层 BLOCKED**（S04.5 M4 前置缺失） |
 | S06 | 框架集成与图优化 | **接口/代码层就位（E06-01~E06-11 共 218 步能力接口 + 371 新增测试）；实验层 BLOCKED**（S04.5 M4 与 S05 P0 前置缺失）。`hqsb/integration/` 18 模块 + `scripts/integration/run_e06.py` + `configs/integration/` 7 份；CUDA Graph 记 `NOT_CLAIMED` |
 | S07 | 推理 Runtime 内核 | **接口/代码层就位（E07-01~E07-10 共 200 步能力接口 + 460 新增测试）；实验层 BLOCKED**（S04.5 M4 / S05 P0 / S06 P0 前置缺失）。`hqsb/runtime/` 18 模块 + `scripts/runtime/run_e07.py` + `configs/runtime/` 8 份；CUDA Graph 与 speculative/MTP 均记 `NOT_RUN` |
-| S08–S15 | Serving / Ascend / 分布式 / 编译 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
+| S08 | ServeFabric 与性能治理 | **接口/代码层就位（E08-01~E08-11 共 264 步 + 131 新增测试）；实验层 BLOCKED**（S07 P0 等 7 条前置缺失，见 §15） |
+| S09 | Ascend C/CANN 异构后端 | **部分交付**（7 模块 + 3 份映射/报告文档；`experiment/interface_map/driver/configs/tests` 缺失，见 §16.4） |
+| S10 | 分布式推理与通信 | **接口/代码层就位（E10-01~E10-10 共 300 步 + 240 新增测试）；实验层 BLOCKED**（8/9 硬前置缺失，见 §16） |
+| S11–S15 | 编译器 / 跨硬件 / 云原生 / 训推 / 发布 | 空目录或纯规划 |
 
 **S05 准入判定（2026-09-18）**：**放行**，附加两条约束——
 S04.5 的「未量化 HQSB 算子路径」数值基线必须先建（否则无法区分量化误差与算子
@@ -621,3 +626,227 @@ HTTP 绑定为 stdlib 参考实现；真实并发/竞态需真实后端实验。
 
 S08 报告：`docs/reports/S08_开发报告.md`、`docs/reports/S08_阶段验收报告.md`、
 `docs/reports/S08_serving_architecture.md`。
+
+---
+
+## 16. S10（分布式推理与通信）—— 接口/代码层就位，实验层 BLOCKED
+
+> 追加时间：2026-09-19。S10 按任务约束「提供接口、不执行实验」交付
+> E10-01~E10-10 全部 **300 个实验步骤**的能力接口与测试，**未执行任何正式实验、未产出任何
+> collective/TP/scaling/overlap/MoE/故障结论数字**。实验层 `BLOCKED`。
+
+### 16.1 新增模块（`hqsb/distributed/`，20 个）
+
+1. **拓扑与身份平面**：`topology.py`（ObservationScope/HostIdentity/NumaTopology/AcceleratorRecord/
+   VisibleDeviceAudit/PcieLink/FabricLink/AffinityRecord/NicRecord/RdmaStackRecord/BackendRuntimeConfig/
+   TopologyManifest+canonical hash/六档漂移分级/DegradedLinkPolicy/硬不变量/E10-02 门禁）、
+   `ranks.py`（RunIdentity/RankIdentity/GroupMembership）、`placement.py`（PlacementPlan→rank table/
+   launcher、planned-actual 比对、替代 placement）、`probes.py`（只读探针 + P2P/copy/NUMA/RDMA/
+   data-path 证据 + preflight 负向 fixture）。
+2. **通信平面**：`backend.py`（backend/harness 身份、能力三态、计时语义、requested/actual、错误归一）、
+   `collectives.py`（6 类 op 语义、CPU oracle、rank-coded 生成、guard、size/rank grid、带宽公式登记表、
+   α–β 分段与拐点、官方工具交叉验证、停止规则、loopback 测试双）、`faults.py`（错误目录、恢复级别、
+   故障 oracle、时间指标、安全边界、控制面/watchdog、abort 协调器、资源快照、19 类故障矩阵、
+   盲判演练、有界性汇总）、`sequence.py`（communicator 状态机、序列命名空间、call record、
+   metadata preflight、timeout、延迟阶梯、错误传播、清理顺序、TP 安全门）。
+3. **模型与性能平面**：`parallel_plan.py`（Qwen census/TP 能力/ParallelPlan/shard round-trip/
+   direct-load 审计/KV ownership/8 级 correctness case/不整除策略）、`ledger.py`（expected↔observed
+   通信账本 + 原因码 + 内存分桶对账）、`scaling.py`（strong/weak/capacity work unit、资源矩阵、
+   T1 诚实性、时间分解、pairability、scaling 拟合、异常标记、confirmation、五态裁决）、
+   `overlap.py`（依赖 DAG、合法窗口、三组 schedule、chunk、stream policy、区间集合 overlap、
+   竞争/开销、因果矩阵、ABBA、phase policy）、`boundary.py`（P1 激活、候选定义、rubric、成本模型、
+   PP/CP/SP plan、stage balance/bubble、adopt/reject）、`moe.py`（claim level、RouteArtifact、
+   dispatch/combine oracle、count matrix、skew profile、imbalance、placement A/B、holdout、分级裁决）、
+   `traces.py`（统一 trace 事件、时钟校准、事件配对、arrival/completion skew、phase breakdown、
+   通信矩阵、baseline 变异度、根因分类器、放大指标、注入计划、runbook、公共 summary）。
+4. **证据与脚手架**：`telemetry.py`（C6/C7 投影 + 覆盖审计 + 统一数据表 schema）、
+   `specs.py`（12 份配置严格加载 + 逐字段审计）、`experiment.py`（9 条前置门/预注册/统一记录/
+   Evidence Manifest/RunDirectory/verdict 拒绝/环境指纹）、`interface_map.py`（300 步对照 + 导入校验）。
+
+### 16.2 配置与驱动
+
+- `configs/distributed/*.yaml` 12 份冻结配置（严格键校验 + 与代码逐字段审计全绿；其中
+  `timeout/scaling/fault/tolerance` 为 `template`，正式 run 前须冻结）。
+- `scripts/distributed/run_e10.py`：`--list/--prerequisites/--interface-map/--smoke/--execute`，
+  默认拒绝产结论。
+
+### 16.3 测试与门禁
+
+- 全量 **2134 passed, 4 deselected**（本阶段新增 **240** = 225 单元 + 15 属性）。
+- 依赖边界 gate 规则升至 **R1–R8**（`RULES_VERSION` 1.3.0）0 违规 0 环；
+  `module_ownership.md` 1.4.0 新增 `distributed` 区域。
+- 接口解析：**300 步 / 381 唯一接口 / 548 引用**全部解析。
+- ruff：`hqsb/distributed`、`tests/unit/distributed`、`tests/property/test_distributed_invariants.py`、
+  `scripts/distributed` 全绿；仓库其余 83 处为既有问题，未新增。
+
+### 16.4 阻塞与交接
+
+**阻塞**：8/9 条硬前置未满足——S07 P0 verdict、S08 trace、双加速器（本机仅 1×RTX 3090）、
+封存 topology manifest、冻结 backend 身份、单卡 reference、冻结 model/workload、协议树指纹。
+`run_e10.py --experiment E10-01 --prerequisites` 如实报告 `satisfied=false`；`--execute` 仍拒绝。
+
+**前置门收紧（防自我解锁）**：前置证据只接受 `docs/stage_experiments/S10/**`（协议树）；
+脚手架写在 `experiment_results/` 的指纹不计入（回归测试
+`test_prerequisites_do_not_self_unlock`）。
+
+**漂移登记（文档 vs 代码）**：`docs/reports/S09_*.md` 声称交付的
+`hqsb/ascend/{experiment,interface_map,backend,framework,quant_format,model_core,profiling,
+comparison,faults,mapping,telemetry,specs}.py`、`scripts/ascend/run_e09.py`、`configs/ascend/`、
+`tests/unit/ascend/` 在**当前工作树全部不存在**（实测）；S09 应降级为"部分交付"。
+本阶段未改写上游报告，仅登记并给出最小回退建议（S10 开发报告 §2.2）。
+
+**未覆盖边界**：无第二加速器/多节点/RDMA/Ascend 设备；collective 只经 CPU loopback 自检
+（`claim_allowed()` 恒 False）；E10-07 为 `NOT_RUN_NOT_CLAIMED`（未声称 PP/CP/SP）；
+依赖门禁尚未覆盖 `hqsb.ascend` 区域。
+
+S10 报告：`docs/reports/S10_开发报告.md`、`docs/reports/S10_阶段验收报告.md`、
+`docs/reports/S10_parallelism_design.md`。
+
+---
+
+## 17. S11（AI 编译器与自动优化）—— 接口/代码层就位，实验层 BLOCKED
+
+> 追加时间：2026-09-19。S11 按任务约束「提供接口、不执行实验」交付 E11-01~E11-10
+> 全部 **320 个实验步骤**的能力接口与测试，**未执行任何正式实验、未产出任何
+> capture/rewrite/lowering/autotune/cache/性能结论数字**。实验层 `BLOCKED`。
+
+### 17.1 新增模块（`hqsb/compiler/`，20 个）
+
+1. **基础层（L0）**：`identity.py`（ArtifactIdentity/双 hash/canonicaliser/三合一身份/lineage DAG/版本冻结）、
+   `ir.py`（符号维度与约束、effect 三态、IRValue/IROp/IRGraph、14 项 IR verifier、序列化 round-trip、
+   FX importer 惰性 torch、IR diff）、`records.py`（case 状态机、失败分类目录、编译成本键与 break-even、
+   §21.1–21.5 五类记录 schema）。
+2. **前端层（L1）**：`capture.py`（capture 矩阵、break 目录与定位、source/shape/effect metadata、
+   四维完整度、五类 coverage 与 claim guard、debug backend、有序 shape trace、原生 trace 计划与 join、
+   repeatability、hero manifest、负向 fixture）、`guards.py`（9 类 guard 与失败动作、variant 与 lookup、
+   域覆盖/重叠分析、重编译可解释性、wrong-reuse 审计、策略总成本对照、variant 预算、并发、动态策略文档）。
+3. **重写层（L2）**：`pattern_library.py`（两个冻结 pattern 契约与 signature、8 条 predicate 目录、
+   near-miss 变异轴、语料计划、CPU composed/fused 参考 oracle）、`rewrite.py`（结构匹配、语义判定、
+   proof record、原子重写与回滚、pass pipeline/固定点/幂等/确定性、语料评估 FP=0、provenance 审计、
+   metadata diff、失败注入）。
+4. **后端层（L3）**：`targets.py`（target 快照与冻结版本门、capability 判定与结构化原因、只读探针、
+   toolchain 导出能力）、`lowering.py`（registry 与候选字段、完整候选表选择链、reference/forced/auto 策略、
+   materialize 与 fallback 可达性、dispatch telemetry 与双重证据、pre-launch 检查、失败注入、
+   正确性/性能顺序、compile breakdown）、`backend.py`（九步 backend 契约、CompileRun 组装、
+   debug-backend 拒绝、artifact manifest）、`codegen.py`（生成源制品、导出计划、resource 解析、
+   memory/launch ledger、机制假设表与 ablation、Amdahl 归因、profiler 计划、重建检查、跨层 diff）。
+5. **搜索层（L4）**：`autotune.py`（search space/约束/候选 identity、静态过滤与 false-reject 审计、
+   B0–B3 预算与公平性、组切分与 holdout、trial sandbox 与 reset、测量顺序、oracle/winner/confirmation、
+   holdout 评估、搜索成本与 break-even、tuning DB、策略文档）、`costmodel.py`（特征 schema 与泄漏审计、
+   label/tie、group split 与 final-test 一次性、基线、常数/线性/pairwise 模型、regret/ranking/overhead、
+   confidence 与 OOD/risk-coverage、安全回退链、非法候选注入、模型损坏门、methodology/deployment 双裁决）。
+6. **制品层（L5/L6/L7）**：`cache.py`（22 字段 key 规范与 test vectors、事务发布、9 步安全读取、
+   11 例损坏注入与隔离、14 行失效矩阵、并发/键遗漏/淘汰、C0–C4 与指标）、`portable.py`（栈选择与 scope、
+   语义映射表、legalisation 四态、loop IR 校验、schedule/pass trace 与重放、bridge 契约与开销、
+   开发成本 rubric、角色对照、采用裁决）、`aigate.py`（task/provenance、沙箱与 harness 锁、
+   hidden/metamorphic 设计、G0–G10 门链、wrong corpus、fast_p/Pareto、admission schema、
+   迭代血缘、对抗检测矩阵、claim 边界）。
+7. **证据与脚手架（L8）**：`telemetry.py`（C6/C7 投影 + 12 张 raw 表 schema + 覆盖审计）、
+   `specs.py`（12 份配置严格加载 + 逐字段审计）、`experiment.py`（9 条前置门/预注册/统一记录/
+   Evidence Manifest（含 S11 身份字段）/RunDirectory/verdict 拒绝/环境指纹）、
+   `interface_map.py`（320 步对照 + 导入校验）。
+
+### 17.2 配置与驱动
+
+- `configs/compiler/*.yaml` 12 份冻结配置（capture/guard/pattern/target/lowering/autotune/costmodel/
+  cache/portable/aigate/tolerance/experiment），严格键校验 + 与代码逐字段审计全绿。
+- `scripts/compiler/run_e11.py`：`--list/--prerequisites/--interface-map/--spec-audit/--smoke/--execute`，
+  默认拒绝产结论；`--prerequisites` 实测 6 条必需中 3 条未满足。
+
+### 17.3 测试与门禁
+
+- 全量 **2549 passed, 4 deselected**（本阶段新增 **415** = 396 单元 + 19 属性）。
+- 依赖边界 gate 规则升至 **R1–R10**（`RULES_VERSION` 1.4.0，files=214，edges=481）0 违规 0 环；
+  `module_ownership.md` 1.5.0 新增 `compiler` 区域与 R9/R10。
+- 接口解析：**320 步 / 417 唯一接口 / 693 引用**全部解析。
+- 配置审计：12/12 文档加载 + 逐字段审计通过（含 6 个 kind 的集合一致性比对）。
+
+### 17.4 阻塞与交接
+
+**阻塞（3/6 必需前置 + 2 项 advisory）**：
+
+| 前置 | 状态 | 证据 |
+|---|---|---|
+| S01 契约与身份 | 满足 | `docs/stage_experiments/S01/E01-01/raw/verdict.json` |
+| S02 Qwen reference 可重放 | 满足 | `docs/stage_experiments/S02/E02-01/raw/verdict.json` + `configs/models/qwen3_1_7b.yaml` |
+| S03/S04 kernel 硬件证据 | **缺失** | 协议树无 `S03/S04/**/verdict.json`，`reports/dev/**/gate*/s04_backend_baseline.json` 亦无 |
+| S06 pattern 模型级 correctness | **缺失** | 协议树无 `S06/**/verdict.json` |
+| 冻结编译器环境指纹 | **缺失** | 无含 torch/triton 版本的 `environment_fingerprint.json` |
+| 独立证据目录 / 稳定 CLI | 满足 | 本层 `hqsb/compiler/experiment.py`、`scripts/compiler/run_e11.py` |
+| S05 QuantArtifact（advisory） | 未满足 | 量化分支记 `NOT_APPLICABLE_CAPABILITY` |
+| IR/binary 导出工具（advisory） | 未满足 | nvcc/cuobjdump/nvdisasm/nsys/ncu 均 `NOT_RUN_TOOL_UNAVAILABLE` |
+
+**未覆盖边界**：TVM/MLIR 与真实 Qwen/Inductor 运行均未执行（仅接口与 CPU oracle）；
+E11-10（P1）未激活；跨机器/跨架构结论未做（本机 1×RTX 3090，`development` 角色）。
+
+S11 报告：`docs/reports/S11_开发报告.md`、`docs/reports/S11_阶段验收报告.md`、
+`docs/reports/S11_compiler_architecture.md`。
+
+---
+
+## 18. S12（跨硬件评估与统一 Benchmark）—— 接口/代码层就位，实验层 BLOCKED
+
+> 追加时间：2026-09-19。S12 按任务约束「提供接口、不执行实验」交付 E12-01~E12-10
+> 全部 **360 个实验步骤**的能力接口与测试，**未执行任何正式实验、未产出任何
+> 可比性/capability/性能/能耗/成本/成熟度/lineage 结论数字**。实验层 `BLOCKED`。
+
+### 18.1 新增模块（`hqsb/evaluation/`，21 个）
+
+1. **基础层（L0）**：`identity.py`（byte/canonical/aggregate 三 hash、版本化 canonicalization、
+   逻辑 URI、EntityRef）、`records.py`（协议状态、四态裁决、10 类缺失语义、182 张表 schema、
+   §3.2 状态传播为数据、R0–R4 重生成等级）、`contracts.py`（Comparison Contract 六段、
+   49 字段分类、16 审计维度、reason codes）、`layers.py`（四层语义/estimand/边界/token accounting/
+   SLO-goodput/Amdahl）、`campaign.py`（campaign manifest、上游证据五态、状态矩阵、acceptance、目录布局）。
+2. **可比性与能力（E12-01/E12-02）**：`candidates.py`、`comparability.py`（四态裁决 + 非法 join 防护 +
+   单位/边界/质量依赖/actual-backend 审计 + suite manifest）、`platform.py`（平台身份交叉核对 + telemetry
+   字段 canonical 化）、`capability.py`（69 feature + 四级证据 + 升级/失效 + coverage join + 负向探测）。
+3. **重放与稳定性（E12-03/E12-04）**：`benchmark.py`（Observation/NormalizedResult/11 条交叉校验/
+   run 计划/冷启动/预热/thermal/health）、`repeatability.py`（复制层级/平衡 schedule/预注册阈值/异常规则/
+   排除账本/纯 Python 统计/bootstrap/variance/frontier membership）。
+4. **解释与成本（E12-05/E12-06/E12-07）**：`roofline.py`（四类 roof + 流量分离 + 预测/残差/消融 +
+   calibration/validation 不泄漏）、`energy.py`（四边界 + accumulator/integral + total/incremental +
+   compliant 分母 + 10 项质量门）、`cost.py`（无内置价格；价格快照/部署单元/10 项双重计数/敏感性/独立复算）。
+5. **决策与成熟度（E12-08/E12-09）**：`pareto.py`（六画像模板 + 硬约束 + NO_FEASIBLE + 决策回归 10 用例 +
+   成熟度三合法路径）、`maturity.py`（8 维锚定 rubric + 四类工时 + silent fallback 高风险 + 分歧不平均）。
+6. **lineage 与脚手架（E12-10）**：`lineage.py`（entity 追加式/DAG 校验/reverse trace/fault 定位/per-transform diff）、
+   `telemetry.py`（C6/C7 投影 + 表校验 + 覆盖审计）、`specs.py`（12 份配置 + 逐字段审计）、
+   `experiment.py`（前置门/预注册/Evidence Manifest/RunDirectory/三重门拒绝）、`interface_map.py`（360 步对照）。
+
+### 18.2 配置与驱动
+
+- `configs/evaluation/*.yaml` 12 份冻结配置（comparability/capability/benchmark/repeatability/roofline/
+  energy/cost/pareto/maturity/lineage/campaign/experiment），严格键校验 + 与代码逐字段审计全绿；
+  只冻结**词汇与结构**，价格/电价/汇率一律是 campaign 输入，不内置。
+- `scripts/evaluation/run_e12.py`：`--list/--prerequisites/--interface-map/--spec-audit/--smoke/--execute`，
+  默认拒绝产结论；`--prerequisites` 实测 4 条必需中 3 条未满足。
+
+### 18.3 测试与门禁
+
+- 全量 **2922 passed, 4 deselected**（本阶段新增 **373** = 319 单元 + 38 属性 + 16 边界/脚手架）。
+- 依赖边界 gate 规则升至 **R1–R12**（`RULES_VERSION` 1.6.0，files=236，edges=550）0 违规 0 环；
+  `module_ownership.md` 1.6.0 新增 `evaluation` 区域与 R11/R12。
+- 接口解析：**360 步 / 415 唯一接口 / 727 引用**全部解析。
+- 配置审计：12/12 文档加载 + 逐字段审计通过。
+- 驱动 smoke：十模块 CPU 自检全绿并标注 `claim_allowed=false`（非实验）。
+
+### 18.4 阻塞与交接
+
+**阻塞（3/4 必需前置 + 3 项 advisory）**：
+
+| 前置 | 状态 | 证据 |
+|---|---|---|
+| S01 契约与身份 | 满足 | `docs/stage_experiments/S01/E01-01/raw/verdict.json` |
+| S02 ModelArtifact/WorkloadSpec/质量门 | 满足 | `docs/stage_experiments/S02/E02-01/raw/verdict.json` + `configs/models/qwen3_1_7b.yaml` |
+| S03–S11 上游证据链（≥2 阶段 verdict） | **缺失** | 协议树仅 S01/S02 有 verdict |
+| 多硬件覆盖（≥3 硬件，或 2 硬件+2 架构） | **缺失** | 无 ≥3 平台实例/架构证据 |
+| 冻结评估环境指纹 | **缺失** | 无含 torch/arch 的 `environment_fingerprint.json` |
+| 独立证据目录 / 稳定 CLI | 满足 | 本层 `hqsb/evaluation/campaign.py`、`scripts/evaluation/run_e12.py` |
+| profiler/导出工具（advisory） | 未满足 | nvcc/nsys/ncu 等 `NOT_RUN_TOOL_UNAVAILABLE` |
+| 功率计能力证据（advisory） | 未满足 | energy 只能到接口层 |
+| 价格快照（advisory） | 未满足 | cost 只能到接口层 |
+
+**未覆盖边界**：无真实多硬件/多架构实验；energy/cost/成熟度均停在接口层；`artifacts/S12/` 目录约定
+落到 `experiment_results/S12/`（仓库既有约定，见开发报告 §9 漂移登记）。
+
+S12 报告：`docs/reports/S12_开发报告.md`、`docs/reports/S12_阶段验收报告.md`、
+`docs/reports/S12_cross_hardware_design.md`。

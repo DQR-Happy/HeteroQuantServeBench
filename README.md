@@ -10,38 +10,45 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-**S08（ServeFabric 与性能治理）—— 接口/代码层就位；实验层 BLOCKED。**
+**S12（跨硬件评估与统一 Benchmark）—— 接口/代码层就位；实验层 BLOCKED。**
 
-S08 已交付 E08-01~E08-11 全部 **264 个实验步骤**的能力接口（`hqsb/serving/`
-26 模块：协议兼容子集与错误目录、SSE 线缆级一致性、网关与请求状态机、传输与
-背压、SLO 预注册与计数漏斗、可重放到达过程与 loadgen、公平性与队列策略、
-准入/熔断/路由/cache-aware 路由、故障注入、端到端可观测性、服务级严格 A/B、
-S08 实验脚手架）+ `scripts/serving/run_e08.py` 驱动 + `configs/serving/` 12 份
-冻结配置，由 131 个新增测试（全量 1894 passed）、依赖边界 gate（规则 R1–R6）、
-接口解析（264 步 / 418 接口 / 791 引用）、契约审计与 smoke 自检证明。
-**未执行任何正式实验、未产出任何容量/延迟/吞吐/goodput/命中率/能耗结论**。
+S12 已交付 E12-01~E12-10 全部 **360 个实验步骤**的能力接口（`hqsb/evaluation/`
+21 模块：三种身份 hash 与逻辑 URI、Comparison Contract 与四态可比性裁决、非法 join 防护、
+candidate 身份与上游证据五态、capability 四级证据与失效规则、四层统一重放与 11 条交叉校验、
+重复性/漂移/排除账本、分层 Roofline/Amdahl 预测与残差、能量窗口/积分/能效、
+云/自建 TCO 与成本敏感性（**无内置价格**）、业务画像 Pareto 与决策回归、软件成熟度 rubric、
+端到端 lineage 与重生成、C6/C7 投影与 360 步接口对照表）
++ `scripts/evaluation/run_e12.py` 驱动 + `configs/evaluation/` 12 份冻结配置，
+由 373 个新增测试（全量 2922 passed）、依赖边界 gate（规则 R1–R12）、
+接口解析（360 步 / 415 接口 / 727 引用）、配置逐字段审计与 CPU smoke 自检证明。
+**未执行任何正式实验、未产出任何可比性/capability/性能/能耗/成本/成熟度/lineage 结论数字。**
 
-实验层为 `BLOCKED`：S08 的 8 条前置中 7 条未满足（S07 P0 verdict、双后端注册、
-冻结请求夹具、冻结 SLO、拓扑记录、loadgen 校准、协议树内的环境指纹）。驱动入口
-默认拒绝产结论：
+实验层为 `BLOCKED`：S12 的 4 条必需前置中 3 条未满足
+（S03–S11 上游证据链、多硬件覆盖、冻结评估环境指纹）；
+另有 3 项 advisory 未满足（profiler/导出工具、功率计能力证据、价格快照，
+energy/cost 因此只能到接口层）。驱动入口默认拒绝产结论：
 
 ```bash
-python3 scripts/serving/run_e08.py --list                    # 11 实验 / 264 步
-python3 scripts/serving/run_e08.py --experiment E08-01 --prerequisites  # 前置门 → BLOCKED
-python3 scripts/serving/run_e08.py --interface-map           # 264 步 / 418 接口对照表
-python3 scripts/serving/run_e08.py --smoke                   # 无模型夹具 smoke（标注 smoke）
-python3 scripts/serving/run_e08.py --experiment E08-01 --execute          # 仍拒绝（前置缺失）
+python3 scripts/evaluation/run_e12.py --list                    # 10 实验 / 360 步
+python3 scripts/evaluation/run_e12.py --prerequisites           # 前置门 → satisfied=false
+python3 scripts/evaluation/run_e12.py --interface-map           # 360 步 / 415 接口对照表
+python3 scripts/evaluation/run_e12.py --spec-audit              # 12/12 配置逐字段审计
+python3 scripts/evaluation/run_e12.py --smoke                   # CPU 自检 smoke（claim_allowed=false）
+python3 scripts/evaluation/run_e12.py --experiment E12-03 --execute   # 仍拒绝（前置缺失）
 ```
 
-详见 `docs/reports/S08_开发报告.md`（含「实验步骤 → 代码接口」对照表）、
-`docs/reports/S08_阶段验收报告.md`（区分代码层验收与实验层 BLOCKED）与
-`docs/reports/S08_serving_architecture.md`（Design 制品）。
+详见 `docs/reports/S12_开发报告.md`（含「实验步骤 → 代码接口」对照表）、
+`docs/reports/S12_阶段验收报告.md`（区分代码层验收与实验层 BLOCKED）与
+`docs/reports/S12_cross_hardware_design.md`（Design 制品 + 决策权衡 + 回退方式）。
 
-S07（推理 Runtime 内核，200 步 / 1763 测试）与 S06（框架集成与图优化）、
-S05（量化）、S04（Triton/CUTLASS/Kernel DSL）已完成代码/接口层交付；S04 跨架构
-补验（2026-09-18，RTX 3090 / sm_86）见 `docs/reports/S04_阶段验收报告.md` §8。
-下一阶段顺序：**S07 实验执行（P0）→ S04.5（真实模型算子回接）→ S05/S06 实验执行 →
-S08 实验执行**。
+S11（AI 编译器，320 步）、S10（分布式，300 步）、S08（ServeFabric，264 步）、
+S07（Runtime，200 步）、S06（图优化）、S05（量化）、S04（Triton/CUTLASS/Kernel DSL）
+已完成代码/接口层交付；
+S09（Ascend C/CANN）为**部分交付**（缺 `experiment/interface_map/driver/configs/tests`，
+见 `docs/reports/S10_开发报告.md` §2.2）；S04 跨架构补验（2026-09-18，RTX 3090 / sm_86）见
+`docs/reports/S04_阶段验收报告.md` §8。
+下一阶段顺序：**S03–S11 协议树 evidence 补齐 → 多硬件/多架构实例 →
+S12 实验执行（E12-01…E12-10）**。
 
 阶段路线图见 [`docs/architecture/顶层架构.md`](docs/architecture/顶层架构.md) 与
 [`docs/stages/`](docs/stages/)。模块边界与依赖规则见
@@ -159,7 +166,7 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | Triton GEMM（reference + autotune） | Verified | `ops/triton/gemm.py` | autotune 随 shape 选不同 tile（E04-01） |
 | S04 跨架构 tile/autotune 迁移实验 | Verified | `scripts/audit/run_e04_01_cross_arch_tile_transfer.py` | `docs/stage_experiments/S04/E04-01/raw/` |
 | 模型制品门禁（客户端缓存元数据排除） | Verified | `hqsb/models/manifest.py` | `verify_qwen3_hashes.py` → 13/14 PASS |
-| CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（1894 passed，2026-09-18，S08 口径） |
+| CPU 单元测试 | Implemented | `tests/` | `pytest -m "not hardware and not e2e and not performance" -q`（2922 passed，2026-09-19，S12 口径） |
 | QuantLab 量化语义/RTN/golden/packing/制品 | Implemented | `hqsb/quant/{spec,rounding,rtn,golden,packing,artifact}.py` | `tests/unit/quant/`（936 passed 子集） |
 | QuantLab 兼容/故障注入/校准/统计 | Implemented | `hqsb/quant/{compat,faults,calibration,stats,fixtures}.py` | `tests/unit/quant/test_artifact_compat.py`、`test_calibration_stats.py` |
 | QuantLab 模型级评估（coverage/apply/quality/execution/oracle/model_eval） | Implemented | `hqsb/quant/` | `test_coverage_apply_quality.py`、`test_execution_model_eval.py` |
@@ -215,9 +222,59 @@ python3 benchmarks/scripts/run_jetson_baseline.py
 | ServeFabric 实验驱动入口（默认不产结论） | Implemented | `scripts/serving/run_e08.py` | `run_e08.py --smoke`；`--execute` 拒绝 |
 | ServeFabric 实验步骤→接口对照表（264 步 / 418 接口） | Implemented | `hqsb/serving/interface_map.py` | `test_s08_experiment_scaffolding.py::TestInterfaceMap` |
 | S08 实验执行 | **BLOCKED**（S07 P0 等 7 条前置缺失） | `docs/stage_experiments/details/S08/` | `run_e08.py --experiment E08-01 --prerequisites` |
+| 分布式拓扑身份/漂移/降级边政策（含 preflight 负向 fixture） | Implemented | `hqsb/distributed/{topology,ranks,placement,probes}.py` | `tests/unit/distributed/test_topology_placement.py` |
+| collective 语义/oracle/带宽公式登记表/α–β 拟合/拐点 | Implemented | `hqsb/distributed/collectives.py` | `test_collectives.py`、`tests/property/test_distributed_invariants.py::TestBandwidthAlgebra` |
+| communicator 状态机/序列/预检/超时/watchdog/清理 | Implemented | `hqsb/distributed/sequence.py` | `test_sequence_faults.py::TestStateMachine`、`::TestSequenceAndPreflight`、`::TestTimeoutsAndWatchdog` |
+| 分布式故障 oracle/恢复级别/资源闭环/19 类故障矩阵 | Implemented | `hqsb/distributed/faults.py` | `test_sequence_faults.py::TestFaultOracle`、`::TestSafetyAndRecovery`、`::TestResourceClosure` |
+| TP 计划/census/能力矩阵/shard round-trip/direct-load 审计 | Implemented | `hqsb/distributed/parallel_plan.py` | `test_parallel_ledger.py::TestCensus`、`::TestTpCapability`、`::TestShardsAndPlan`、`::TestDirectLoadAndCases` |
+| 通信账本（expected↔observed + 原因码）与内存分桶对账 | Implemented | `hqsb/distributed/ledger.py` | `test_parallel_ledger.py::TestLedger` |
+| strong/weak/capacity scaling（无 T1 拒绝强扩展）、时间分解、pairability | Implemented | `hqsb/distributed/scaling.py` | `test_scaling_overlap.py::TestScalingPrereg`、`::TestResourceMatrixAndBaseline`、`::TestDecompositionAndPairability` |
+| overlap 区间集合/依赖 DAG/三组 schedule/chunk/ABBA/因果裁决 | Implemented | `hqsb/distributed/overlap.py` | `test_scaling_overlap.py::TestIntervalAlgebra`、`::TestOverlapSchedule` |
+| PP/CP/SP P1 门禁、rubric、stage balance、bubble、adopt/reject | Implemented（`NOT_RUN_NOT_CLAIMED`） | `hqsb/distributed/boundary.py` | `test_boundary_moe.py::TestBoundaryActivation`、`::TestBoundarySelection`、`::TestBoundaryPlans`、`::TestBoundaryVerdict` |
+| MoE RouteArtifact/dispatch+combine oracle/skew/imbalance/placement holdout | Implemented | `hqsb/distributed/moe.py` | `test_boundary_moe.py::TestMoeRouting`、`::TestMoeOracle`、`::TestMoePlacementAndVerdict` |
+| 多 rank trace/时钟校准/事件配对/根因分类/放大指标/runbook | Implemented | `hqsb/distributed/traces.py` | `test_traces_telemetry.py::TestTraceEventsAndClocks`、`::TestPairingAndSkew`、`::TestAttribution`、`::TestInjectionPlans` |
+| S10 C6/C7 投影 + 统一数据表 schema + 覆盖审计 | Implemented | `hqsb/distributed/telemetry.py` | `test_traces_telemetry.py::TestTelemetryProjection` |
+| S10 冻结配置（12 份严格加载 + 逐字段契约审计） | Implemented | `configs/distributed/*.yaml`、`hqsb/distributed/specs.py` | `test_s10_experiment_scaffolding.py::TestSpecs` |
+| S10 实验驱动入口（默认不产结论） | Implemented | `scripts/distributed/run_e10.py` | `--smoke`、`--execute` 拒绝（退出提示 BLOCKED） |
+| S10 实验步骤→接口对照表（300 步 / 381 接口 / 548 引用） | Implemented | `hqsb/distributed/interface_map.py` | `test_s10_experiment_scaffolding.py::TestInterfaceMap` |
+| 分布式依赖边界（R7/R8 + 无模块级重依赖 + 子进程探针） | Implemented | `hqsb/distributed/__init__.py`、`tests/unit/distributed/test_distributed_import_boundaries.py` | `pytest tests/unit/distributed/test_distributed_import_boundaries.py -q`（6 passed） |
+| S09 Ascend 交付完整性 | **部分交付**（缺 `experiment/interface_map/driver/configs/tests`） | `hqsb/ascend/`（7 模块） | `docs/reports/S10_开发报告.md` §2.2 |
+| S10 实验执行 | **BLOCKED**（8/9 硬前置缺失：S07 P0、S08 trace、双加速器、封存 manifest、backend 身份、单卡 reference、model/workload、协议树指纹） | `docs/stage_experiments/details/S10/` | `run_e10.py --experiment E10-01 --prerequisites` |
+| S11 多级 artifact 身份 + lineage + 三合一身份 | Implemented | `hqsb/compiler/identity.py` | `tests/unit/compiler/test_ir_identity.py::TestArtifactIdentity`、`::TestLineage` |
+| S11 HQSB canonical/targeted IR + 14 项 verifier + round-trip | Implemented | `hqsb/compiler/ir.py` | `test_ir_identity.py::TestVerifier`、`::TestSerializationAndDiff` |
+| S11 统一数据契约（状态机/失败分类/成本键/§21 记录） | Implemented | `hqsb/compiler/records.py` | `tests/property/test_compiler_invariants.py`、`test_s11_experiment_scaffolding.py::TestTelemetryProjection` |
+| S11 capture/break/metadata/coverage census（E11-01） | Implemented | `hqsb/compiler/capture.py` | `tests/unit/compiler/test_capture_guards.py::TestBreakAudit`、`::TestCoverage` |
+| S11 guard/variant/重编译安全（E11-05） | Implemented | `hqsb/compiler/guards.py` | `test_capture_guards.py::TestVariantRegistry`、`::TestCompileAccounting` |
+| S11 语义 pattern 重写 + near-miss 拒绝 + 幂等（E11-02） | Implemented（FP=0 语料） | `hqsb/compiler/{pattern_library,rewrite}.py` | `tests/unit/compiler/test_rewrite.py::TestCorpusAndPipeline` |
+| S11 lowering registry + 选择链 + dispatch 证据（E11-03） | Implemented | `hqsb/compiler/{targets,lowering,backend}.py` | `tests/unit/compiler/test_lowering_dispatch.py::TestSelection`、`::TestDispatch` |
+| S11 IR→codegen→binary→counter 归因（E11-04） | Implemented | `hqsb/compiler/codegen.py` | `tests/unit/compiler/test_backend_codegen.py::TestMechanisms` |
+| S11 autotune 空间/预算/holdout（E11-06） | Implemented | `hqsb/compiler/autotune.py` | `tests/unit/compiler/test_autotune.py` |
+| S11 cost model regret + 安全回退（E11-07） | Implemented | `hqsb/compiler/costmodel.py` | `tests/unit/compiler/test_costmodel.py` |
+| S11 编译制品 cache（key/事务/失效/损坏）（E11-08） | Implemented | `hqsb/compiler/cache.py` | `tests/unit/compiler/test_cache.py` |
+| S11 TVM/MLIR 可迁移 lowering 接口（E11-09） | Implemented（接口层） | `hqsb/compiler/portable.py` | `tests/unit/compiler/test_portable_aigate.py::TestLegalization` |
+| S11 AI 候选零信任门链 G0–G10（E11-10，P1） | Implemented（未激活） | `hqsb/compiler/aigate.py` | `test_portable_aigate.py::TestGateChain` |
+| S11 冻结配置（12 份严格加载 + 逐字段契约审计） | Implemented | `configs/compiler/*.yaml`、`hqsb/compiler/specs.py` | `test_s11_experiment_scaffolding.py::TestInterfaceMapAndSpecs::test_specs_load_and_audit` |
+| S11 实验驱动入口（默认不产结论） | Implemented | `scripts/compiler/run_e11.py` | `--smoke`、`--prerequisites`、`--execute` 拒绝 |
+| S11 实验步骤→接口对照表（320 步 / 417 接口 / 693 引用） | Implemented | `hqsb/compiler/interface_map.py` | `test_s11_experiment_scaffolding.py::TestInterfaceMapAndSpecs::test_interface_map_resolves_every_reference` |
+| S11 实验执行 | **BLOCKED**（6 条必需前置中 3 条缺失：S03/S04 硬件证据、S06 模型级 pattern correctness、冻结编译器环境指纹；另 2 项 advisory） | `docs/stage_experiments/details/S11/` | `run_e11.py --prerequisites` |
+| S12 三种身份 hash + 逻辑 URI + 版本化 canonicalization | Implemented | `hqsb/evaluation/identity.py` | `tests/unit/evaluation/test_lineage.py` |
+| S12 Comparison Contract + 四态裁决 + 非法 join 防护（E12-01） | Implemented | `hqsb/evaluation/{contracts,comparability,candidates}.py` | `tests/unit/evaluation/test_comparability.py` |
+| S12 capability 四级证据 + 失效规则（E12-02） | Implemented | `hqsb/evaluation/{capability,platform}.py` | `tests/unit/evaluation/test_eval_capability.py` |
+| S12 四层统一重放 + 11 条交叉校验（E12-03） | Implemented | `hqsb/evaluation/benchmark.py` | `tests/unit/evaluation/test_benchmark.py` |
+| S12 重复性/漂移/排除账本（E12-04） | Implemented | `hqsb/evaluation/repeatability.py` | `tests/unit/evaluation/test_repeatability.py` |
+| S12 Roofline/Amdahl 预测与残差（E12-05） | Implemented | `hqsb/evaluation/roofline.py` | `tests/unit/evaluation/test_eval_roofline.py` |
+| S12 能量窗口/积分/能效（E12-06） | Implemented | `hqsb/evaluation/energy.py` | `tests/unit/evaluation/test_energy.py` |
+| S12 云/自建 TCO 与成本敏感性（E12-07，无内置价格） | Implemented | `hqsb/evaluation/cost.py` | `tests/unit/evaluation/test_cost.py` |
+| S12 业务画像 Pareto + 决策回归（E12-08） | Implemented | `hqsb/evaluation/pareto.py` | `tests/unit/evaluation/test_pareto.py` |
+| S12 软件成熟度 rubric（E12-09） | Implemented | `hqsb/evaluation/maturity.py` | `tests/unit/evaluation/test_maturity.py` |
+| S12 端到端 lineage + 重生成（E12-10） | Implemented | `hqsb/evaluation/lineage.py` | `tests/unit/evaluation/test_lineage.py` |
+| S12 冻结配置（12 份）与驱动入口（默认不产结论） | Implemented | `configs/evaluation/`、`scripts/evaluation/run_e12.py` | `tests/unit/evaluation/test_e12_scaffolding.py` |
+| S12 实验步骤→接口对照表（360 步 / 415 接口 / 727 引用） | Implemented | `hqsb/evaluation/interface_map.py` | `test_e12_scaffolding.py::TestInterfaceMapAndSpecs` |
+| S12 实验执行 | **BLOCKED**（4 条必需前置中 3 条缺失：S03–S11 上游证据链、多硬件覆盖、冻结评估环境指纹；另 3 项 advisory） | `docs/stage_experiments/details/S12/` | `run_e12.py --prerequisites` |
+| 真实多卡 collective / TP / scaling / overlap / 故障注入运行 | **未执行**（本机仅 1×RTX 3090；CPU loopback `claim_allowed()=False`） | `hqsb/distributed/collectives.py::LoopbackCollectiveExecutor` | `run_e10.py --smoke`（标注 smoke） |
 | KernelLab（CUTLASS/Ascend C） | Planned | `ops/ascend/`（CUTLASS 待网络恢复） | S05/S09 |
 | 真实 Runtime 适配器（vLLM/SGLang/TensorRT-LLM/llama.cpp） | Planned（本机均未安装，探测实测 `NOT_INSTALLED`） | `hqsb/runtime/adapter.py`（契约/注册表/探测已就位） | S07 实验执行 |
-| BenchLab（跨硬件统一 benchmark） | Planned | `benchmarks/` | — |
+| BenchLab（跨硬件统一 benchmark） | **接口/代码层就位（S12）** | `hqsb/evaluation/` | 见 S12 各行 |
 
 ## Planned components
 
