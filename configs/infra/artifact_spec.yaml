@@ -1,0 +1,81 @@
+kind: hqsb.infra.artifact_spec
+name: S13 model-artifact lifecycle vocabulary
+description: content-addressed cache key、验证/兼容检查、pin/GC 与切换回滚（E13-04 §3–§5）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+lifecycle_states:
+- ABSENT
+- STAGING_DOWNLOAD
+- DOWNLOADED_UNVERIFIED
+- VERIFYING
+- VERIFIED_IMMUTABLE
+- LOADING
+- ENGINE_COMPILED_OR_RESOLVED
+- WARMED
+- QUALITY_CAPACITY_PASSED
+- ACTIVE
+- RETIRING
+- CACHED_INACTIVE
+- QUARANTINED
+- GC_ELIGIBLE
+cache_key_fields:
+- model_root
+- tokenizer_id
+- config_id
+- quant_artifact_id
+- engine_artifact_id
+- kernel_bundle_id
+- target_arch
+- runtime_abi
+cache_areas:
+- staging
+- verified
+- quarantine
+- active_index
+- leases
+- gc_metadata
+verification_checks:
+- file_size
+- file_hash
+- manifest_hash
+- aggregate_root
+- path_safety
+- duplicate_files
+- extra_files
+- permissions
+compatibility_checks:
+- tokenizer_matches_config
+- config_matches_weights
+- precision_supported
+- quant_artifact_matches_weights
+- engine_target_matches_arch
+- kernel_bundle_abi_matches_runtime
+- runtime_driver_contract
+pin_kinds:
+- active
+- inflight
+- canary_candidate
+- rollback_retained
+- pinned_manual
+gc_reasons:
+- UNUSED_BEYOND_RETENTION
+- QUARANTINED
+- SUPERSEDED_AND_UNPINNED
+- FAILED_VERIFICATION
+- CAMPAIGN_CLEANUP
+fault_cases:
+- MISSING_SHARD
+- TAMPERED_SHARD
+- TOKENIZER_MISMATCH
+- CONFIG_MISMATCH
+- QUANT_MISMATCH
+- DOWNLOAD_INTERRUPTED
+- PROCESS_CRASH_BEFORE_COMMIT
+- STORAGE_TIMEOUT
+- STORAGE_STALE_READ
+- DISK_FULL_ENOSPC
+- LOCK_OWNER_DEATH
+- CONCURRENT_GC_WITH_LOAD
+- CONCURRENT_GC_WITH_SWITCH
+- CONCURRENT_GC_WITH_ROLLBACK

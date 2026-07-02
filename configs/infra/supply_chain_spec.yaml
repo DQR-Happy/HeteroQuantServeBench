@@ -1,0 +1,81 @@
+kind: hqsb.infra.supply_chain_spec
+name: S13 supply-chain gate vocabulary
+description: 镜像分层、SBOM/漏洞/秘密/许可证扫描与 release gate 决策（E13-01 §8–§10）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+image_stages:
+- base
+- toolchain
+- test
+- runtime
+gate_decisions:
+- PASS
+- PASS_WITH_EXCEPTIONS
+- FAIL
+- BLOCKED_VENDOR_FIX
+- NOT_RUN
+vuln_statuses:
+- RUNTIME_REACHABLE
+- RUNTIME_PRESENT_NOT_REACHABLE
+- BUILD_ONLY
+- MITIGATED
+- UNKNOWN
+- FIXED
+severities:
+- critical
+- high
+- medium
+- low
+- unknown
+secret_surfaces:
+- source_tree
+- build_context
+- ci_logs
+- build_args
+- image_history
+- image_layers
+- image_final_filesystem
+- config_files
+model_file_patterns:
+- '*.safetensors'
+- '*.bin'
+- '*.pt'
+- '*.pth'
+- '*.gguf'
+- '*.onnx'
+- tokenizer.json
+- '*.model'
+negative_cases:
+- INJECTED_SECRET
+- INJECTED_MODEL_WEIGHT
+- UNKNOWN_LICENSE
+- EXPIRED_EXCEPTION
+- CRITICAL_UNFIXED_FINDING
+- UNSIGNED_IMAGE
+- WRONG_PROVENANCE_SUBJECT
+- FLOATING_BASE_TAG
+- TAMPERED_IMAGE_BYTES
+- TAMPERED_SBOM
+- TAMPERED_MANIFEST_TAG_MOVE
+- DIGEST_NOT_PINNED_IN_DEPLOYMENT
+required_evidence_parts:
+- release_id
+- image_index_digest
+- platform_manifest_digest
+- source_identity
+- build_definition_hash
+- builder_id
+- reproducibility_level
+- sbom_ids
+- completeness_status
+- vulnerability_db_time
+- finding_counts
+- secret_scan_status
+- model_scan_status
+- license_status
+- provenance_id
+- signature_attestation_status
+- runtime_security_status
+- policy_version
+blocking_severity: high

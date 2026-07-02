@@ -1,0 +1,100 @@
+kind: hqsb.infra.fault_spec
+name: S13 fault-injection vocabulary
+description: 故障层级/机制、降级策略、裁决与不变量（E13-09 §2–§5）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+layers:
+- process
+- pod_container
+- node_kubelet
+- accelerator_backend
+- device_plugin
+- cache_artifact
+- storage
+- network_dns
+- oom_memory
+- thermal_power
+- control_plane_dependency
+mechanisms:
+- SIGKILL_PROCESS
+- DEADLOCK_NO_PROGRESS
+- POD_DELETE
+- POD_EVICTION
+- NODE_UNAVAILABLE
+- BACKEND_ERROR_INJECTION
+- DEVICE_UNHEALTHY
+- PLUGIN_RESTART
+- CACHE_CORRUPTION
+- STALE_LOCK
+- ARTIFACT_SHARD_MISSING
+- OBJECT_STORE_LATENCY
+- OBJECT_STORE_ERROR
+- DISK_FULL_ENOSPC
+- NETWORK_LATENCY
+- NETWORK_LOSS
+- DNS_FAILURE
+- COLLECTIVE_RANK_FAILURE
+- DEVICE_OOM
+- HOST_MEMORY_PRESSURE
+- RESOURCE_LEAK
+- THERMAL_THROTTLE
+- POWER_CAP
+- METRIC_STALE
+- CONTROLLER_RESTART
+degradation_strategies:
+- MASKED_REDUNDANCY
+- RETRY_BOUNDED
+- ROUTE_ALTERNATE
+- ADMISSION_SHED
+- DEGRADE_EXPLICIT_QUALITY_OR_FEATURE
+- PAUSE_NOT_READY
+- ROLLBACK
+- FAIL_CLOSED
+- MANUAL_ESCALATION
+- UNRECOVERABLE_WITHIN_SCOPE
+verdicts:
+- MASKED
+- DEGRADED_AS_DESIGNED
+- RECOVERED_AUTOMATIC
+- RECOVERED_MANUAL
+- FAILED_SLO
+- UNRECOVERABLE_WITHIN_SCOPE
+- NOT_RUN_UNAUTHORIZED
+pre_injection_gates:
+- steady_state_in_range
+- observability_ready
+- runbook_ready
+- targets_resolved
+- kill_switch_tested
+- error_budget_available
+service_invariants:
+- accepted_requests_have_one_final_status
+- partial_duplicate_retry_identifiable
+- quality_and_version_unchanged
+- slo_violation_and_error_budget_computable
+resource_invariants:
+- kv_and_reservation_released
+- device_memory_and_context_released
+- cache_lock_and_lease_consistent
+- pvc_and_temp_files_clean
+- scheduler_allocatable_matches_actual
+- failed_endpoints_no_traffic
+- controller_generations_not_stale
+fault_contract_fields:
+- fault_case_id
+- hypothesis
+- layer
+- mechanism
+- target_selector
+- resolved_targets
+- blast_radius
+- safety_policy_id
+- expected_detection
+- expected_degradation
+- expected_recovery
+- abort_threshold
+- kill_switch
+- repetitions
+- allowed_claims
+- forbidden_claims

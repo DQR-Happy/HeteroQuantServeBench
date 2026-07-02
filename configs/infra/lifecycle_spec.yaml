@@ -1,0 +1,85 @@
+kind: hqsb.infra.lifecycle_spec
+name: S13 pod/request lifecycle vocabulary
+description: 三类 probe 语义、终止预算、请求完成语义与资源释放（E13-05 §2–§4）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+probe_kinds:
+- startup
+- readiness
+- liveness
+probe_semantics:
+  startup: 该进程是否仍在合法初始化，而不是卡死？
+  readiness: 现在接一个新请求是否安全且有能力满足合同？
+  liveness: 进程是否不可恢复，重启比继续运行更安全？
+termination_stages:
+- api_delete
+- endpoint_not_ready_propagation
+- prestop_trigger
+- sigterm
+- inflight_completion_or_cancellation
+- telemetry_flush
+- resource_release
+- process_exit
+- grace_expiry_sigkill
+completion_semantics:
+- COMPLETED_EXACT_VERSION
+- CANCELLED_EXPLICITLY
+- RETRYABLE_BEFORE_FIRST_TOKEN
+- PARTIAL_STREAM_NONRETRYABLE
+- RESUMABLE_WITH_PROTOCOL_TOKEN
+- FAILED_FORCED_TERMINATION
+readiness_only_reasons:
+- model_not_active
+- quality_not_passed
+- warmup_incomplete
+- capacity_guard
+- dependency_unavailable
+- draining
+- release_not_verified
+release_targets:
+- device_process
+- device_context
+- device_memory
+- kv_cache
+- cache_lease
+- socket_connection
+- pvc_lock
+- endpoint
+- queue_slot
+negative_cases:
+- SLOW_STARTUP
+- STUCK_STARTUP
+- READINESS_FALSE_MODEL_INACTIVE
+- READINESS_FALSE_QUALITY
+- READINESS_FALSE_CAPACITY
+- READINESS_FALSE_DEPENDENCY
+- LIVENESS_DEADLOCK
+- READINESS_FLAPPING
+- PRESTOP_TIMEOUT
+- PRESTOP_REPEATED
+- FORCED_SIGKILL
+- ROLLOUT_PROGRESS_DEADLINE
+- CANDIDATE_START_FAILURE
+- CONCURRENT_ROLLOUT
+coverage_paths:
+- normal_startup
+- slow_startup
+- stuck_startup
+- readiness_semantics
+- liveness_semantics
+- readiness_flapping
+- short_inflight
+- long_streaming_within_grace
+- long_streaming_exceeding_grace
+- slow_client_backpressure
+- client_cancel
+- prestop_failure_repeat
+- sigterm_handler
+- forced_sigkill
+- rolling_same_version
+- rolling_version_upgrade
+- pdb_max_unavailable
+- capacity_during_rollout
+- failed_candidate_start
+- progress_deadline

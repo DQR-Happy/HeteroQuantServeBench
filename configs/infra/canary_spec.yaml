@@ -1,0 +1,96 @@
+kind: hqsb.infra.canary_spec
+name: S13 canary/release-governance vocabulary
+description: 状态机、G0–G8 gate 层级、流量分配单位与 override 规则（E13-10 §2–§6）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+states:
+- CANDIDATE_REGISTERED
+- SUPPLY_CHAIN_PASSED
+- OFFLINE_CORRECTNESS_QUALITY_PASSED
+- DEPLOYED_NOT_READY
+- WARMED_READY_NO_TRAFFIC
+- SHADOW_OR_SMOKE
+- CANARY_EXPOSURE_STAGE_1
+- CANARY_EXPOSURE_STAGE_2
+- CANARY_EXPOSURE_STAGE_3
+- PROMOTED
+- STOPPED_FAILED
+- ROLLBACK_INITIATED
+- CONTROL_RESTORED
+- POSTCHECK
+- INCONCLUSIVE_HOLD
+- EXPIRED
+decisions:
+- CONTINUE
+- PROMOTE
+- HOLD
+- STOP
+- ROLLBACK
+- INCONCLUSIVE
+gates:
+- G0_SUPPLY_CHAIN_COMPATIBILITY
+- G1_OFFLINE_CORRECTNESS
+- G2_MODEL_QUALITY_TOKEN_SEMANTICS
+- G3_STARTUP_READINESS_HEALTH
+- G4_ONLINE_ERROR_AVAILABILITY_STREAM
+- G5_LATENCY_SLO_GOODPUT
+- G6_MEMORY_KV_OOM_LEAK_THERMAL
+- G7_COST_ENERGY_REPLICA
+- G8_PROMOTION_POST_DEPLOY
+hard_gates:
+- G0_SUPPLY_CHAIN_COMPATIBILITY
+- G1_OFFLINE_CORRECTNESS
+- G2_MODEL_QUALITY_TOKEN_SEMANTICS
+- G3_STARTUP_READINESS_HEALTH
+- G4_ONLINE_ERROR_AVAILABILITY_STREAM
+assignment_units:
+- REQUEST
+- SESSION_STICKY
+- TENANT_STRATIFIED
+- WORKLOAD_BUCKET_STRATIFIED
+- NODE_DEVICE_BLOCKED
+candidate_kinds:
+- GOOD_EQUIVALENT
+- GOOD_IMPROVED
+- CORRECTNESS_BAD
+- PERFORMANCE_BAD
+- RESOURCE_BAD
+- FALLBACK_BAD
+metric_directions:
+  quality_pass_rate: higher_is_better
+  correctness_error_rate: lower_is_better
+  error_rate: lower_is_better
+  reject_rate: lower_is_better
+  timeout_rate: lower_is_better
+  partial_stream_rate: lower_is_better
+  retry_rate: lower_is_better
+  ttft_seconds: lower_is_better
+  tpot_seconds: lower_is_better
+  e2e_seconds: lower_is_better
+  slo_goodput: higher_is_better
+  memory_bytes: lower_is_better
+  kv_bytes: lower_is_better
+  oom_events: lower_is_better
+  leak_rate_bytes_per_request: lower_is_better
+  power_watts: lower_is_better
+  energy_joules_per_token: lower_is_better
+  replica_minutes: lower_is_better
+override_actions:
+- HOLD
+- ABORT
+- ROLLBACK
+- FORCE_PROMOTE
+forbidden_override_actions:
+- FORCE_PROMOTE
+promotion_path:
+- CANDIDATE_REGISTERED
+- SUPPLY_CHAIN_PASSED
+- OFFLINE_CORRECTNESS_QUALITY_PASSED
+- DEPLOYED_NOT_READY
+- WARMED_READY_NO_TRAFFIC
+- SHADOW_OR_SMOKE
+- CANARY_EXPOSURE_STAGE_1
+- CANARY_EXPOSURE_STAGE_2
+- CANARY_EXPOSURE_STAGE_3
+- PROMOTED

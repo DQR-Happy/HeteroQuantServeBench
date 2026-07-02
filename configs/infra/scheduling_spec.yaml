@@ -1,0 +1,76 @@
+kind: hqsb.infra.scheduling_spec
+name: S13 placement/isolation vocabulary
+description: 设备共享模式、拓扑策略、label 信任与隔离层（E13-03 §3–§4）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+sharing_modes:
+- EXCLUSIVE
+- PARTITION_MIG_OR_VNPU
+- TIME_SLICING_SHARED
+partition_profiles:
+- MIG_1g.5gb
+- MIG_2g.10gb
+- MIG_3g.20gb
+- VNPU_1C
+- VNPU_2C
+- NONE
+topology_policies:
+- none
+- best-effort
+- restricted
+- single-numa-node
+link_domains:
+- NVLink
+- PCIe
+- XGMI
+- HCCS
+- SYS
+- UNKNOWN
+label_classes:
+- vendor
+- product
+- arch
+- memory
+- precision
+- topology
+- health
+- isolation
+protected_label_classes:
+- arch
+- memory
+- precision
+- topology
+- health
+- isolation
+isolation_layers:
+- scheduler_accounting
+- device_visibility
+- driver_context_memory
+- hardware_partition
+- shared_fairness
+- cache_storage_artifact
+- telemetry_information
+negative_cases:
+- WRONG_VENDOR
+- WRONG_ARCH
+- PRECISION_UNSUPPORTED
+- MEMORY_INSUFFICIENT
+- PARTITION_PROFILE_UNAVAILABLE
+- MISSING_TOLERATION
+- RESERVED_NODE_TAINT
+- MISSING_CAPABILITY_LABEL
+- FORGED_CAPABILITY_LABEL
+- UNHEALTHY_DEVICE
+- PLUGIN_RESTART
+- RANK_DEVICE_MISMATCH
+- CROSS_NAMESPACE_DEVICE_ACCESS
+- RESOURCE_RELEASE_LEAK
+locality_metrics:
+- host_device_copy_bandwidth
+- ttft
+- tpot
+- goodput
+- host_cpu_utilization
+- collective_time
+- compute_wait_time

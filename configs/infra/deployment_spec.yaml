@@ -1,0 +1,71 @@
+kind: hqsb.infra.deployment_spec
+name: S13 clean-bootstrap vocabulary
+description: clean level、部署状态机、阶段与失败清理（E13-02 §2–§3）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+clean_levels:
+- L1_CLEAN_NAMESPACE
+- L2_CLEAN_WORKLOAD_CLUSTER
+- L3_INFRASTRUCTURE_BOOTSTRAP
+deployment_states:
+- BASELINE_VERIFIED
+- INFRA_COMPONENTS_READY
+- NAMESPACE_POLICY_READY
+- IMAGE_VERIFIED_PULLED
+- MODEL_DOWNLOADING
+- MODEL_VERIFIED
+- SERVICE_STARTING
+- MODEL_LOADING_COMPILING
+- MODEL_WARMING
+- QUALITY_PROBE_PASSED
+- ENDPOINT_READY
+- FIRST_REQUEST_COMPLETED
+- FAILED_IMAGE_ADMISSION
+- FAILED_MODEL_VERIFICATION
+- FAILED_STARTUP
+- FAILED_COMPATIBILITY
+- QUARANTINED
+stage_names:
+- schedule
+- image_pull
+- artifact_download
+- artifact_verify
+- cache_commit
+- model_load
+- engine_compile
+- warmup
+- quality_probe
+- ready
+- first_request
+residual_kinds:
+- staging_dir
+- cache_lock
+- pod
+- job
+- service_endpoint
+- secret_mount
+- device_allocation
+- finalizer
+- pvc
+negative_cases:
+- CORRUPT_MODEL_HASH
+- MISSING_SHARD
+- WRONG_TOKENIZER
+- WRONG_CONFIG
+- WRONG_PRECISION
+- DOWNLOAD_INTERRUPTED
+- SLOW_STORAGE
+- INCOMPATIBLE_ARCH
+- INCOMPATIBLE_DRIVER
+- INCOMPATIBLE_ENGINE_CONTRACT
+- SUPPLY_CHAIN_GATE_FAILED
+forbidden_implicit_state:
+- preinstalled_device_plugin
+- preinstalled_observability_collector
+- existing_hqsb_objects
+- existing_hqsb_secrets
+- warm_image_cache
+- warm_model_cache
+- manually_created_pvc
+- cluster_admin_kubeconfig_in_pod

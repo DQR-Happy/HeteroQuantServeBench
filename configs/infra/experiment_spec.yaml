@@ -1,0 +1,164 @@
+kind: hqsb.infra.experiment_spec
+name: S13 experiment governance vocabulary
+description: 实验清单、协议状态、证据阶梯与缺失语义；并声明 destructive 故障需要安全策略（§20.2）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+experiments:
+- E13-01
+- E13-02
+- E13-03
+- E13-04
+- E13-05
+- E13-06
+- E13-07
+- E13-08
+- E13-09
+- E13-10
+- E13-11
+statuses:
+- NOT_STARTED
+- RUNNING
+- PASS
+- PASS_NEGATIVE
+- FAIL
+- BLOCKED
+- N/A_BY_ADR
+evidence_levels:
+- DESIGN_ONLY
+- IMPLEMENTED_UNVERIFIED
+- TESTED_SINGLE_RUN
+- REPEATED_CONTROLLED
+- FAULT_VALIDATED
+- INDEPENDENTLY_REPRODUCED
+- PRODUCTION_OBSERVED
+missingness_codes:
+- NOT_APPLICABLE_CAPABILITY
+- NOT_RUN_PREREQUISITE
+- NOT_RUN_TOOL_UNAVAILABLE
+- NOT_RUN_CLUSTER_UNAVAILABLE
+- NOT_RUN_PERMISSION_DENIED
+- NOT_RUN_SAFETY_BOUNDARY
+- RUN_FAILED
+- QUALITY_GATE_FAILED
+- MEASUREMENT_UNAVAILABLE
+- SCANNER_UNAVAILABLE
+- REGISTRY_UNAVAILABLE
+- LINEAGE_INVALID
+prerequisite_states:
+- BLOCKED_PREREQUISITE
+- NOT_APPLICABLE_CAPABILITY
+- NOT_RUN_CLUSTER_UNAVAILABLE
+- NOT_RUN_PERMISSION_DENIED
+- NOT_RUN_SAFETY_BOUNDARY
+- NOT_RUN_TOOL_UNAVAILABLE
+tables:
+- release_bundle
+- oci_dag_diff
+- filesystem_package_diff
+- nondeterminism
+- sbom_component
+- vulnerability_finding
+- vulnerability_exception
+- secret_finding
+- license_finding
+- provenance_statement
+- attestation_verification
+- runtime_security_context
+- negative_test_result
+- deployment_stage_event
+- precondition_check
+- pre_ready_attempt
+- first_request_event
+- cold_warm_stage_time
+- residual_inventory
+- manual_intervention
+- placement_plan
+- capability_label
+- scheduler_event
+- placement_evidence
+- topology_cpu_memory_numa
+- unauthorized_access
+- artifact_lifecycle_event
+- cache_key
+- verification_result
+- compatibility_result
+- lease_record
+- activation_generation
+- request_version_consistency
+- gc_plan
+- rollback_timeline
+- probe_result
+- signal_hook_exit
+- request_lifecycle_event
+- token_integrity
+- retry_duplicate
+- drain_timeline
+- resource_release
+- rolling_availability
+- memory_ledger
+- per_request_kv
+- admission_decision
+- admission_policy_comparison
+- prediction_residual
+- false_decision
+- margin_validation
+- metric_sample
+- autoscaling_decision
+- replica_lifecycle
+- control_metrics
+- cost_resource
+- semantic_convention
+- metric_catalog_entry
+- cardinality_report
+- trace_coverage
+- alert_rule
+- alert_result
+- overhead_ab
+- rca_record
+- telemetry_failure
+- redaction_scan
+- fault_spec
+- fault_injection_event
+- fault_ground_truth
+- reliability_metrics
+- retry_fallback
+- state_diff
+- residual_watch
+- postmortem
+- canary_candidate_identity
+- canary_transition
+- canary_assignment
+- canary_metric
+- canary_decision_row
+- canary_gate_result
+- canary_rollback
+- canary_error_rates
+- override_audit
+- threat_model
+- tenant_identity_map
+- rbac_graph
+- security_case
+- quota_ledger
+- quota_race_trial
+- abuse_trial
+- noisy_neighbor_trial
+- telemetry_redaction
+- audit_coverage
+- recovery_state
+run_root: experiment_results/S13
+claim_levels:
+- SOURCE
+- TEST
+- RUNTIME
+- MODEL
+- SERVICE
+- PORTABLE
+safety_policy_required: true
+removed_validation:
+- 未删除任何既有测试
+- 未放宽任何 correctness/quality gate
+- 实验层判定保持 BLOCKED，未以负结果替代
+rules:
+- 驱动默认拒绝产出结论（PASS/FAIL/PASS_NEGATIVE 需要 --execute + 前置满足 + raw 样本）
+- docs/stage_experiments/** 为只读协议树，任何实验产物不得写入该目录

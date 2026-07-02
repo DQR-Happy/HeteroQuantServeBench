@@ -1,0 +1,91 @@
+kind: hqsb.infra.observability_spec
+name: S13 observability vocabulary
+description: 层级 taxonomy、基数与脱敏策略、采样、单位与告警严重度（E13-08 §2–§6）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+layers:
+- client
+- gateway_auth_quota
+- admission_router_queue
+- scheduler_batch
+- prefill_runtime
+- decode_runtime
+- op_kernel_device
+- stream_write_backpressure
+- distributed_collective
+- accelerator_telemetry
+- system_host
+- storage_network
+- control_plane
+signal_classes:
+- metrics
+- logs
+- traces
+- profiles
+- events
+forbidden_metric_labels:
+- request_id
+- trace_id
+- tenant_id
+- user_id
+- session_id
+- prompt
+- completion
+- token_text
+- model_path
+- pod_uid
+- device_uuid
+- api_key
+trace_only_attributes:
+- request_id
+- trace_id
+- tenant_pseudonym
+- release_id
+- model_artifact_id
+- backend_id
+- fault_id
+- rollout_id
+sampling_kinds:
+- head
+- tail
+- error_biased
+- slo_biased
+- rare_event
+- none
+always_keep_cases:
+- error
+- forced_termination
+- canary_candidate
+- fault_injected
+- slo_violation
+telemetry_components:
+- exporter
+- collector
+- backend
+- scrape
+- log_agent
+- trace_agent
+base_units:
+- seconds
+- bytes
+- joules
+- watts
+- ratio
+- replicas
+- requests
+- tokens
+- requests/second
+- tokens/second
+- celsius
+- hertz
+- count
+latency_boundaries:
+- client
+- server
+- core
+alert_severities:
+- critical
+- warning
+- info
+policy_default_marker: POLICY_DEFAULT_UNVERIFIED

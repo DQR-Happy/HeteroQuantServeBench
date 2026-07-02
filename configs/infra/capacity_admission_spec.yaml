@@ -1,0 +1,62 @@
+kind: hqsb.infra.capacity_admission_spec
+name: S13 capacity/admission vocabulary
+description: 内存账本组件、admission 策略与 reason code、扫参与功能轴（E13-06 §2–§5）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+memory_components:
+- M_weights_resident
+- M_engine_kernel_graph
+- M_KV_active
+- M_workspace_dynamic
+- M_allocator_fragmentation_reserved
+- M_runtime_scheduler_cache
+- M_collective_buffers
+- M_system_and_safety_reserve
+admission_policies:
+- REQUEST_COUNT
+- ACCELERATOR_UTIL
+- QUEUE_TOKEN_WORK
+- MEMORY_KV_PREDICTED
+- SLO_RISK_COMBINED
+- REQUEST_COUNT_PLUS_PROCESSING_POLICY
+admission_decisions:
+- ADMIT_NOW
+- QUEUE_BOUNDED
+- REJECT_RETRYABLE_OVERLOAD
+- REJECT_INVALID_OR_TOO_LARGE
+- ROUTE_TO_OTHER_CAPACITY
+- DEGRADE_EXPLICITLY
+reason_codes:
+- ADMIT_WITHIN_BUDGET
+- QUEUE_OVER_TOKEN_BUDGET
+- REJECT_TOKEN_BUDGET_EXCEEDED
+- REJECT_REQUEST_TOO_LARGE
+- REJECT_MEMORY_PREDICTION_OVER_MARGIN
+- REJECT_SLO_RISK
+- REJECT_INVALID_INPUT
+- REJECT_QUOTA
+- ROUTE_TO_OTHER_CAPACITY
+- DEGRADE_DECLARED
+sweep_stages:
+- SAFE
+- BOUNDARY
+- OVERLOAD
+- RECOVERY
+budget_features:
+- prefix_cache
+- speculative_decoding
+- chunked_prefill
+- kv_quantization
+- distributed_shards
+- model_switch_dual_residency
+fault_cases:
+- CANCEL_AT_QUEUED
+- CANCEL_AT_PREFILL
+- CANCEL_AT_DECODE
+- CANCEL_AT_STREAM
+- REQUEST_FAILURE
+- BACKEND_ERROR
+- ALLOCATOR_FRAGMENTATION_HISTORY
+- OVER_BUDGET_NEGATIVE
+- CONTROLLED_OOM

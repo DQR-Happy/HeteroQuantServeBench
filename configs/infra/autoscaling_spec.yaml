@@ -1,0 +1,63 @@
+kind: hqsb.infra.autoscaling_spec
+name: S13 autoscaling vocabulary
+description: 策略集合、指标单位、episode 形状与降载保护（E13-07 §3–§5）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+policies:
+- STATIC_S12_CAPACITY
+- CPU_ONLY
+- ACCELERATOR_UTIL
+- QUEUE_REQUESTS
+- QUEUE_TOKEN_WORK_OR_AGE
+- MULTI_SIGNAL_SLO_AWARE
+- PREDICTIVE_OR_PREWARM
+metric_units:
+  cpu_utilization: ratio
+  accelerator_utilization: ratio
+  queue_requests: requests
+  queue_tokens: tokens
+  oldest_queue_age_seconds: seconds
+  ttft_burn_rate: ratio
+  tpot_burn_rate: ratio
+  slo_goodput: requests/second
+  predicted_outstanding_work: token-seconds
+  ready_replicas: replicas
+leading_signals:
+- queue_tokens
+- queue_requests
+- oldest_queue_age_seconds
+- predicted_outstanding_work
+- ttft_burn_rate
+episodes:
+- STEADY_LOW
+- STEADY_HIGH
+- STEP_UP
+- SHORT_BURST
+- RAMP_UP
+- PERIODIC_BURST
+- MIXED_LENGTH
+- STEP_DOWN
+- REPEATED_BURST
+actions:
+- SCALE_UP
+- SCALE_DOWN
+- HOLD
+- BLOCKED
+failure_cases:
+- METRIC_MISSING
+- METRIC_STALE
+- ADAPTER_UNAVAILABLE
+- CONTROLLER_RESTART
+- LEADER_CHANGE
+- UNSCHEDULABLE_DEVICE_SHORTAGE
+- SLOW_ARTIFACT_STARTUP
+- SLOW_MODEL_LOAD
+- ROLLOUT_CONCURRENCY
+- MAX_REPLICAS_REACHED
+scale_down_protections:
+- longest_inflight_stream
+- unique_cache_holder
+- critical_topology_rank
+- last_ready_replica
+- candidate_canary_replica

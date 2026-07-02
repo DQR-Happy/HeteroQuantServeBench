@@ -1,0 +1,63 @@
+kind: hqsb.infra.release_identity_spec
+name: S13 release/OCI/source identity
+description: 部署身份单元：ReleaseBundle 字段、digest 规则与可重建等级（E13-01 §6–§7）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+release_statuses:
+- DRAFT
+- SUPPLY_CHAIN_PENDING
+- SUPPLY_CHAIN_PASSED
+- QUARANTINED
+- DEPLOYABLE
+- RETIRED
+reproducibility_levels:
+- BUILD_REPEATABILITY
+- FUNCTIONAL_EQUIVALENCE
+- BIT_REPRODUCIBLE
+- NOT_REPRODUCIBLE
+required_identity_fields:
+- release_id
+- source_commit
+- image_index_digest
+- platform_image_digests
+- service_config_hash
+- model_artifact_id
+- tokenizer_id
+- deployment_template_digest
+nondeterminism_sources:
+- timestamp
+- random_build_id
+- absolute_path
+- package_index
+- compression
+- archive_order
+- compiler_or_driver_jit
+- unpinned_dependency
+- unknown
+bundle_fields:
+- release_id
+- source_commit
+- dirty_patch_hash
+- image_index_digest
+- platform_image_digests
+- build_provenance_id
+- sbom_ids
+- scan_policy_id
+- service_config_hash
+- feature_flags_hash
+- model_artifact_id
+- tokenizer_id
+- quant_artifact_id
+- engine_artifact_id
+- kernel_bundle_id
+- compiler_artifact_id
+- runtime_driver_compatibility_contract
+- workload_quality_baseline_id
+- capacity_policy_id
+- autoscaling_policy_id
+- observability_schema_version
+- deployment_template_digest
+- rollback_parent_release_id
+- created_at
+- status

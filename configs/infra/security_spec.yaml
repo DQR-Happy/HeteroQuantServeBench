@@ -1,0 +1,130 @@
+kind: hqsb.infra.security_spec
+name: S13 multi-tenant security vocabulary
+description: 不变量 MT-I01..I12、安全用例类型、配额与滥用矩阵（E13-11 §4–§7）
+schema_version: 1.0.0
+status: FROZEN_VOCABULARY_ONLY
+notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+invariants:
+- MT-I01
+- MT-I02
+- MT-I03
+- MT-I04
+- MT-I05
+- MT-I06
+- MT-I07
+- MT-I08
+- MT-I09
+- MT-I10
+- MT-I11
+- MT-I12
+invariant_text:
+  MT-I01: 认证身份与租户上下文不可由客户端任意改写
+  MT-I02: 租户 A 不能读取、列举、修改、删除或执行租户 B 的对象
+  MT-I03: 普通工作负载不能读取不属于它的 Secret 或自动获得高权限 token
+  MT-I04: 默认拒绝网络策略下，未显式允许的连接失败
+  MT-I05: 未验证或未授权的模型、适配器和缓存内容不能进入服务态
+  MT-I06: 租户资源使用不超过静态配额和动态预算，且并发扣减无竞态突破
+  MT-I07: 一个租户的过载不造成其他受保护租户无界 SLO 劣化
+  MT-I08: 日志、指标、Trace、错误响应和诊断包不暴露凭据或跨租户内容
+  MT-I09: 设备、模型驻留槽位和临时存储归属可审计，不可被其他租户窃取
+  MT-I10: 权限、策略、配额、发布和拒绝事件具有完整审计链
+  MT-I11: 凭据撤销或轮换后，旧凭据在规定窗口内失效
+  MT-I12: 测试结束后资源计数、额度、连接和缓存引用恢复一致
+case_kinds:
+- AUTHN
+- AUTHZ
+- NETWORK
+- SECRET_EXPOSURE
+- ARTIFACT_CACHE
+- DEVICE_ISOLATION
+- QUOTA_ACCOUNTING
+- QUOTA_RACE
+- ABUSE
+- NOISY_NEIGHBOR
+- TELEMETRY_REDACTION
+- AUDIT
+- ROTATION_RECOVERY
+verdicts:
+- PASS
+- FAIL
+- INCONCLUSIVE
+- NOT_RUN
+- INVALID
+subjects:
+- tenant-a-user
+- tenant-a-runtime
+- tenant-b-user
+- tenant-b-runtime
+- platform-readonly
+- release-controller
+- attacker-untrusted
+- break-glass-admin
+k8s_verbs:
+- get
+- list
+- watch
+- create
+- patch
+- delete
+- exec
+- port_forward
+rbac_risks:
+- WILDCARD_VERB
+- WILDCARD_RESOURCE
+- SECRET_READ
+- PODS_EXEC
+- POLE_CREATE_WORKLOAD
+- RBAC_MODIFY
+- NODE_READ
+- CSR_APPROVE
+- CLUSTER_SCOPED_BINDING
+- TOKEN_REQUEST
+static_quota_resources:
+- cpu
+- memory
+- pods
+- storage
+- accelerators
+dynamic_budgets:
+- requests
+- input_tokens
+- output_tokens
+- concurrency
+- kv_bytes
+- queue_depth
+- model_resident_slots
+- scale_cost_units
+abuse_kinds:
+- GIANT_PROMPT
+- GIANT_MAX_TOKENS
+- MALFORMED_JSON
+- INVALID_ENCODING
+- DUPLICATE_STOP
+- SLOW_CLIENT
+- CONNECTION_HOARD
+- ABRUPT_DISCONNECT
+- RETRY_STORM
+- ERROR_AMPLIFICATION
+- TENANT_HEADER_FORGERY
+- DIRECT_BACKEND_BYPASS
+audit_event_kinds:
+- authn_failure
+- authz_deny
+- secret_access
+- rbac_change
+- policy_change
+- quota_change
+- model_switch
+- canary_decision
+- rollback
+- break_glass
+- quota_rejection
+deny_case_kinds:
+- AUTHN
+- AUTHZ
+- NETWORK
+- SECRET_EXPOSURE
+- ARTIFACT_CACHE
+- DEVICE_ISOLATION
+- TELEMETRY_REDACTION
+negative_result_wording: 在给定样本与威胁模型内未观察到越权/泄露；不得表述为数学意义上的绝对安全
