@@ -1,0 +1,80 @@
+# S13 E13-01/E13-10: release gate workflow (TEMPLATE).
+#
+# Status: NOT_EXECUTED.  This workflow is the *automation* E13-01 step 36 and
+# E13-10 step 9 require ("a machine decision, not an author reading a dashboard").
+# It is intentionally credential-free here: the registry/cluster credentials are
+# provided by the environment when a real release campaign runs, and a job that
+# cannot obtain them must fail rather than silently skip a gate.
+name: hqsb-release-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: ReleaseBundle id under gate (never a tag)
+        required: true
+      image_index_digest:
+        description: sha256:... of the image index to gate
+        required: true
+  # A release pipeline may call it; nothing here runs on a schedule in this repo.
+
+permissions:
+  contents: read
+
+jobs:
+  interface-and-code-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: CPU test suite (correctness before performance)
+        run: python -m pytest -m "not hardware and not e2e and not performance" -q
+      - name: Dependency direction gate
+        run: python scripts/audit/import_dependency_gate.py
+      - name: S13 frozen vocabulary audit
+        run: python scripts/infra/run_e13.py --spec-audit --json
+      - name: Step → interface mapping (418 steps)
+        run: python scripts/infra/run_e13.py --interface-map --json
+      - name: Interface self-check (labelled smoke, never a conclusion)
+        run: python scripts/infra/run_e13.py --smoke --json
+
+  supply-chain-gates:
+    needs: interface-and-code-gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require a digest, reject a tag
+        run: |
+          python - <<'PY'
+          import sys
+          from hqsb.infra import identity as idn
+          ref = "${{ inputs.image_index_digest }}"
+          try:
+              idn.require_digest_reference(ref, field_name="image_index_digest")
+          except Exception as exc:
+              print(f"::error::release identity is not a digest: {exc}")
+              sys.exit(1)
+          print("digest accepted")
+          PY
+      - name: SBOM / vulnerability / secret / license / provenance gates
+        run: |
+          echo "::notice::these steps require registry, scanner and attestation tooling;"
+          echo "::notice::a missing tool must fail the gate (NOT_RUN_TOOL_UNAVAILABLE), not pass it"
+          python -c "import shutil,sys; missing=[n for n in ('syft','grype','cosign') if not shutil.which(n)]; print('missing:', missing); sys.exit(1 if missing else 0)"
+      - name: Publish the gate decision as an artifact
+        if: always()
+        run: echo "gate decision must be written to the campaign's supply_chain/gates/ directory"
+
+  cluster-gates:
+    needs: supply-chain-gates
+    runs-on: [self-hosted, hqsb-cluster]
+    if: false      # TEMPLATE: requires a test cluster, a namespace budget and an approved safety policy
+    steps:
+      - name: Deploy from the clean level declared in the campaign
+        run: echo "scripts/infra/run_e13.py --experiment E13-02 --execute (BLOCKED until prerequisites hold)"
+      - name: Canary gates G0–G8 and automatic rollback
+        run: echo "scripts/infra/run_e13.py --experiment E13-10 --execute (BLOCKED until prerequisites hold)"
+
+# Guard rails encoded here (details/S13/README.md §20.2):
+#   * the gate fails when tooling is missing instead of skipping the check;
+#   * the deployment job is disabled until a safety policy and namespace budget exist;
+#   * no credential, kubeconfig or registry secret is baked into this file.

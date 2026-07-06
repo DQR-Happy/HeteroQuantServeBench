@@ -1,0 +1,38 @@
+kind: hqsb.infra.build_inputs
+name: S13 build input closure (E13-01 step 3–4)
+description: >-
+  构建输入闭包模板：base/builder digest、package index 快照、lockfile、网络阶段与
+  cache 策略。所有 digest 字段都是**待填充的占位**，由 campaign 在预注册时冻结；
+  tag（latest/版本号）不得作为部署身份（details/S13/README.md §23 第 2 条）。
+schema_version: "1.0.0"
+status: IMPLEMENTED_UNVERIFIED
+
+# 这些字段与 hqsb.infra.supply_chain.BuildInputs 一一对应，由 validate() 校验。
+base_image_digest: ""          # 必填：sha256:...（占位为空 ⇒ 构建前必须冻结）
+builder_image_digest: ""       # 必填：sha256:...
+package_index_snapshot: ""     # 必填：例如 pypi-simple-2026-09-01 快照标识
+cache_state: cold              # cold | warm（unknown 会被拒绝）
+
+toolchain_digests: {}          # 例如 {"cuda": "sha256:...", "nvcc": "12.4.131"}
+lockfiles: {}                  # 例如 {"requirements.lock.txt": "sha256:..."}
+network_phases: []             # 例如 ["apt", "pip"]：联网发生在哪个阶段
+allowed_domains: []            # 例如 ["pypi.org", "files.pythonhosted.org"]
+offline_rebuild: false         # 预注册的离线重建能力
+
+# 运行镜像的 writable 边界与 capability 由 Dockerfile.runtime + K8s securityContext
+# 共同表达；此处只记录“允许写入的路径清单”，供 E13-01 step 31 对账。
+allowed_write_paths: ["/tmp", "/var/tmp", "/cache", "/run/hqsb"]
+
+# 模型独立规则（step 7）：命中即 gate FAIL（hqsb.infra.records.MODEL_FILE_PATTERNS）。
+forbidden_in_generic_image:
+  - "*.safetensors"
+  - "*.bin"
+  - "*.pt"
+  - "*.pth"
+  - "*.gguf"
+  - "*.onnx"
+  - "tokenizer.json"
+
+# 预注册的可重建目标：BUILD_REPEATABILITY | FUNCTIONAL_EQUIVALENCE | BIT_REPRODUCIBLE
+reproducibility_target: FUNCTIONAL_EQUIVALENCE
+allowed_nondeterminism: []     # 例如 ["timestamp", "compression"]

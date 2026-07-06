@@ -1,0 +1,74 @@
+# syntax=docker/dockerfile:1.7
+# S13 E13-01: layered, non-root, model-independent runtime image (TEMPLATE).
+#
+# Status: NOT BUILT. Two independent builds plus the SBOM/vulnerability/secret/
+# license/provenance gates of E13-01 are what turn this file into evidence.
+#
+# Rules encoded here (details/S13/E13-01 §4.4, §6, step 5/6/7/31/32):
+#   * base/toolchain/test/runtime are separate stages; only *named* artifacts are
+#     copied from the toolchain stage (never a whole directory);
+#   * no model weights, tokenizer, dataset or credential enters any layer;
+#   * the runtime stage runs as a non-root uid/gid with a read-only rootfs,
+#     dropped capabilities and an explicit writable-path list;
+#   * base and toolchain digests come from build_args.yaml (a tag is not an identity).
+
+ARG BASE_IMAGE_DIGEST=scratch
+ARG TOOLCHAIN_IMAGE_DIGEST=scratch
+
+# ── stage 1: base (runtime libs only) ────────────────────────────────────────
+FROM ${BASE_IMAGE_DIGEST} AS base
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
+# ── stage 2: toolchain (build inputs live ONLY here) ─────────────────────────
+FROM ${TOOLCHAIN_IMAGE_DIGEST} AS toolchain
+WORKDIR /src
+COPY pyproject.toml CMakeLists.txt ./
+COPY hqsb/ ./hqsb/
+COPY ops/ ./ops/
+COPY cpp/ ./cpp/
+RUN python3 -m pip install --no-cache-dir --require-hashes -r infra/containers/requirements.lock.txt \
+ && python3 -m pip wheel --no-deps -w /wheels . \
+ && cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES="${HQSB_CUDA_ARCH:-87}" \
+ && cmake --build build/release --target hqsb_rmsnorm -j "${BUILD_JOBS:-4}"
+
+# ── stage 3: test (kept out of the runtime image on purpose) ─────────────────
+FROM toolchain AS test
+COPY tests/ ./tests/
+RUN python3 -m pytest -m "not hardware and not e2e and not performance" -q
+
+# ── stage 4: runtime (explainable component set, no toolchain) ───────────────
+FROM base AS runtime
+ARG HQSB_UID=10001
+ARG HQSB_GID=10001
+
+# Named copies only: a bare ``COPY --from=toolchain /src`` would leak the toolchain,
+# caches, sources and any secret that the build context carried.
+COPY --from=toolchain /wheels/ /wheels/
+COPY --from=toolchain /src/build/release/libhqsb_rmsnorm.so /opt/hqsb/lib/libhqsb_rmsnorm.so
+
+RUN groupadd --gid "${HQSB_GID}" hqsb \
+ && useradd --uid "${HQSB_UID}" --gid "${HQSB_GID}" --no-create-home --shell /usr/sbin/nologin hqsb \
+ && python3 -m pip install --no-cache-dir --no-index --find-links=/wheels hqsb \
+ && rm -rf /wheels \
+ && mkdir -p /cache /run/hqsb /tmp \
+ && chown -R hqsb:hqsb /cache /run/hqsb
+
+# Declared writable paths (E13-01 step 31). Everything else must stay read-only.
+VOLUME ["/cache"]
+ENV HQSB_CACHE_DIR=/cache \
+    HQSB_WRITABLE_PATHS=/tmp:/var/tmp:/cache:/run/hqsb \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+USER ${HQSB_UID}:${HQSB_GID}
+WORKDIR /opt/hqsb
+
+# No shell toolchain, no package manager, no compiler: the static audit of step 29
+# fails the gate if any of them reappear in this stage.
+HEALTHCHECK --interval=30s --timeout=2s --start-period=900s --retries=3 \
+  CMD ["python3", "-c", "import hqsb, sys; sys.exit(0 if getattr(hqsb, 'STAGE', '') else 1)"]
+
+ENTRYPOINT ["python3", "-m", "hqsb.serving.gateway"]

@@ -1,0 +1,207 @@
+# S13 E13-08 step 2/3: HQSB semantic conventions (versioned vocabulary).
+#
+# Status: DESIGN_ONLY — no signal has been emitted, scraped or queried.  The names,
+# units and attribute levels below are the contract a real deployment must honour;
+# `hqsb.infra.observability.load_semantic_conventions` parses this file and
+# `validate_convention_set` rejects a set without client/server/core boundaries or
+# with an unbounded label.
+version: "1.0.0"
+status: DESIGN_ONLY
+notes: >-
+  request_id/trace_id/tenant_pseudonym 只允许出现在 trace/log 属性中；
+  Prometheus 指标标签一律不使用无界标识（details/S13/README.md §15）。
+
+conventions:
+  # ── user-facing SLIs (one boundary each; never merged into one latency metric) ──
+  - name: hqsb_client_ttft_seconds
+    signal_class: metrics
+    unit: seconds
+    boundary: client
+    description: client-observed time to first token
+    attributes:
+      boundary: required
+      workload_bucket: required
+      release_id: optional
+      request_id: forbidden
+    required_attributes: [boundary, workload_bucket]
+
+  - name: hqsb_server_ttft_seconds
+    signal_class: metrics
+    unit: seconds
+    boundary: server
+    description: server-side time from admission to first emitted token
+    attributes:
+      boundary: required
+      workload_bucket: required
+      model_artifact_id: optional
+      tenant_pseudonym: forbidden
+    required_attributes: [boundary, workload_bucket]
+
+  - name: hqsb_core_tpot_seconds
+    signal_class: metrics
+    unit: seconds
+    boundary: core
+    description: model-core time per output token
+    attributes:
+      boundary: required
+      backend_id: required
+      device_pseudonym: optional
+    required_attributes: [boundary, backend_id]
+
+  - name: hqsb_slo_goodput_ratio
+    signal_class: metrics
+    unit: ratio
+    description: fraction of eligible requests meeting quality and SLO
+    attributes:
+      workload_bucket: required
+      slo_class: required
+      tenant_id: forbidden
+    required_attributes: [workload_bucket, slo_class]
+
+  - name: hqsb_requests_total
+    signal_class: metrics
+    unit: requests
+    description: accepted/rejected/completed counter by outcome
+    attributes:
+      outcome: required
+      reason_code: required
+      request_id: forbidden
+    required_attributes: [outcome, reason_code]
+
+  # ── queue / scheduler diagnostics ────────────────────────────────────────────
+  - name: hqsb_queue_tokens
+    signal_class: metrics
+    unit: tokens
+    description: outstanding queued token work
+    attributes:
+      workload_bucket: required
+    required_attributes: [workload_bucket]
+
+  - name: hqsb_queue_oldest_age_seconds
+    signal_class: metrics
+    unit: seconds
+    attributes:
+      workload_bucket: required
+    required_attributes: [workload_bucket]
+
+  - name: hqsb_kv_occupancy_ratio
+    signal_class: metrics
+    unit: ratio
+    attributes:
+      device_pseudonym: optional
+      model_artifact_id: required
+    required_attributes: [model_artifact_id]
+
+  # ── capacity / admission / autoscaling ───────────────────────────────────────
+  - name: hqsb_admission_decisions_total
+    signal_class: metrics
+    unit: requests
+    description: admission decisions by policy version and reason code
+    attributes:
+      decision: required
+      reason_code: required
+      policy_version: required
+      request_id: forbidden
+    required_attributes: [decision, reason_code, policy_version]
+
+  - name: hqsb_ready_replicas
+    signal_class: metrics
+    unit: replicas
+    description: replicas that are semantically ready (never "Pod Running")
+    attributes:
+      release_id: required
+    required_attributes: [release_id]
+
+  - name: hqsb_replica_minutes
+    signal_class: metrics
+    unit: count
+    description: replica-minutes consumed (cost proxy reported with every SLO claim)
+    attributes:
+      policy_version: required
+    required_attributes: [policy_version]
+
+  # ── accelerator / system telemetry ───────────────────────────────────────────
+  - name: hqsb_accelerator_utilization_ratio
+    signal_class: metrics
+    unit: ratio
+    attributes:
+      device_pseudonym: optional
+      model_artifact_id: required
+    required_attributes: [model_artifact_id]
+
+  - name: hqsb_accelerator_memory_bytes
+    signal_class: metrics
+    unit: bytes
+    attributes:
+      device_pseudonym: optional
+    required_attributes: []
+
+  - name: hqsb_accelerator_throttle_seconds_total
+    signal_class: metrics
+    unit: seconds
+    attributes:
+      reason: required
+      device_pseudonym: optional
+    required_attributes: [reason]
+
+  # ── lifecycle / control plane ────────────────────────────────────────────────
+  - name: hqsb_drain_seconds
+    signal_class: metrics
+    unit: seconds
+    description: time from the drain linearization point to process exit
+    attributes:
+      release_id: required
+      forced: required
+    required_attributes: [release_id, forced]
+
+  - name: hqsb_rollback_seconds
+    signal_class: metrics
+    unit: seconds
+    description: decision → baseline restored (user steady state, not control plane)
+    attributes:
+      rollback_id: forbidden
+      canary_run_id: forbidden
+      release_id: required
+    required_attributes: [release_id]
+
+  # ── traces / logs / events ───────────────────────────────────────────────────
+  - name: hqsb_request_span
+    signal_class: traces
+    description: one request, from gateway to device, with the full identity chain
+    attributes:
+      request_id: required
+      trace_id: required
+      release_id: required
+      model_artifact_id: required
+      backend_id: required
+      pod_id: optional
+      device_id: optional
+    required_attributes: [request_id, trace_id, release_id, model_artifact_id]
+
+  - name: hqsb_queue_event
+    signal_class: events
+    description: admission/queue/scheduler transitions for one request
+    attributes:
+      request_id: required
+      state: required
+      reason_code: optional
+    required_attributes: [request_id, state]
+
+  - name: hqsb_fault_event
+    signal_class: events
+    description: fault injection lifecycle (planned/effective/cleared) with ground truth
+    attributes:
+      fault_case_id: required
+      phase: required
+      target_id: optional
+    required_attributes: [fault_case_id, phase]
+
+  - name: hqsb_profile_index
+    signal_class: profiles
+    description: on-demand profile artifact index (bounded duration, linked to a trace)
+    attributes:
+      profile_id: required
+      target: required
+      trace_id: required
+      duration_seconds: required
+    required_attributes: [profile_id, target, trace_id, duration_seconds]

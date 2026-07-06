@@ -1,0 +1,148 @@
+# S13 deployment values (TEMPLATE).
+#
+# Every numeric value below is a POLICY DEFAULT, not a measurement, and is marked
+# POLICY_DEFAULT_UNVERIFIED.  A formal E13-02/E13-05/E13-07/E13-11 run must
+# overwrite them from the frozen campaign inputs and record the final values in the
+# run's preregistration; the marker is asserted by tests/unit/infra/test_infra_assets.py.
+
+status: IMPLEMENTED_UNVERIFIED
+
+release:
+  # Empty by design: the workflow sets these from the ReleaseBundle (E13-01 output).
+  releaseId: ""
+  modelArtifactId: ""
+  tokenizerId: ""
+  imageIndexDigest: ""      # sha256:... — a tag is rejected by the admission check
+  platformImageDigest: ""   # sha256:...
+  observabilitySchemaVersion: "1.0.0"
+  capacityPolicyVersion: ""
+  autoscalingPolicyVersion: ""
+
+namespace:
+  name: hqsb
+  create: true
+  podSecurityLevel: restricted
+  labels:
+    hqsb.dev/tenant-scope: single_tenant   # 明确单租户，除非 E13-11 通过
+    hqsb.dev/status: POLICY_DEFAULT_UNVERIFIED
+
+serviceAccount:
+  create: true
+  name: hqsb-runtime
+  automountServiceAccountToken: false      # 不需要 K8s API 的 Pod 不挂 token
+
+quota:
+  # POLICY_DEFAULT_UNVERIFIED — 由 E13-06 的安全容量 × 副本上限推导，不在模板里假设。
+  enabled: true
+  hard:
+    requests.cpu: "16"
+    requests.memory: "64Gi"
+    limits.cpu: "32"
+    limits.memory: "128Gi"
+    pods: "16"
+    requests.nvidia.com/gpu: "4"
+  limitRange:
+    defaultRequestCpu: "1"
+    defaultRequestMemory: "8Gi"
+    maxCpuPerPod: "8"
+    maxMemoryPerPod: "64Gi"
+
+networkPolicy:
+  # E13-11 step 7/19: default-deny 起步，allow-list 必须在真实数据面验证。
+  defaultDenyIngress: true
+  defaultDenyEgress: true
+  allowDns: true
+  allowIngressFromGateway: true
+  allowEgressToModelStore: true
+  blockMetadataService: true
+  cni: ""                    # 记录 CNI 与其 NetworkPolicy 支持范围（执行时填）
+
+podDisruptionBudget:
+  minAvailable: 1            # POLICY_DEFAULT_UNVERIFIED
+
+image:
+  repository: ""
+  pullPolicy: IfNotPresent
+  # image 由 digest 指定；tag 字段仅用于人工可读，不参与身份判定。
+  tagForReadabilityOnly: ""
+
+resources:
+  # POLICY_DEFAULT_UNVERIFIED — 由 E13-06 容量对账后的 per-replica 预算覆盖。
+  requests: {cpu: "2", memory: "16Gi"}
+  limits: {cpu: "4", memory: "32Gi"}
+
+probes:
+  # E13-05 §2: three different questions, three different endpoints.
+  startup:
+    path: /startupz
+    periodSeconds: 10
+    failureThreshold: 90     # 覆盖模型下载/加载/compile/warmup（POLICY_DEFAULT_UNVERIFIED）
+  readiness:
+    path: /readyz
+    periodSeconds: 5
+    failureThreshold: 3
+  liveness:
+    path: /livez
+    periodSeconds: 10
+    failureThreshold: 6
+    # liveness 只看“进程是否还能取得进展”，不看 queue/load（§23 第 5 条）。
+
+termination:
+  gracePeriodSeconds: 120    # POLICY_DEFAULT_UNVERIFIED，须覆盖最长生成 + flush
+  preStopSeconds: 10         # preStop 与 drain 共享 grace 预算
+  maxGenerationSeconds: 60
+  telemetryFlushSeconds: 5
+  inflightPolicy: finish-or-cancel
+  slowClientPolicy: bounded-buffer-with-timeout
+
+rollout:
+  strategy: RollingUpdate
+  maxSurge: 1                # POLICY_DEFAULT_UNVERIFIED
+  maxUnavailable: 0
+  minReadySeconds: 30
+  progressDeadlineSeconds: 1800
+
+autoscaling:
+  enabled: false             # 默认关闭：E13-07 通过前采用固定副本，不声称弹性
+  minReplicas: 2
+  maxReplicas: 8
+  behavior:
+    scaleUpStabilizationSeconds: 0
+    scaleDownStabilizationSeconds: 300
+    scaleUpRateLimitPercent: 100
+    scaleDownRateLimitPercent: 50
+    scaleDownCooldownSeconds: 60
+  signals:
+    # E13-07 §4：不只用 CPU；token/queue/SLO 是主信号。
+    - name: queueTokens
+      metric: hqsb_queue_tokens
+      targetType: AverageValue
+      targetValue: "0"       # POLICY_DEFAULT_UNVERIFIED（由 E13-06 导出）
+    - name: readyReplicas
+      metric: hqsb_ready_replicas
+      targetType: AverageValue
+      targetValue: "0"
+
+storage:
+  modelCache:
+    size: 200Gi              # POLICY_DEFAULT_UNVERIFIED
+    storageClass: ""         # 必须显式声明；hostPath 不构成租户边界
+    accessMode: ReadWriteOnce
+  retention:
+    rollbackArtifacts: 2
+    cacheWatermarkRatio: 0.8
+
+fault:
+  # E13-09 §20.2：破坏性实验的作用域与开关。执行时必须由安全策略冻结。
+  enabled: false
+  authorizedNamespaces: []
+  maxTargets: 1
+  maxDurationSeconds: 0
+  killSwitch: ""
+  errorBudgetCap: 0.0
+
+observability:
+  serviceMonitor: false
+  scrapeIntervalSeconds: 15
+  traceSampleRatio: 0.0      # 0 = 未启用，避免把采样策略当作已验证配置
+  alertPolicyMarker: POLICY_DEFAULT_UNVERIFIED

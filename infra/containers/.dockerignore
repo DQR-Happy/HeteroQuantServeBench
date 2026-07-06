@@ -1,0 +1,32 @@
+# S13 E13-01 step 7/22: the build context must not carry models, secrets or caches.
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+build/
+*.so
+*.o
+*.a
+third_party/
+experiment_results/
+reports/
+docs/stage_experiments/
+# model / private artifacts (any hit fails the generic-image gate)
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.gguf
+*.onnx
+tokenizer.json
+# credentials and environment dumps
+.env
+*.pem
+*.key
+id_rsa*
+.netrc
+.docker/config.json

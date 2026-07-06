@@ -1,0 +1,144 @@
+# E13-02 step 8/11 + E13-11 step 5/7: namespace-scoped isolation objects.
+# TEMPLATE — rendered content must come from the versioned workflow, never from
+# manual `kubectl apply` (E13-02 §14: any ad-hoc edit is a deviation).
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace.name }}
+  labels:
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityLevel }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityLevel }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityLevel }}
+    {{- range $key, $value := .Values.namespace.labels }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+---
+{{- end }}
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount.name }}
+  namespace: {{ .Values.namespace.name }}
+automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+---
+{{- end }}
+# Least privilege (E13-11 step 4/17): the runtime needs no Kubernetes API access at
+# all; the Role below exists only so that a future sidecar has an explicit, narrow
+# anchor instead of the default token.  Note: no pods/exec, no secrets, no RBAC
+# write, no workload-create-by-tenant.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hqsb-runtime-minimal
+  namespace: {{ .Values.namespace.name }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hqsb-runtime-minimal
+  namespace: {{ .Values.namespace.name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Values.namespace.name }}
+roleRef:
+  kind: Role
+  name: hqsb-runtime-minimal
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- if .Values.quota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: hqsb-quota
+  namespace: {{ .Values.namespace.name }}
+spec:
+  hard:
+    {{- range $key, $value := .Values.quota.hard }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: hqsb-limits
+  namespace: {{ .Values.namespace.name }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: {{ .Values.quota.limitRange.defaultRequestCpu | quote }}
+        memory: {{ .Values.quota.limitRange.defaultRequestMemory | quote }}
+      max:
+        cpu: {{ .Values.quota.limitRange.maxCpuPerPod | quote }}
+        memory: {{ .Values.quota.limitRange.maxMemoryPerPod | quote }}
+---
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hqsb-runtime
+  namespace: {{ .Values.namespace.name }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hqsb-runtime
+---
+# E13-11 step 7/19–21: default-deny both directions; every allow rule needs a reason.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hqsb-default-deny
+  namespace: {{ .Values.namespace.name }}
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+{{- if .Values.networkPolicy.allowDns }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hqsb-allow-dns
+  namespace: {{ .Values.namespace.name }}
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
+{{- if .Values.networkPolicy.allowIngressFromGateway }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hqsb-allow-gateway-ingress
+  namespace: {{ .Values.namespace.name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hqsb-runtime
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hqsb-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+{{- end }}

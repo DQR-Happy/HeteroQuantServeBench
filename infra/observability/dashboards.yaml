@@ -1,0 +1,103 @@
+# S13 E13-08 step 21: dashboard definitions (TEMPLATE).
+#
+# Status: DESIGN_ONLY.  A dashboard point is evidence only when its query, unit and
+# source metric are recorded and the number can be regenerated from raw data — a
+# screenshot is not evidence (details/S13/E13-08 §14).
+version: "1.0.0"
+status: DESIGN_ONLY
+
+# Drill-down order: user SLI first, then the runtime explanation, then the device.
+drilldown_order: [user_sli, queue_runtime, device_system]
+
+panels:
+  - panel_id: sli_ttft_p99
+    section: user_sli
+    title: server TTFT P99 vs SLO
+    query: histogram_quantile(0.99, sum by (le) (rate(hqsb_server_ttft_seconds_bucket[5m])))
+    unit: seconds
+    source_metric: hqsb_server_ttft_seconds
+    evidence_ref: observability/metrics/raw_vs_exported.parquet
+  - panel_id: sli_goodput
+    section: user_sli
+    title: SLO-goodput ratio (quality-gated)
+    query: avg_over_time(hqsb_slo_goodput_ratio[10m])
+    unit: ratio
+    source_metric: hqsb_slo_goodput_ratio
+    evidence_ref: observability/metrics/raw_vs_exported.parquet
+  - panel_id: sli_reject_ratio
+    section: user_sli
+    title: rejected/eligible requests by reason code
+    query: sum by (reason_code) (rate(hqsb_requests_total{outcome="rejected"}[5m]))
+    unit: requests/second
+    source_metric: hqsb_requests_total
+    evidence_ref: admission/decisions.parquet
+  - panel_id: queue_tokens
+    section: queue_runtime
+    title: outstanding queued token work
+    query: hqsb_queue_tokens
+    unit: tokens
+    source_metric: hqsb_queue_tokens
+    evidence_ref: autoscaling/metrics/raw_export_scrape.parquet
+  - panel_id: queue_oldest_age
+    section: queue_runtime
+    title: oldest queue age
+    query: hqsb_queue_oldest_age_seconds
+    unit: seconds
+    source_metric: hqsb_queue_oldest_age_seconds
+    evidence_ref: autoscaling/metrics/age_delay.parquet
+  - panel_id: kv_occupancy
+    section: queue_runtime
+    title: KV occupancy and fragmentation
+    query: hqsb_kv_occupancy_ratio
+    unit: ratio
+    source_metric: hqsb_kv_occupancy_ratio
+    evidence_ref: capacity/memory/allocator_fragmentation.parquet
+  - panel_id: admission_decisions
+    section: queue_runtime
+    title: admission decisions by reason code
+    query: sum by (decision, reason_code) (rate(hqsb_admission_decisions_total[5m]))
+    unit: requests/second
+    source_metric: hqsb_admission_decisions_total
+    evidence_ref: capacity/admission/decisions.parquet
+  - panel_id: ready_replicas
+    section: queue_runtime
+    title: ready vs desired replicas
+    query: hqsb_ready_replicas
+    unit: replicas
+    source_metric: hqsb_ready_replicas
+    evidence_ref: autoscaling/replicas/lifecycle.parquet
+  - panel_id: device_util
+    section: device_system
+    title: accelerator utilization (diagnostic, not an SLI)
+    query: hqsb_accelerator_utilization_ratio
+    unit: ratio
+    source_metric: hqsb_accelerator_utilization_ratio
+    evidence_ref: observability/metrics/catalog.parquet
+  - panel_id: device_memory
+    section: device_system
+    title: accelerator memory and reserved/allocated split
+    query: hqsb_accelerator_memory_bytes
+    unit: bytes
+    source_metric: hqsb_accelerator_memory_bytes
+    evidence_ref: capacity/memory/per_rank.parquet
+  - panel_id: device_throttle
+    section: device_system
+    title: throttling seconds and the reason
+    query: rate(hqsb_accelerator_throttle_seconds_total[5m])
+    unit: seconds
+    source_metric: hqsb_accelerator_throttle_seconds_total
+    evidence_ref: observability/metrics/catalog.parquet
+  - panel_id: drain_forced
+    section: device_system
+    title: drain duration and forced-kill rate
+    query: hqsb_drain_seconds
+    unit: seconds
+    source_metric: hqsb_drain_seconds
+    evidence_ref: lifecycle/drain/timelines.parquet
+  - panel_id: rollback_seconds
+    section: device_system
+    title: rollback decision → baseline restored
+    query: hqsb_rollback_seconds
+    unit: seconds
+    source_metric: hqsb_rollback_seconds
+    evidence_ref: canary/rollback/timeline.parquet

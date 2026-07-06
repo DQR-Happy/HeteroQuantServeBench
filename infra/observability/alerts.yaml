@@ -1,0 +1,115 @@
+# S13 E13-08 step 22: alert rules (TEMPLATE).
+#
+# Status: DESIGN_ONLY.  `threshold_source: POLICY_DEFAULT_UNVERIFIED` means the
+# number is a *policy default*, not an observed value: the alert has never fired in
+# a real deployment and its precision/recall are unknown until E13-08 runs.  Every
+# rule names user impact, the query, the owner and a runbook (invariant 8 of
+# details/S13/E13-08 §12); `hqsb.infra.observability.load_alert_rules` rejects a rule
+# that drops any of them.
+version: "1.0.0"
+status: DESIGN_ONLY
+policy_default_marker: POLICY_DEFAULT_UNVERIFIED
+
+rules:
+  - alert_id: HQSB-TTFT-BURN
+    name: server TTFT burn rate above policy
+    user_impact: 用户首 token 延迟超出 SLO，交互体验下降
+    query: histogram_quantile(0.99, sum by (le) (rate(hqsb_server_ttft_seconds_bucket[5m]))) > 2
+    for_duration: 10m
+    severity: critical
+    owner: sre
+    runbook_id: runbooks/fault_response.md
+    threshold_value: 2
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+    suppression: [planned_rollout, canary_warmup]
+    auto_action: "raise admission rejection ratio and page the owner"
+
+  - alert_id: HQSB-GOODPUT-LOW
+    name: SLO-goodput below policy floor
+    user_impact: 合格请求速率下降，队列积压
+    query: avg_over_time(hqsb_slo_goodput_ratio[10m]) < 0.9
+    for_duration: 10m
+    severity: critical
+    owner: sre
+    runbook_id: runbooks/fault_response.md
+    threshold_value: 0.9
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+    auto_action: "admission sheds load; autoscaling is notified (never scale to zero)"
+
+  - alert_id: HQSB-QUEUE-AGE
+    name: oldest queue age exceeds the service budget
+    user_impact: 请求在队列中等待过久，尾延迟上升
+    query: max_over_time(hqsb_queue_oldest_age_seconds[5m]) > 30
+    for_duration: 5m
+    severity: warning
+    owner: sre
+    runbook_id: runbooks/fault_response.md
+    threshold_value: 30
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+
+  - alert_id: HQSB-ADMISSION-REJECT-RATIO
+    name: admission rejection ratio suggests capacity shortfall
+    user_impact: 部分请求被拒绝，用户可见失败
+    query: rate(hqsb_requests_total{outcome="rejected"}[5m]) / rate(hqsb_requests_total[5m]) > 0.05
+    for_duration: 5m
+    severity: warning
+    owner: sre
+    runbook_id: runbooks/drain_and_rollback.md
+    threshold_value: 0.05
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+
+  - alert_id: HQSB-READY-REPLICAS
+    name: ready replicas below the availability floor
+    user_impact: 可用容量不足（readiness 之后才算容量，Pod Running 不算）
+    query: min_over_time(hqsb_ready_replicas[5m]) < 1
+    for_duration: 5m
+    severity: critical
+    owner: sre
+    runbook_id: runbooks/drain_and_rollback.md
+    threshold_value: 1
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+
+  - alert_id: HQSB-METRIC-STALE
+    name: autoscaling metric stale or missing
+    user_impact: 扩缩容决策失去输入，容量将变得不可预测
+    query: time() - hqsb_queue_tokens_timestamp_seconds > 60
+    for_duration: 2m
+    severity: critical
+    owner: sre
+    runbook_id: runbooks/fault_response.md
+    threshold_value: 60
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+    auto_action: "fail-safe to static capacity; forbid scale-down (E13-07 step 28)"
+
+  - alert_id: HQSB-ACCELERATOR-THROTTLE
+    name: accelerator throttling observed
+    user_impact: 设备降频导致 TPOT 恶化
+    query: rate(hqsb_accelerator_throttle_seconds_total[5m]) > 0
+    for_duration: 5m
+    severity: warning
+    owner: sre
+    runbook_id: runbooks/fault_response.md
+    threshold_value: 0
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+
+  - alert_id: HQSB-TELEMETRY-ABSENT
+    name: telemetry components missing (absence, not zero)
+    user_impact: 观测盲区：无法判断服务是否健康
+    query: up{job="hqsb-runtime"} == 0
+    for_duration: 2m
+    severity: critical
+    owner: platform
+    runbook_id: runbooks/fault_response.md
+    threshold_value: 0
+    threshold_source: POLICY_DEFAULT_UNVERIFIED
+
+  - alert_id: HQSB-SECURITY-AUTHZ-DENY-SPIKE
+    name: cross-tenant authorization denials rising
+    user_impact: 可能存在越权尝试；隔离策略正在拒绝请求
+    query: rate(hqsb_requests_total{outcome="rejected", reason_code="REJECT_QUOTA"}[5m]) > 0
+    for_duration: 5m
+    severity: warning
+    owner: security
+    runbook_id: runbooks/fault_response.md
+    threshold_value: 0
+    threshold_source: POLICY_DEFAULT_UNVERIFIED

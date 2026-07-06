@@ -1,0 +1,162 @@
+# E13-02 step 15/20, E13-05 §2–§3, E13-07 §3: the workload itself.
+# TEMPLATE — the image is referenced by digest; the labels carry the release/model
+# identity so a request can be traced back to what actually served it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hqsb-runtime
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: hqsb-runtime
+    hqsb.dev/release-id: {{ .Values.release.releaseId | quote }}
+    hqsb.dev/model-artifact-id: {{ .Values.release.modelArtifactId | quote }}
+  annotations:
+    hqsb.dev/image-index-digest: {{ .Values.release.imageIndexDigest | quote }}
+    hqsb.dev/observability-schema-version: {{ .Values.release.observabilitySchemaVersion | quote }}
+spec:
+  replicas: {{ .Values.autoscaling.minReplicas }}
+  strategy:
+    type: {{ .Values.rollout.strategy }}
+    rollingUpdate:
+      maxSurge: {{ .Values.rollout.maxSurge }}
+      maxUnavailable: {{ .Values.rollout.maxUnavailable }}
+  minReadySeconds: {{ .Values.rollout.minReadySeconds }}
+  progressDeadlineSeconds: {{ .Values.rollout.progressDeadlineSeconds }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hqsb-runtime
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hqsb-runtime
+        hqsb.dev/release-id: {{ .Values.release.releaseId | quote }}
+        hqsb.dev/model-artifact-id: {{ .Values.release.modelArtifactId | quote }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.termination.gracePeriodSeconds }}
+      # E13-05 step 23: the drain is an application concern; preStop only triggers it.
+      # preStop and the process share the grace budget (Kubernetes lifecycle hooks).
+      containers:
+        - name: runtime
+          image: "{{ .Values.image.repository }}@{{ .Values.release.platformImageDigest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: HQSB_RELEASE_ID
+              value: {{ .Values.release.releaseId | quote }}
+            - name: HQSB_MODEL_ARTIFACT_ID
+              value: {{ .Values.release.modelArtifactId | quote }}
+            - name: HQSB_TOKENIZER_ID
+              value: {{ .Values.release.tokenizerId | quote }}
+            - name: HQSB_CAPACITY_POLICY_VERSION
+              value: {{ .Values.release.capacityPolicyVersion | quote }}
+            - name: HQSB_AUTOSCALING_POLICY_VERSION
+              value: {{ .Values.release.autoscalingPolicyVersion | quote }}
+            - name: HQSB_MAX_GENERATION_SECONDS
+              value: {{ .Values.termination.maxGenerationSeconds | quote }}
+            - name: HQSB_INFLIGHT_POLICY
+              value: {{ .Values.termination.inflightPolicy | quote }}
+            - name: HQSB_SLOW_CLIENT_POLICY
+              value: {{ .Values.termination.slowClientPolicy | quote }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+          # E13-01 step 29–32 / E13-11 step 8: non-root, read-only, no escalation.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          startupProbe:
+            httpGet: {path: {{ .Values.probes.startup.path | quote }}, port: http}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet: {path: {{ .Values.probes.readiness.path | quote }}, port: http}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet: {path: {{ .Values.probes.liveness.path | quote }}, port: http}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          lifecycle:
+            preStop:
+              httpGet: {path: /drain, port: http}
+          volumeMounts:
+            - name: model-cache
+              mountPath: /cache
+            - name: run
+              mountPath: /run/hqsb
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: hqsb-model-cache
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hqsb-runtime
+  namespace: {{ .Values.namespace.name }}
+spec:
+  selector:
+    app.kubernetes.io/name: hqsb-runtime
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hqsb-runtime
+  namespace: {{ .Values.namespace.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hqsb-runtime
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.behavior.scaleUpStabilizationSeconds }}
+      policies:
+        - type: Percent
+          value: {{ .Values.autoscaling.behavior.scaleUpRateLimitPercent }}
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.behavior.scaleDownStabilizationSeconds }}
+      policies:
+        - type: Percent
+          value: {{ .Values.autoscaling.behavior.scaleDownRateLimitPercent }}
+          periodSeconds: 60
+  metrics:
+    {{- range .Values.autoscaling.signals }}
+    - type: Pods
+      pods:
+        metric:
+          name: {{ .metric }}
+        target:
+          type: {{ .targetType }}
+          averageValue: {{ .targetValue | quote }}
+    {{- end }}
+{{- end }}

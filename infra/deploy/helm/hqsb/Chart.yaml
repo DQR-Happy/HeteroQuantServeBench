@@ -1,0 +1,17 @@
+apiVersion: v2
+name: hqsb
+description: >-
+  S13 (E13-02/E13-05/E13-07/E13-11) deployment chart for the HQSB inference service.
+  TEMPLATE: not rendered, not installed, not validated against any cluster.
+type: application
+# Chart version and appVersion are placeholders: the deployed identity is the
+# *image digest* plus the ReleaseBundle (details/S13/README.md §6), never a tag.
+version: 0.0.0-unreleased
+appVersion: "0.0.0-unreleased"
+kubeVersion: ">=1.28.0-0"
+keywords: [llm, serving, hqsb, s13]
+annotations:
+  hqsb.dev/stage: S13
+  hqsb.dev/status: IMPLEMENTED_UNVERIFIED
+  hqsb.dev/evidence: docs/stage_experiments/details/S13/E13-02_clean_cluster_bootstrap_cold_ready.md
+  hqsb.dev/release-identity: release_id+image_index_digest (tag is not an identity)
