@@ -50,7 +50,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 GATE_NAME = "import_dependency_gate"
-RULES_VERSION = "1.6.0"
+RULES_VERSION = "1.8.0"
 
 #: Architectural regions. A module belongs to the first region whose dotted
 #: prefix matches it. Order matters (most specific first).
@@ -67,6 +67,8 @@ REGION_PREFIXES: List[Tuple[str, str]] = [
     ("distributed", "hqsb.distributed"),
     ("compiler", "hqsb.compiler"),
     ("evaluation", "hqsb.evaluation"),
+    ("infra", "hqsb.infra"),
+    ("experimental", "hqsb.experimental"),
     ("ops", "ops"),
 ]
 
@@ -275,6 +277,83 @@ RULES: List[Dict[str, Any]] = [
             "comparability/capability/cost/Pareto/lineage contracts are testable without a device."
         ),
         "source_regions": ["evaluation"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R13",
+        "name": "lower_layers_do_not_depend_on_infra",
+        "description": (
+            "hqsb.infra is the production/cloud-native/reliability layer (S13): it consumes the "
+            "service (S08) and evaluation (S12) evidence, so core/models/benchmark/backends/hardware/"
+            "quant/integration/runtime/serving/distributed/compiler/evaluation may not import it "
+            "(a lower layer importing the deployer would bind 'measurable' code to the 'deployed')."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "quant",
+            "integration",
+            "runtime",
+            "serving",
+            "distributed",
+            "compiler",
+            "evaluation",
+        ],
+        "forbidden_target_regions": ["infra"],
+    },
+    {
+        "id": "R14",
+        "name": "infra_does_not_import_kernel_implementations",
+        "description": (
+            "hqsb.infra addresses containers, models and kernels through identity/digest records, "
+            "never by importing the ops package; the infra layer must run on the CPU-minimal "
+            "installation (no module-level torch/triton/numpy) so the release/supply-chain/"
+            "lifecycle/capacity/fault/canary/security contracts stay testable without a device."
+        ),
+        "source_regions": ["infra"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R15",
+        "name": "lower_layers_do_not_depend_on_experimental",
+        "description": (
+            "hqsb.experimental is the train-serve coordination and frontier-extension layer (S14): "
+            "it consumes the contracts plus the S07/S08/S10/S13 evidence, so core/models/benchmark/"
+            "backends/hardware/quant/integration/runtime/serving/distributed/compiler/evaluation/infra "
+            "may not import it (a lower layer importing the experimental layer would let a "
+            "feature-gated research path leak into the mainline install)."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "quant",
+            "integration",
+            "runtime",
+            "serving",
+            "distributed",
+            "compiler",
+            "evaluation",
+            "infra",
+        ],
+        "forbidden_target_regions": ["experimental"],
+    },
+    {
+        "id": "R16",
+        "name": "experimental_does_not_import_kernel_implementations",
+        "description": (
+            "hqsb.experimental addresses trainers, engines, kernels and devices through capability/"
+            "provider names plus artifact identities, never by importing the ops package; the layer "
+            "must run on the CPU-minimal installation (no module-level torch/triton/numpy/transformers/"
+            "ray/vllm) so that the train-serve/rollout/frontier/transfer contracts stay testable "
+            "without a device (E14-01: core-only 环境必须不拉实验重依赖)."
+        ),
+        "source_regions": ["experimental"],
         "forbidden_target_regions": ["ops"],
     },
 ]
