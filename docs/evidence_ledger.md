@@ -642,3 +642,74 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 | S12-BLOCK | S12 **实验层 BLOCKED**：必需前置 `s03_s11_upstream_evidence_chain`（实测仅 S01/S02 有 verdict）、`multi_hardware_coverage`、`frozen_evaluation_environment` 未满足；E12-01~E12-10 无任何 run、无 raw、无结论 | source-only（缺失事实，由 `check_prerequisites` 实测登记） | `hqsb/evaluation/experiment.py`（check_prerequisites）；`run_e12.py --prerequisites` |
 | S12-LIMIT | 未覆盖边界（如实登记）：无 ≥3 硬件（或 2 硬件+2 架构）实例、无 S03–S11 协议树 verdict、无冻结评估环境指纹、无 profiler/功率计/价格快照；energy/cost 只能到接口层；`artifacts/S12/` 目录约定落到 `experiment_results/S12/`（仓库既有约定） | source-only | `docs/reports/S12_开发报告.md` §2/§8/§9 |
 
+
+---
+
+## 18. S13 声明台账（生产化 / 云原生 / 可靠性）
+
+> 本节**不含任何实验结果数字**。S13 实验层为 `BLOCKED`（见 S13-BLOCK），下列声明全部是
+> 代码层/测试层事实：`test-verified` 表示有自动化测试证明，`runtime-verified` 表示本机命令实测。
+
+| ID | 声明 | 等级 | 证据 |
+|---|---|---|---|
+| S13-01 | ReleaseBundle 身份不完整不得 ready/部署；tag 不得作为部署身份；模型权重不得进入通用镜像 | test-verified | `hqsb/infra/identity.py`；`tests/unit/infra/test_infra_foundations.py::TestIdentity` |
+| S13-02 | OCI index→manifest→config→layer/DiffID 闭包可比对；可重建四级（build repeatability / functional equivalence / bit reproducible / not reproducible）不互相冒充，未归因不得升级 | test-verified | `identity.oci_digest_dag`/`compare_oci_dag`/`reproducibility_verdict`；同上 |
+| S13-03 | rollback 链必须能走到 known-good；canary control/candidate 只允许预注册差异 | test-verified | `identity.validate_rollback_chain`/`validate_release_change_scope`；同上 |
+| S13-04 | 三套状态机（pod/artifact/request）合法转换受约束，非法跳转被拒 | test-verified | `hqsb/infra/records.py`；`tests/property/test_infra_invariants.py` |
+| S13-05 | 缺失是状态不是 0（`numeric_value` 拒绝 missing 码）；§24 状态传播阻断依赖声明 | test-verified | `records.numeric_value`/`propagate_statuses`；属性测试 |
+| S13-06 | §23 十四条交叉约束（V01–V14）实现为可引用 reason code 的校验器 | test-verified | `hqsb/infra/contracts.py`；`tests/unit/infra/test_infra_foundations.py::TestContracts` |
+| S13-07 | §21 制品目录 52 个子目录 + campaign manifest + §20.2 执行安全策略与 target 授权（wildcard/越界拒绝） | test-verified | `hqsb/infra/campaign.py`；同上 `TestCampaign` |
+| S13-08 | 供应链 gate：secret/模型命中即 FAIL；scanner 不可用 ≠ 零漏洞；SBOM completeness 找孤儿；异常必须带 owner/期限；attestation subject 必须等于部署 digest | test-verified | `hqsb/infra/supply_chain.py`；`test_e13_infra_experiments_a.py::TestSupplyChain` |
+| S13-09 | clean 污染显式报告；部署状态机路径校验；readiness 需语义条件（healthz 不算）；pre-ready 流量排除；首请求必须与 reference 一致；cold/warm 不得混报；残留即判失败；临场命令即 deviation | test-verified | `hqsb/infra/deployment.py`；同文件 `TestDeployment` |
+| S13-10 | capability label 的类/来源/TTL/保护受约束；硬 capability 不得退化为软偏好；容器可见设备集必须是分配子集；rank 映射不符即失败；隔离只对已验证层声明 | test-verified | `hqsb/infra/scheduling.py`；同文件 `TestScheduling` |
+| S13-11 | cache key 必须含 tokenizer/config/quant/engine/ABI；下载不得写 active 路径；marker 必须在数据 durable 之后；GC 不得删 active/pinned/rollback 目标；请求不得混版本 | test-verified | `hqsb/infra/artifacts.py`；同文件 `TestArtifacts` |
+| S13-12 | 三类 probe 端点必须不同；终止预算覆盖生成+flush；drain 后不得接新执行；截断流不得记完成；forced kill 记为明确违约；资源释放逐项核对 | test-verified | `hqsb/infra/lifecycle.py`；同文件 `TestLifecycle` |
+| S13-13 | 内存账本逐组件/逐 rank（最大 rank 约束不被总量掩盖）；KV 估算含 block rounding；admission 决策带 policy/reason/budget；reserve/commit 原子；cancel/error 归还预算 | test-verified | `hqsb/infra/capacity.py`；`test_e13_infra_experiments_b.py::TestCapacity` |
+| S13-14 | 残差必须带解释才可扩大 margin；false reject 必须有反事实方法；margin 不得在验证数据上调参；S12 原预测不得被覆盖 | test-verified | `capacity.prediction_residual`/`false_decisions`/`margin_holdout_validation`/`s12_feedback`；同上 |
+| S13-15 | desired replicas 由 capacity 模型导出并受 min/max/tolerance 约束；metric 无 timestamp/age 不得驱动决策、stale 一律 fail-safe；降载需持续信号；过冲/波动/settling 有判据；成本（replica/device-minutes）与 SLO 同报 | test-verified | `hqsb/infra/autoscaling.py`；同文件 `TestAutoscaling` |
+| S13-16 | 语义约定必须版本化、带单位、含 client/server/core 边界；高基数标识必须显式声明 forbidden；直方图 bucket 必须覆盖 SLO 范围；metric 必须可与 raw 对账 | test-verified | `hqsb/infra/observability.py`；同文件 `TestObservability` |
+| S13-17 | 告警必须有 user impact/query/owner/runbook，阈值来源必须标注（模板阈值 = `POLICY_DEFAULT_UNVERIFIED`）；telemetry 缺失判为异常而非 0；RCA 必须带备选解释与置信度、盲化时不得看 ground truth | test-verified | `observability.load_alert_rules`/`rca_verdict`/`telemetry_failure_detection`；同上 |
+| S13-18 | 故障合同必须冻结 hypothesis/layer/mechanism/resolved targets/blast radius/预期检测-降级-恢复/abort/kill switch/repetitions/claim 边界；wildcard 与未解析 target 拒绝；语义改变的降级必须重过质量 | test-verified | `hqsb/infra/faults.py`；`test_e13_infra_experiments_b.py::TestFaults` |
+| S13-19 | ground truth 生效时间必录（命令返回 ≠ 生效）；MTTD/MTTM/MTTR 以用户稳态为准并受预注册阈值约束；恢复需服务/资源/状态三轴；postmortem 需 owner+验证方式；自动恢复声明只对 `RECOVERED_AUTOMATIC` 成立 | test-verified | `faults.ground_truth`/`reliability_metrics`/`validate_state_recovery`/`postmortem`/`fault_verdicts`；同上 |
+| S13-20 | canary 状态机禁止跳阶段；G0–G4 硬门失败即 STOP（性能不可补偿）；流量分配按 session 粘性且可复现；信息量不足不得 promote；`FORCE_PROMOTE` 被拒绝且 override 不得伪装自动；rollback 需请求/身份/质量/资源闭环 | test-verified | `hqsb/infra/canary.py`；同文件 `TestCanary` |
+| S13-21 | 多租户威胁模型必须声明 attacker capability/non-goals/failure policy；RBAC 权限图检测间接提权；deny 用例被拒为 PASS、成功攻击为 FAIL；配额并发竞态报最大超卖；滥用必须在分配资源前有界拒绝；噪声干扰以受害者指标计量 | test-verified | `hqsb/infra/security.py`；同文件 `TestSecurity` |
+| S13-22 | 12 条租户不变量无证据时为 `NOT_RUN`（不得当 PASS）；结论措辞限定在样本与威胁模型内 | test-verified | `security.invariant_verdicts`/`NEGATIVE_RESULT_WORDING`；同上 |
+| S13-23 | §22 七个核心 schema 投影区分必填与可选缺失；93 张表 schema 逐字段校验 | test-verified | `hqsb/infra/telemetry.py`；`tests/unit/infra/test_infra_foundations.py::TestTelemetry` |
+| S13-24 | 418 步「实验步骤 → 代码接口」对照由 `PROTOCOL_STEPS` + `resolve_interfaces()` 导入校验；生成物与代码同步（`--check`） | test-verified | `hqsb/infra/interface_map.py`；`scripts/infra/gen_interface_map.py`；`docs/reports/S13_interface_map_generated.md` |
+| S13-25 | 驱动默认拒绝：无 `--execute`、前置未满足或无 raw 样本时 `PASS/FAIL/PASS_NEGATIVE` 一律降级 `BLOCKED`；预注册缺阈值/non-claims 直接报错 | test-verified + runtime-verified | `hqsb/infra/experiment.py`；`tests/unit/infra/test_e13_scaffolding_assets.py`；`run_e13.py --experiment E13-01 --json` |
+| S13-26 | 依赖边界：`hqsb.infra` 无模块级 torch/triton/numpy/kubernetes、无 torch 时可导入、12 个区域不反向依赖、只依赖 core、不 import ops；gate R1–**R14** 0 违规 0 环；全量 **3118 passed, 4 deselected**（S13 专用新增 195 个） | runtime-verified（本机） | `tests/unit/infra/test_infra_import_boundaries.py`；`scripts/audit/import_dependency_gate.py`（rules=1.7.0，files=256，edges=599） |
+| S13-BLOCK | S13 **实验层 BLOCKED**：必需前置 `s08_service_contract`、`s12_capacity_and_quality_baseline` 未满足；本机无 docker/kubectl/helm/cosign/syft/grype/promtool；E13-01~E13-11 无任何 run、无 raw、无结论数字 | source-only（实测登记） | `run_e13.py --prerequisites`；`docs/reports/S13_阶段验收报告.md` §3 |
+| S13-LIMIT | 未覆盖边界（如实登记）：`infra/**` 资产为模板（未构建/未渲染/未部署/未演练）；`configs/infra/**` 不含测量值，阈值需 campaign 冻结；§21 逻辑目录落到 `experiment_results/S13/`；E13-11 当前 11/12 不变量为 `NOT_RUN`；mypy 未覆盖 `hqsb/infra` | source-only | `docs/reports/S13_开发报告.md` §8/§9；`docs/reports/S13_production_architecture.md` §5 |
+
+## 19. S14 声明台账（训推协同 / 前沿扩展 / 证据治理）
+
+> 阶段：S14 ｜ 机器：RTX 3090 开发机（x86_64 Linux），`development` ｜ 日期：2026-09-19
+> **本阶段未执行任何正式实验**（任务第五节）。因此除"接口/代码层"声明外，
+> 所有实验层声明一律 `BLOCKED`，且**不存在任何实验数字**（性能/内存/能耗/命中率/质量均为零）。
+
+| ID | 声明 | 等级 | 证据 |
+|---|---|---|---|
+| S14-01 | **480 步接口齐备**：12 项实验 × 40 步，每步都映射到可导入符号，无空缺 | runtime-verified（本机，CPU） | `hqsb/experimental/interface_map.py`；`run_e14.py --interface-map` → `experiments=12 steps=480 expected_steps=480 interfaces=589 references=993 ok=True`；`tests/unit/experimental/test_e14_interfaces.py::test_step_table_is_complete`（12 参数化） |
+| S14-02 | 接口引用**实际导入解析**：改名/删除即失败，报告不会静默指向空 | runtime-verified | `interface_map.resolve_interfaces()` 对每个符号执行 `importlib` + 属性解析；`gen_interface_map.py --check` 检测生成物漂移 |
+| S14-03 | **依赖边界成立**：`hqsb.experimental` 只依赖 `hqsb.core`；13 个下层区域不得反向依赖它（规则 R15） | runtime-verified | `scripts/audit/import_dependency_gate.py`（rules=1.8.0, files=277, edges=667, violations=0, cycles=0, PASS）；`test_experimental_import_boundaries.py::test_lower_regions_do_not_import_experimental` |
+| S14-04 | `hqsb.experimental` **不 import `ops`**，且无模块级重依赖（R16）；CPU-minimal 下 `import` 拉入重框架数 = 0 | runtime-verified | 同上 gate；AST 扫描 + **子进程探针** `test_cpu_minimal_import_in_a_subprocess`（`heavy == []`）；`test_no_module_level_heavy_imports` |
+| S14-05 | 包入口只提供 PEP 562 惰性映射，模块级不 import 子模块（避免 `experimental → experiment → specs → experimental` 环） | test-verified | `test_package_init_is_lazy_only`；`__init__.py` 的 `_LAZY` |
+| S14-06 | **E14-01 依赖/flag 隔离接口**（40 步）：extra↔flag↔capability↔CLI 映射、wheel 产物元数据审计、导入纯度、未知/冲突 flag 拒绝、10 类负例 | test-verified | `hqsb/experimental/dependencies.py`；`test_e14_interfaces.py`；`run_e14.py --smoke` |
+| S14-07 | **E14-02 分布式训练状态接口**（40 步）：global batch 等价、token-mean 重归一化、逐层对账、collective/显存账本、checkpoint 完整性、resume 连续性、缺 shard/rank failure fail-closed | test-verified | `training.py`；属性测试 `test_token_mean_loss_differs_from_the_naive_rank_mean`、`test_reconciliation_names_the_first_divergent_tensor` |
+| S14-08 | **E14-03 训推一致性接口**（40 步）：转换 DAG、显式 mapping（同名覆盖被拒）、**七层语义门**、adapter merge 语义、6 类错误制品负例、原子发布与 cache | test-verified | `parity.py`；`test_e14_interfaces.py` |
+| S14-09 | **E14-04 后训练接口**（40 步）：SFT/DPO/GRPO **手算 oracle**、token mask/长度归一化、policy lineage、mixed-version 拒绝、有界异步队列、staleness 扫描、reward-hacking 判定 | test-verified | `posttraining.py`；属性测试 `test_staleness_sweep_reports_every_missing_point` |
+| S14-10 | **E14-05 前沿预注册接口**（40 步）：文献注册表、estimand（"性能更好"被拒）、硬前置门、单一 primary、AdoptionDecision 预注册、未选分支锁 `N/A_BY_ADR`、协议 hash 冻结 | test-verified | `frontier.py`；`contracts.FrontierStudyContract` |
+| S14-11 | **E14-F1/F2/F3/F4 条件 P0 接口**（各 40 步）：accept/residual 手算与 break-even；router 多指标不均衡 + dispatch 无丢重乱序 + total/active 显存分离；KV payload/metadata 分离 + 无截断证明 + chunk 语义不变；N:M compliance + 算法误差与实现误差分离 + actual dispatch | test-verified | `speculative.py` / `moe.py` / `long_context.py` / `sparsity.py`；属性测试 `test_pattern_compliance_requires_every_group`、`test_greedy_prefix_match_never_commits_more_than_target_produced`、`test_imbalance_metrics_separate_balanced_from_skewed` |
+| S14-12 | **E14-06/07/08 可选迁移接口**（各 40 步）：任务原生指标（**拒绝用 token/s 表达图像音频**）、子模型纳入 artifact 身份、阶段状态机；13 状态工作流 + tool 校验先于执行 + critical path（≠ span 求和）+ 9 类故障注入；路线 A/B + delegate partition + cold/warm/sustained 三态 + `MAP_ONLY` 不得携带设备测量 | test-verified | `multimodal.py` / `agent.py` / `edge.py`；`test_experiment_has_a_negative_control`（12 参数化） |
+| S14-13 | **无静默降级**：任何 fallback 必须记录 requested/actual/reason，且 reason 必须来自冻结词汇表 | test-verified | `contracts.check_no_silent_degradation()`；`test_experimental_foundations.py::test_silent_degradation_is_detected` |
+| S14-14 | **质量先于性能**：correctness/quality 未过时 `performance_eligible=True` 被拒 | test-verified | `contracts.check_quality_before_performance()`；`test_quality_must_precede_performance` |
+| S14-15 | **结论默认不可能产出**（三重门）：写 `PASS/FAIL/PASS_NEGATIVE/FAIL_PERFORMANCE_HYPOTHESIS` 必须同时满足 `--execute` **且** 前置满足 **且** 有 raw samples；驱动根文件受白名单约束 | runtime-verified | `experiment.py::RunDirectory.write_verdict` / `_resolve`；`test_triple_gate_refuses_a_conclusion`、`test_run_directory_refuses_an_unlisted_artefact`；`run_e14.py --json` → `status: BLOCKED` |
+| S14-16 | **协议树只读**：运行产物只落 `artifacts/S14/<实验>/<run>/`；写 `docs/stage_experiments/**` 被 `assert_writable` 拒绝 | test-verified | `campaign.assert_writable` / `run_layout`；属性测试 `test_run_layout_is_always_under_artifacts_and_never_in_the_protocol_tree` |
+| S14-17 | **冻结词汇表 8 份**（`configs/experimental/*.yaml`）由代码生成、**不含任何测量值、不含本机绝对路径**，跨文档一致性检查通过 | runtime-verified | `gen_experimental_specs.py --check` → `ok: True`；`run_e14.py --spec-audit` → `kinds=8 ok=True cross_document_problems=0` |
+| S14-18 | 四个状态机（conversion node / post-training sync / agent workflow / speculation cycle）与 40 张表 schema 结构自洽 | test-verified | `records.validate_state_machines()` == `[]`；`test_state_machines_are_structurally_valid` |
+| S14-19 | **全量测试通过**：3221 passed, 4 deselected（S14 专项 103 项：单元 89 + 属性 14，含 12 实验参数化） | runtime-verified（本机） | `.venv/bin/python -m pytest -m "not hardware and not e2e and not performance" -q` |
+| S14-20 | lint 无新增问题（本阶段文件 `All checks passed!`；过程中修复 25 个 F401、1 个真 bug `F821`、1 个死变量 `F841`） | runtime-verified | `ruff check hqsb/experimental scripts/experimental tests/unit/experimental tests/property/test_experimental_invariants.py` |
+| S14-21 | 本阶段新增文件**零断链**；`check_docs.py` 报告的 43 处断链全部落在既有文件（未修改） | runtime-verified | `python scripts/check_docs.py`；用 `grep -E "S14|experimental"` 过滤为空 |
+| S14-22 | 宿主堆上限修复：`NODE_OPTIONS` 被 `server-main.js` 的 `Hd()` 定向剥离，改以 **node CLI 实参**（`execArgv` 默认继承 `process.execArgv`）注入；宿主 cmdline 实测含 `--max-old-space-size=16384` | runtime-verified（本机） | `scripts/env/patch_vscode_server_heap.sh`；`ps -eo cmd \| grep type=extensionHost`；`v8.getHeapStatistics().heap_size_limit` 实测：默认 4.19 GB → 8192 时 8.19 GB → 16384 时 16.19 GB |
+| S14-BLOCK | **S14 实验层 BLOCKED**：必需前置 `upstream_verdicts`、`experimental_environment`、`holdout_isolation` 未满足；`distributed_launcher`/`second_device`/profiler 未解析；E14-03/04/05/F*/06/07/08 的上游链未闭环。**12 项实验无任何 run、无 raw、无结论数字** | source-only（实测登记） | `run_e14.py --prerequisites --json`；`--experiment E14-02 --json` → `status: BLOCKED`, `prerequisites_satisfied: false`, `verdict.json: "conclusion": false`；`docs/reports/S14_阶段验收报告.md` §6.2 |
+| S14-LIMIT | 未覆盖边界（如实登记）：① 模块成熟度上限 `SOURCE_INTEGRATED`（无实验执行）；② 未实现真实 trainer/engine/device 调用（R16 有意禁止 import `ops`）；③ E14-06/07/08 **未做** ADR 决策，故状态为未执行而**非** `N/A_BY_ADR`；④ 未选中任何前沿分支，未产生分支能力声明；⑤ 多模态/Agent/端侧**能力未被声称**；⑥ 本阶段不修改 `docs/stage_experiments/**`，协议留白只登记不改写 | source-only | `docs/reports/S14_开发报告.md` §8/§9；`docs/reports/S14_阶段验收报告.md` §9 |

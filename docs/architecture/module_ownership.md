@@ -3,8 +3,10 @@
 > 阶段：S01（核心契约与工程质量体系）；S06 追加 `integration` 区域与规则 R2；
 > S07 追加 `runtime` 区域与规则 R3/R4；S08 追加 `serving` 区域与规则 R5/R6；
 > S10 追加 `distributed` 区域与规则 R7/R8；S11 追加 `compiler` 区域与规则 R9/R10；
-> S12 追加 `evaluation` 区域与规则 R11/R12
-> 版本：1.6.0
+> S12 追加 `evaluation` 区域与规则 R11/R12；
+> S13 追加 `infra` 区域与规则 R13/R14；
+> S14 追加 `experimental` 区域与规则 R15/R16
+> 版本：1.8.0
 
 本文定义 HQSB 各 Python 模块的职责边界、所有权和依赖方向，是后续所有阶段
 开发与 Code Review 的约束依据。任何违反依赖方向的导入都会在
@@ -13,7 +15,8 @@
 `tests/unit/serving/test_serving_import_boundaries.py`、
 `tests/unit/distributed/test_distributed_import_boundaries.py`、
 `tests/unit/compiler/test_compiler_import_boundaries.py`
-与 `scripts/audit/import_dependency_gate.py`（规则 R1–R10）中被 CI 拦截。
+与 `tests/unit/experimental/test_experimental_import_boundaries.py`
+以及 `scripts/audit/import_dependency_gate.py`（规则 R1–R16）中被 CI 拦截。
 
 ## 1. 依赖图（Dependency Graph）
 
@@ -85,6 +88,13 @@ graph TD
         eve["telemetry / specs / experiment / interface_map"]
     end
 
+    subgraph infra["hqsb.infra — 生产化 / 云原生 / 可靠性（S13）"]
+        inf["identity / records / contracts / campaign"]
+        ins["supply_chain / deployment / scheduling / artifacts / lifecycle"]
+        inc["capacity / autoscaling / observability / faults / canary / security"]
+        inv["telemetry / specs / experiment / interface_map"]
+    end
+
     core --> backends
     core --> benchmark
     core --> models
@@ -98,9 +108,19 @@ graph TD
     benchmark --> compiler
     models --> evaluation
     benchmark --> evaluation
+    subgraph experimental["hqsb.experimental — 训推协同 / 前沿扩展 / 证据治理（S14）"]
+        exf["identity / records / contracts / campaign"]
+        exp1["dependencies / training / parity / posttraining / frontier"]
+        exp2["speculative / moe / long_context / sparsity"]
+        exp3["multimodal / agent / edge"]
+        exv["telemetry / specs / experiment / interface_map"]
+    end
+
+    core --> infra
+    core --> experimental
 
     classDef concrete fill:#f9e8e8,stroke:#c44;
-    class backends,models,integration,runtime,serving,distributed,compiler,evaluation concrete;
+    class backends,models,integration,runtime,serving,distributed,compiler,evaluation,infra,experimental concrete;
 ```
 
 **规则：箭头只能从具体层指向 `core`，`core` 永不指向具体层。**
@@ -115,9 +135,13 @@ graph TD
 `hqsb.distributed` 位于最顶端（多设备通信/并行/证据层，S10），所有下层区域都不得
 反向依赖它（规则 R7），distributed 自身不 import `ops`（规则 R8），同样不得在模块级
 import `torch`/`triton`/`numpy`。
-`hqsb.evaluation` 位于最顶端（跨硬件评估与统一 benchmark 层，S12），所有下层区域
-（含 compiler）都不得反向依赖它（规则 R11），evaluation 自身不 import `ops`
-（规则 R12），且不得在模块级 import `torch`/`triton`/`numpy`。
+`hqsb.evaluation` 位于跨硬件评估层（S12），所有下层区域（含 compiler）都不得反向依赖它
+（规则 R11），evaluation 自身不 import `ops`（规则 R12），且不得在模块级 import
+`torch`/`triton`/`numpy`。
+`hqsb.infra` 位于生产化/云原生/可靠性层（S13）：它消费服务（S08）与评估（S12）的证据，
+所有其他区域（含 evaluation）都不得反向依赖它（规则 R13），infra 自身不 import `ops`
+（规则 R14），不得在模块级 import `torch`/`triton`/`numpy`，且**只依赖 `hqsb.core`**——
+集群/镜像/故障/canary/多租户契约必须能在 CPU-minimal 环境独立导入与测试。
 
 ## 2. 模块边界与 Ownership
 
@@ -139,6 +163,8 @@ import `torch`/`triton`/`numpy`。
 | `hqsb.serving.*` | 服务平面：协议/SSE/错误目录、网关与请求状态机、传输（stdlib HTTP + 模拟）、时间边界与投递账本、SLO/到达/loadgen、公平性与队列策略、准入/熔断、多后端路由与 cache-aware 路由、故障注入、可观测性、服务级 A/B、S08 实验脚手架与接口对照表 | `core`、`benchmark.metrics`（数值口径）、`runtime` 公共契约对象（metrics/policy_ab/request/prefix_cache/comparison/telemetry/experiment） | `ops`（kernel 以 capability/provider 名称描述）、模块级 `torch`/`triton`/`numpy`（必须函数内惰性导入）、任何下游区域反向依赖 |
 | `hqsb.distributed.*` | 多设备通信与并行层：拓扑身份/链路探测/placement、rank 与 group 身份、collective 语义与 CPU oracle、communicator 状态机与故障 oracle、ParallelPlan/通信账本、scaling 协议、overlap 区间代数、PP/CP/SP 门禁、MoE dispatch/combine、多 rank trace 与归因、C6/C7 投影、S10 实验脚手架与 300 步接口对照表 | `core`（错误/契约）、`runtime.experiment`（统一实验记录字段） | `ops`（collective/kernel 以 capability/provider 名称描述）、模块级 `torch`/`triton`/`numpy`（必须函数内惰性导入）、任何下游区域反向依赖 |
 | `hqsb.compiler.*` | AI 编译器层：多级 artifact 身份与 lineage、HQSB canonical/targeted IR 与 verifier、capture/break/guard/symbolic domain census、语义 pattern 重写（near-miss 拒绝、幂等、原子性）、target capability 与 lowering registry、backend 契约与 CompileRun、IR→codegen→binary→counter 归因、autotune 搜索/预算/holdout、cost model regret 与低置信回退、编译制品 cache（key/事务/失效/损坏）、TVM/MLIR 可迁移 lowering 接口、AI 候选零信任门链、C6/C7 投影、S11 实验脚手架与 320 步接口对照表 | `core`（错误/契约/版本门）；其他区域一律不 import（`hqsb.compiler` 只依赖 `core`） | `ops`（kernel 以 capability/provider 名称 + artifact locator/hash 描述）、模块级 `torch`/`triton`/`numpy`（必须函数内惰性导入，FX importer 等重依赖仅函数内探测）、任何下游区域反向依赖 |
+| `hqsb.infra.*` | 生产化/云原生/可靠性层（S13）：ReleaseBundle 与 OCI digest DAG 身份、§23 十四条交叉约束、campaign 目录与执行安全策略、供应链 gate（SBOM/漏洞/秘密/许可证/provenance/非 root）、clean 环境 bootstrap 与部署状态机、accelerator placement/capability label/NUMA 拓扑与隔离、模型制品 cache/原子激活/回滚/GC、probe/drain/rolling 生命周期、内存账本与 token/KV admission、metric-age 感知 autoscaling、request→hardware 可观测与 RCA、故障合同/降级/恢复、canary 状态机与自动回滚、多租户身份/配额/脱敏/审计、C6/C7 投影与 418 步接口对照表 | `core`（错误/契约/版本门）；其他区域一律不 import（`hqsb.infra` 只依赖 `core`） | `ops`（容器/模型/kernel 一律以 digest/identity 记录描述）、模块级 `torch`/`triton`/`numpy`（必须函数内惰性导入）、任何下游区域反向依赖、任何真实的集群/注册表凭据 |
+| `hqsb.experimental.*` | 训推协同与前沿扩展层（S14）：canonical 身份与 seed bundle、S14 词汇表与四个状态机、§7 七个统一证据对象（TrainingRun/Checkpoint/ServingModel/PolicySnapshot/Trajectory/FrontierStudyContract/AdoptionDecision）、§22 运行目录布局与执行安全策略、依赖与 feature flag 边界（E14-01）、分布式训练状态与 checkpoint（E14-02）、转换 DAG 与七层训推一致性门（E14-03）、SFT/DPO/GRPO 手算 oracle 与 policy staleness（E14-04）、前沿 ADR 与预注册（E14-05）、四个条件 P0 分支（E14-F1…F4）、三个可选迁移（E14-06/07/08）、C6/C7 投影、冻结词汇表审计、三重门实验脚手架与 **480 步接口对照表** | `core`（错误/契约/版本门）；其他区域一律不 import（`hqsb.experimental` 只依赖 `core`） | `ops`（trainer/engine/kernel/device 一律以 capability/provider 名称 + artifact identity 描述）、模块级 `torch`/`triton`/`numpy`/`transformers`/`ray`/`vllm`（必须函数内惰性探测）、任何下游区域反向依赖 |
 | `hqsb.evaluation.*` | 跨硬件评估与统一 benchmark 层（S12）：字节/canonical/aggregate 身份、Comparison Contract 与字段分类、四态可比性裁决与非法 join 防护、candidate 身份与上游证据五态、capability 四级证据与失效规则、四层统一重放（Observation/NormalizedResult/11 条交叉校验）、重复性与排除账本、分层 Roofline/Amdahl 预测与残差、能量窗口/积分/能效、云/自建 TCO 与成本敏感性、业务画像 Pareto 与决策回归、软件成熟度 rubric、端到端 lineage 与重生成、C6/C7 投影、S12 实验脚手架与 360 步接口对照表 | `core`（错误/契约/版本门）；其他区域一律不 import（`hqsb.evaluation` 只依赖 `core`） | `ops`（kernel 以 capability/provider 名称 + artifact locator 描述）、模块级 `torch`/`triton`/`numpy`（必须函数内惰性导入）、任何下游区域反向依赖、任何内置价格/电价/汇率常量（campaign 输入） |
 
 ## 3. 依赖方向约束（强制）
@@ -180,10 +206,28 @@ import `torch`/`triton`/`numpy`。
     `core`/`models`/`benchmark`/`backends`/`hardware`/`integration`/`quant`/`runtime`/
     `serving`/`distributed`/`compiler` 都不得反向依赖评估层——否则"可测量"的实现会被
     测量器绑死。
-15. **`hqsb.evaluation` 不得 import `ops`**（gate 规则 R12），且**不得在模块级 import
+15. **`hqsb.infra` 不得被任何下层区域 import**（gate 规则 R13）：
+    生产化/部署/故障/发布治理层消费服务与评估证据，反向依赖会把"被部署/被治理"的实现
+    绑到部署器上；因此 `core`/`models`/`benchmark`/`backends`/`hardware`/`quant`/
+    `integration`/`runtime`/`serving`/`distributed`/`compiler`/`evaluation` 都不得 import `hqsb.infra`。
+16. **`hqsb.infra` 不得 import `ops`**（gate 规则 R14），且**不得在模块级 import
+    `torch`/`triton`/`numpy`**：镜像/模型/kernel 一律以 digest/identity 记录描述，
+    该层只依赖 `hqsb.core`，在 CPU-minimal 环境可独立导入与测试；集群凭据、
+    注册表凭据与真实故障目标一律作为 campaign 输入，不内置。
+17. **`hqsb.evaluation` 不得 import `ops`**（gate 规则 R12），且**不得在模块级 import
     `torch`/`triton`/`numpy`**：kernel 以 capability/provider 名称 + artifact locator 描述；
     该层只依赖 `hqsb.core`，在 CPU-minimal 环境可独立导入与测试；价格/电价/汇率不内置，
     一律作为带日期的 campaign 输入 artifact。
+18. **`hqsb.experimental` 不得被任何下层区域 import**（gate 规则 R15）：
+    train-serve 协调与前沿扩展层消费 S07/S08/S10/S13 的证据，反向依赖会把
+    "被优化的推理主线"绑到 feature-gated 的研究路径上；
+    因此 `core`/`models`/`benchmark`/`backends`/`hardware`/`quant`/`integration`/
+    `runtime`/`serving`/`distributed`/`compiler`/`evaluation`/`infra` 都不得 import `hqsb.experimental`。
+19. **`hqsb.experimental` 不得 import `ops`**（gate 规则 R16），且**不得在模块级 import
+    `torch`/`triton`/`numpy`/`transformers`/`ray`/`vllm`**：trainer、engine、kernel 与设备
+    一律以 capability/provider 名称 + artifact identity 描述；该层只依赖 `hqsb.core`，
+    在 CPU-minimal 环境可独立导入与测试（子进程探针实测拉入重框架数 = 0）。
+    这是 E14-01 想证明的边界"在源码结构上就成立"的前提。
 
 ## 4. 扩展点（Extension Points）
 
@@ -205,12 +249,14 @@ pytest tests/unit/serving/test_serving_import_boundaries.py -q      # serving �
 pytest tests/unit/distributed/test_distributed_import_boundaries.py -q  # distributed 边界 + R7/R8 + 无模块级重依赖
 pytest tests/unit/compiler/test_compiler_import_boundaries.py -q        # compiler 边界 + R9/R10 + 无模块级重依赖
 pytest tests/unit/evaluation/test_evaluation_import_boundaries.py -q    # evaluation 边界 + R11/R12 + 无模块级重依赖
-python3 scripts/audit/import_dependency_gate.py                     # 规则 R1–R12 + 环检测（0 violations）
+pytest tests/unit/infra/test_infra_import_boundaries.py -q              # infra 边界 + R13/R14 + 无模块级重依赖
+pytest tests/unit/experimental/test_experimental_import_boundaries.py -q  # experimental 边界 + R15/R16 + 无模块级重依赖
+python3 scripts/audit/import_dependency_gate.py                     # 规则 R1–R16 + 环检测（0 violations）
 ```
 
 这些检查用 AST 静态扫描 import（不走运行时），任何违反依赖方向的导入都会失败；
 `hqsb.integration`/`hqsb.runtime`/`hqsb.serving`/`hqsb.distributed`/`hqsb.compiler`/
-`hqsb.evaluation`
+`hqsb.evaluation`/`hqsb.experimental`
 的 CPU-minimal 可导入性另由子进程探针测试固定（不依赖本进程是否已 import torch）。
 
 > 注意（S10 落地约束）：`hqsb/distributed/__init__.py` 只提供 PEP 562 惰性
@@ -218,7 +264,16 @@ python3 scripts/audit/import_dependency_gate.py                     # 规则 R1�
 > 会形成 `hqsb.distributed → experiment → specs → hqsb.distributed` 的环，被 R1–R8
 > 的环检测拒绝。
 
+> 注意（S13 落地约束）：`hqsb/infra/__init__.py` 同样只提供 PEP 562 惰性 `_LAZY`
+> 映射（同样的环风险：`hqsb.infra → experiment → specs → hqsb.infra`）；
+> `hqsb.infra` **只依赖 `hqsb.core`**，`configs/infra/*.yaml` 为冻结词汇表（无测量值）。
+
 > 注意（S11 落地约束）：`hqsb/compiler/__init__.py` 同样只提供 PEP 562 惰性 `_LAZY`
 > 映射（同样的环风险：`hqsb.compiler → experiment → specs → hqsb.compiler`）；
 > `hqsb.compiler` **只依赖 `hqsb.core`**（不依赖 integration/runtime/quant 等任何其他
 > 区域），以保证编译层可以在 CPU-minimal 环境独立导入与测试。
+
+> 注意（S14 落地约束）：`hqsb/experimental/__init__.py` 同样只提供 PEP 562 惰性 `_LAZY`
+> 映射（同样的环风险：`hqsb.experimental → experiment → specs → hqsb.experimental`）；
+> `hqsb.experimental` **只依赖 `hqsb.core`**，`configs/experimental/*.yaml` 为冻结词汇表
+> （由 `scripts/experimental/gen_experimental_specs.py` 生成，**不含任何测量值**）。

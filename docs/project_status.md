@@ -1,11 +1,11 @@
 # HQSB 项目现状报告（Project Status）
 
-> 生成时间：2026-08-17
+> 生成时间：2026-08-17（S13 章节与头部阶段声明同步于 2026-09-19）
 > 跨架构补验：2026-09-18（RTX 3090 / sm_86）
 > 当前工作树基线：`b83ebde`（`docs: add S09 CUDA-Ascend mapping, backend report and troubleshooting runbook`，S10 开始前工作树干净）
 > 历史基线 Commit：`9b403aa`（`chore: stop tracking the stage-experiment tree`，2026-06-02）；`3c2453e`（S06 追加）
-> 当前阶段：S11（AI 编译器与自动优化）—— **接口/代码层就位；实验层 BLOCKED**（6 条必需前置中 3 条缺失，见 §17）
-> 下一阶段：S03/S04 硬件证据补齐 → S06 模型级 pattern correctness → S11 实验执行（E11-01…E11-10）
+> 当前阶段：S13（生产化、云原生与可靠性）—— **接口/代码层就位；实验层 BLOCKED**（2 条必需前置缺失，见 §19；S12 章节见 §18）
+> 下一阶段：补齐 S08 服务契约与 S12 容量/质量基线前置 → 在隔离集群/注册表/扫描器/遥测后端上执行 E13-01…E13-11（含故障授权与 runbook 演练）
 > （历史路径：S07 实验执行（P0）→ S04.5（真实模型算子回接）→ S05/S06/S08 实验执行 → S10 实验执行（≥2 加速器））
 >
 > 说明：本报告正文生成于 `4dda6f8`，其后仓库推进到 `9b403aa` 并在其上追加
@@ -850,3 +850,144 @@ S11 报告：`docs/reports/S11_开发报告.md`、`docs/reports/S11_阶段验收
 
 S12 报告：`docs/reports/S12_开发报告.md`、`docs/reports/S12_阶段验收报告.md`、
 `docs/reports/S12_cross_hardware_design.md`。
+
+---
+
+## 19. S13（生产化、云原生与可靠性）—— 接口/代码层就位，实验层 BLOCKED
+
+**范围**：`hqsb/infra/`（19 个模块）+ `configs/infra/`（13 份冻结词汇表）+
+`scripts/infra/`（驱动 + 2 个生成器）+ `infra/`（容器/Helm/可观测/CI/runbook 模板）。
+11 项实验（E13-01…E13-11）共 **418 个步骤**全部有接口落点。
+
+**已交付能力**（每项都有测试证明，详见 `docs/evidence_ledger.md` §18）：
+
+| 层 | 模块 | 能力摘要 |
+|---|---|---|
+| 身份与 gate | `identity` / `records` / `contracts` / `campaign` | ReleaseBundle 与 OCI digest DAG 身份、可重建四级、三套状态机、§23 十四条交叉约束（V01–V14）、§21 目录与 §20.2 安全策略与 target 授权 |
+| E13-01 | `supply_chain` | 分层镜像闭包、SBOM 完整性、漏洞/严重度/可达性/例外、秘密与模型命中即 FAIL、许可证、provenance/attestation subject 闭合、非 root/只读/capability、构建上下文负例 |
+| E13-02 | `deployment` | clean level（L1/L2/L3）、污染检测、部署状态机、readiness 九条件语义、pre-ready 流量排除、首请求正确性、cold/warm 分离、失败清理、自动化判定 |
+| E13-03 | `scheduling` | PlacementPlan 硬/软约束、设备清单与 capability label 信任（TTL/owner/保护）、filter/score/bind 链路、NUMA/拓扑/链路/P2P、共享三模式与隔离层、越权与跨租户失败 |
+| E13-04 | `artifacts` | content-addressed cache key、staging→verify→原子提交（marker 之后于 durable）、兼容性 gate、lease/pin 与 GC 安全、激活/切换/回滚、混版本与 KV 隔离、故障注入 |
+| E13-05 | `lifecycle` | 三类 probe 语义（startup/readiness/liveness 分离且不与负载耦合）、终止预算、drain 时间线与 post-drain 拒绝、请求/令牌完整性、retry/duplicate 账、rolling/PDB、forced kill 记账、资源释放 |
+| E13-06 | `capacity` | 逐组件/逐 rank 内存账本、KV 估算（block rounding/prefix/Metadata）、token_work、六类 admission 策略与 reason code、reserve/commit 原子性、residual/false decision/margin holdout、S12 回流 |
+| E13-07 | `autoscaling` | 控制环路时延、desired replicas 与 clamp、metric age fail-safe、stabilization/rate limit/cooldown、控制指标（过冲/波动/settling）、成本、降载保护、失败矩阵 |
+| E13-08 | `observability` | 语义约定（版本化/单位/三层边界）、基数与禁用标签、采样与保留、SLI/diagnostic 分离、直方图 bucket、metric↔raw 对账、告警（impact/query/owner/runbook/阈值来源）、RCA（层级/范围/置信度/备选）、遥测缺失与脱敏 |
+| E13-09 | `faults` | 故障合同（hypothesis/targets/blast radius/预期/abort/kill switch/repetitions/claim 边界）、ground truth、MTTD/MTTM/MTTR、降级分类、retry/fallback 有界、恢复三轴不变量、残留观察、postmortem 与裁决 |
+| E13-10 | `canary` | 状态机（禁跳阶段）、G0–G8 gate（硬门优先）、session 粘性分配、序贯决策与信息量、流量/预算分阶段、case-mix 可比性、rollback 闭环、false rate 与 holdout、override 审计 |
+| E13-11 | `security` | 威胁模型（能力/非目标/fail policy）、租户映射、RBAC 权限图与间接提权、配额账本与并发竞态、滥用矩阵、噪声邻居、遥测脱敏、审计覆盖、12 条不变量裁决、结论措辞边界 |
+| 证据与脚手架 | `telemetry` / `specs` / `experiment` / `interface_map` | §22 七投影 + 93 表 schema 校验、13 份配置严格加载与逐字段审计、三重门（execute/前置/raw）拒绝产结论、418 步接口解析 |
+
+**测试与门禁（本机实测）**：
+
+- 全量：**3118 passed, 4 deselected**（S12 基线 2922；S13 专用新增测试 **195** 个 = 153 单元 + 42 属性）；
+- 依赖边界门：`rules=1.7.0 files=256 modules=256 edges=599 violations=0 cycles=0 status=PASS`
+  （新增 R13「下层不得 import infra」、R14「infra 不得 import ops」）；
+- 接口解析：`{steps: 418, interfaces: 343, references: 638, ok: true}`；
+- 配置审计：13/13 文档加载 + 逐字段一致；生成物与代码同步（`--check` 通过）；
+- 前置门：`run_e13.py --prerequisites` → `satisfied=false`（缺 S08/S12 两条必需）；
+- lint（新增范围）：`All checks passed`；文档链接：43 broken（**既有债务**，未新增）。
+
+**未覆盖边界（BLOCKED 与限制）**：
+
+1. 必需前置 `s08_service_contract`、`s12_capacity_and_quality_baseline` 未满足 →
+   实验层 `BLOCKED`，E13-01…E13-11 无 run / 无 raw / 无结论数字；
+2. 本机无 docker/kubectl/helm/cosign/syft/grype/promtool，无测试集群、注册表与遥测后端；
+3. `infra/**` 资产为模板（`IMPLEMENTED_UNVERIFIED` / `DESIGN_ONLY`），未构建/未渲染/未部署/未演练；
+4. `configs/infra/**` 只冻结词汇与结构，**不含测量值**；阈值/副本/流量比例必须由 campaign 冻结；
+5. §21 逻辑目录（`artifacts/S13/<campaign>/`）落到仓库既有物理根 `experiment_results/S13/`；
+6. E13-11 的 11/12 条租户不变量当前为 `NOT_RUN`（无多身份环境）；
+7. mypy 未覆盖 `hqsb/infra`（CI 中 mypy 亦为注释状态，仅计划 `hqsb/core`）。
+
+**报告**：`docs/reports/S13_开发报告.md`（含「实验步骤 → 代码接口」对照表）、
+`docs/reports/S13_阶段验收报告.md`（代码层验收 vs 实验层 BLOCKED）、
+`docs/reports/S13_production_architecture.md`（Design 制品：5 平面、13 项决策、回退方式）、
+`docs/reports/S13_interface_map_generated.md`（418 步逐条对照，生成物）。
+
+## 20. S14（训推协同与前沿扩展）—— 接口/代码层就位，实验层 BLOCKED
+
+S14 已交付 E14-01～E14-05、E14-F1～F4、E14-06～08 共 **12 项实验、480 个实验步骤**的能力接口
+（`hqsb/experimental/` **21 个模块，17,328 行**）。每个实验都有可调用的驱动入口
+（`scripts/experimental/run_e14.py --experiment <id>`），且**默认不产出结论**。
+
+**职责**：把"训练 → artifact → 推理/服务"的**证据链**做成统一契约与执行脚手架——
+canonical 身份与 seed bundle、S14 词汇表与四个状态机、§7 七个统一证据对象、
+§22 运行目录布局与执行安全策略、依赖与 feature flag 边界（E14-01）、
+分布式训练状态与 checkpoint（E14-02）、转换 DAG 与**七层训推一致性门**（E14-03）、
+SFT/DPO/GRPO **手算 oracle** 与 policy staleness（E14-04）、前沿 ADR 与预注册（E14-05）、
+四个条件 P0 分支（E14-F1 speculative/MTP、F2 MoE、F3 long-context、F4 sparsity）、
+三个可选迁移（E14-06 多模态、E14-07 Agent、E14-08 端侧）、C6/C7 投影、
+冻结词汇表审计、三重门脚手架与 **480 步接口对照表**。
+
+**依赖方向**：只依赖 `hqsb.core`。gate **R15** 禁止 13 个下层区域 import `hqsb.experimental`；
+gate **R16** 禁止 `hqsb.experimental` import `ops`，且禁止模块级 `torch`/`triton`/`numpy`/
+`transformers`/`ray`/`vllm`（必须函数内惰性探测）——因子进程探针实测：`import hqsb.experimental`
+拉入重框架数 = **0**。
+
+### 20.1 新增模块（`hqsb/experimental/`，21 个）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `__init__.py` | 135 | PEP 562 惰性 `_LAZY`；`STAGE`/`EXPERIMENTS`/`PRIMARY_CHAIN` 等顶层常量 |
+| `identity.py` | 448 | canonical digest（非有限数拒绝）、seed bundle（7 角色）、rank 身份、lineage DAG（环检测）、文件 inventory |
+| `records.py` | 881 | 状态/成熟度/adoption/capability 词汇表 + **4 个状态机** + **40 张表 schema** |
+| `contracts.py` | 871 | §7 七个统一证据对象（TrainingRun/Checkpoint/ServingModel/PolicySnapshot/Trajectory/FrontierStudyContract/AdoptionDecision）+ 跨实验不变量 |
+| `campaign.py` | 346 | §22 运行目录布局、执行安全策略（30 条禁止项、11 条隔离要求）、预算校验、可提交文件白名单 |
+| `dependencies.py` | 1454 | **E14-01**：extra↔flag↔capability↔CLI 映射、wheel 元数据/内容审计、导入纯度、flag 解析与冲突、10 类负例、SBOM 边界 |
+| `training.py` | 959 | **E14-02**：global batch 等价、loss 重归一化、逐层对账、collective/显存账本、checkpoint 完整性、resume 连续性、故障注入 |
+| `parity.py` | 790 | **E14-03**：转换 DAG、显式 mapping、**七层语义门**、adapter merge、6 类错误制品、原子发布与 cache |
+| `posttraining.py` | 1007 | **E14-04**：SFT/DPO/GRPO oracle、mask/长度归一化、logprob 一致性、policy lineage、有界异步队列、staleness 扫描 |
+| `frontier.py` | 1254 | **E14-05**：文献注册表、论文条件矩阵、estimand、硬前置门、单一 primary、AdoptionDecision 预注册、协议 hash 冻结 |
+| `speculative.py` | 909 | **E14-F1**：accept/residual 手算、逐位置接受率、cycle 成本重建、break-even、低 acceptance 保护 |
+| `moe.py` | 1126 | **E14-F2**：router top-k、CV/Gini/max-mean、A2A 与 GEMM 账本、per-rank 分解、total vs active 显存 |
+| `long_context.py` | 911 | **E14-F3**：KV payload/metadata 分离、无截断证明、chunk 边界与 position/mask、混部公平性 |
+| `sparsity.py` | 1087 | **E14-F4**：N:M compliance、算法误差 vs 实现误差、actual dispatch、metadata 成本、Amdahl 残差 |
+| `multimodal.py` | 941 | **E14-06**：阶段状态机、子模型 identity、任务原生指标、预处理进 E2E、三态计时 |
+| `agent.py` | 1157 | **E14-07**：13 状态工作流、tool 校验先于执行、critical path、9 类故障注入 |
+| `edge.py` | 1216 | **E14-08**：路线 A/B、delegate partition、cold/warm/sustained、MAP_ONLY 约束、技术地图 |
+| `telemetry.py` | 459 | C6/C7 扩展字段 + 10 个投影器 + 覆盖度报告；模态指标拒绝 LLM 单位 |
+| `specs.py` | 397 | `configs/experimental` 审计（禁测量值、禁绝对路径、跨文档一致性） |
+| `experiment.py` | 625 | 三重门脚手架、`EvidenceManifest`、前置检查（仓库 + 可选机器探测） |
+| `interface_map.py` | 355 | **480 步 → 993 条引用 → 589 个唯一接口** 的解析与校验 |
+
+### 20.2 配置与驱动
+
+| 制品 | 位置 | 说明 |
+|---|---|---|
+| 实验驱动 | `scripts/experimental/run_e14.py`（357 行） | `--list` / `--prerequisites` / `--interface-map` / `--objects` / `--spec-audit` / `--spec-check` / `--smoke` / `--experiment`；**默认拒绝产出结论** |
+| 词汇表生成器 | `scripts/experimental/gen_experimental_specs.py`（547 行） | `--write` / `--check`；8 份 YAML 的单一事实源 |
+| 接口图生成器 | `scripts/experimental/gen_interface_map.py`（121 行） | 生成并校验 `S14_interface_map_generated.md`；不完整映射拒绝落盘 |
+| 冻结词汇表 | `configs/experimental/*.yaml`（8 份） | `dependency-policy` / `extras` / `failure-semantics` / `environment-matrix` / `frontier-branches` / `adoption-rules` / `statistics-plan` / `profiling-contract`。**不含任何测量值、不含本机绝对路径** |
+| 宿主加固（本机，不入库） | `scripts/env/patch_vscode_server_heap.sh` | 扩展宿主堆上限注入；`--check` / `--revert` / `VSCODE_HEAP_MB`；见 `AGENTS.md` §9 |
+
+### 20.3 测试与门禁
+
+| 项 | 结果 |
+|---|---|
+| 全量 CPU 测试 | **3221 passed, 4 deselected** |
+| S14 专项测试 | **103 passed**（`tests/unit/experimental/` 3 个文件 89 项 + `tests/property/test_experimental_invariants.py` 14 项） |
+| 依赖边界门 | `rules=1.8.0 files=277 modules=277 edges=667 violations=0 cycles=0 status=PASS`（新增区域 `experimental` + 规则 **R15/R16**） |
+| 480 步接口解析 | `experiments=12 steps=480/480 interfaces=589 references=993 ok=True`；`steps_without_interfaces=[]` |
+| 词汇表审计 | `kinds=8 missing_kinds=[] ok=True cross_document_problems=0` |
+| lint | `All checks passed!`（本阶段文件） |
+| 文档链接 | 本阶段新增文件 **0 断链**；报告 43 处断链全部落在既有文件 |
+| 三重门 | `write_verdict` 在无 `--execute`／前置未满足／无 raw samples 时**拒绝**写结论（有测试证明） |
+
+### 20.4 阻塞与交接
+
+**实验层全部 `BLOCKED`**：必需前置 `upstream_verdicts`、`experimental_environment`、
+`holdout_isolation` 未满足；`distributed_launcher`/`second_device`/profiler 未解析；
+E14-03/04/05/F*/06/07/08 的上游链未闭环。**12 项实验无任何 run、无 raw、无结论数字。**
+
+交接给 S15：
+- 可消费：480 步接口对照、依赖/CI 边界证据、七个证据对象与 manifest 字段、冻结词汇表、前置阻塞的精确原因与复跑命令；
+- **不可**消费：任何"已支持/已加速/已验证"的 S14 声明；论文/设计文档中的预期收益；
+  `N/A_BY_ADR` 形式的范围缩减（该 ADR 本身未执行）。
+
+未覆盖边界：① 模块成熟度上限 `SOURCE_INTEGRATED`；② 未实现真实 trainer/engine/device 调用
+（R16 有意禁止 import `ops`）；③ E14-06/07/08 未做 ADR 决策，状态为**未执行**而非 `N/A_BY_ADR`；
+④ 未选中任何前沿分支；⑤ 多模态/Agent/端侧能力**未被声称**；⑥ 不修改 `docs/stage_experiments/**`。
+
+**报告**：`docs/reports/S14_开发报告.md`（含「实验步骤 → 代码接口」对照表 §5、
+模块调用示例 §4、未完成项 §8）
+`docs/reports/S14_阶段验收报告.md`（代码层验收通过 vs 实验层 BLOCKED，测试标准逐条核验）
+`docs/reports/S14_interface_map_generated.md`（480 步逐条对照，生成物）。
