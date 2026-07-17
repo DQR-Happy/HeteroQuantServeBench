@@ -6,6 +6,7 @@
 > 历史基线 Commit：`9b403aa`（`chore: stop tracking the stage-experiment tree`，2026-06-02）；`3c2453e`（S06 追加）
 > 当前阶段：S13（生产化、云原生与可靠性）—— **接口/代码层就位；实验层 BLOCKED**（2 条必需前置缺失，见 §19；S12 章节见 §18）
 > 下一阶段：补齐 S08 服务契约与 S12 容量/质量基线前置 → 在隔离集群/注册表/扫描器/遥测后端上执行 E13-01…E13-11（含故障授权与 runbook 演练）
+> **最新追加**：S14（训推协同与前沿扩展，§20）与 **S15（发布、开源与求职证据，§21）** 均已交付**接口/代码层**，实验层 `BLOCKED`（2026-09-19）
 > （历史路径：S07 实验执行（P0）→ S04.5（真实模型算子回接）→ S05/S06/S08 实验执行 → S10 实验执行（≥2 加速器））
 >
 > 说明：本报告正文生成于 `4dda6f8`，其后仓库推进到 `9b403aa` 并在其上追加
@@ -991,3 +992,90 @@ E14-03/04/05/F*/06/07/08 的上游链未闭环。**12 项实验无任何 run、�
 模块调用示例 §4、未完成项 §8）
 `docs/reports/S14_阶段验收报告.md`（代码层验收通过 vs 实验层 BLOCKED，测试标准逐条核验）
 `docs/reports/S14_interface_map_generated.md`（480 步逐条对照，生成物）。
+
+---
+
+## 21. S15（发布、开源与求职证据）—— 接口/代码层就位，实验层 BLOCKED
+
+S15 已交付 E15-01～E15-11 共 **11 项实验、495 个实验步骤**的能力接口
+（`hqsb/release/` **19 个模块，14,562 行**）。每个实验都有可调用的驱动入口
+（`scripts/release/run_e15.py --experiment <id>`），且**默认不产出结论**。
+
+**职责**：把全部技术工作转化为可核验的公开证据——三个冻结对象
+（`ReleaseCandidateSnapshot`/`PublicEvidenceBundle`/`FinalAcceptanceDecision`）、
+`ClaimRecord` 十门裁决与稳定 ID、`ContributionRecord` 人/Agent/第三方边界、
+全局 Claim Ledger/声明扫描/证据门（E15-01）、clean CPU quickstart 契约（E15-02）、
+GPU/NPU hero 重放与 Amdahl 预测（E15-03）、可执行文档/双语一致性/能力矩阵（E15-04）、
+release 供应链/provenance/SBOM/许可证（E15-05）、图表→raw lineage 与重生成（E15-06）、
+demo 故障注入与诚实降级（E15-07）、3/10/30 分钟讲述与对抗问答（E15-08）、
+第三方 clean-room 复现（E15-09）、真实上游贡献（E15-10）、目标读者首屏研究（E15-11）、
+**四重门**实验脚手架与 **495 步接口对照表**。
+
+**依赖方向**：只依赖 `hqsb.core`。gate **R17** 禁止 14 个下层区域 import `hqsb.release`；
+gate **R18** 禁止 `hqsb.release` import `ops`，且禁止模块级 `torch`/`triton`/`numpy`/
+`requests`/`httpx`（必须函数内惰性探测）——因子进程探针实测：`import hqsb.release`
+拉入重框架数 = **0**。
+
+### 21.1 新增模块（`hqsb/release/`，19 个）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `__init__.py` | 136 | PEP 562 惰性 `_LAZY`；`STAGE`/`EXPERIMENTS`/`P0_EXPERIMENTS`/`STAGE_GATES` |
+| `identity.py` | 559 | canonical digest（NaN 拒绝）、稳定 claim id（事实签名）、证据等级偏序、本地 URI 拒绝、文件 inventory |
+| `records.py` | 1476 | 六态状态 + claim/finding/help/复现/disposition/demo 词汇表 + **11 个实验 record schema** + §22 数据包 |
+| `contracts.py` | 932 | 三个冻结对象 + `ClaimRecord` 十门 + `ContributionRecord` + 可信度乘积规则 |
+| `campaign.py` | 376 | `artifacts/S15` 布局、写保护（协议树只读）、执行安全（20 条禁止项/8 条隔离） |
+| `experiment.py` | 758 | **四重门**脚手架、`EvidenceManifest`、前置检查（仓库 + 机器探测） |
+| `telemetry.py` | 415 | ActionLog、time-to-event（小样本不外推）、EvidenceLookupTrial、DetectorMetrics、FindingTracker |
+| `specs.py` | 334 | `configs/release` 审计（禁测量值/禁绝对路径/未知键/跨文档一致性） |
+| `claims.py` | 1436 | **E15-01**：公开面 inventory、四类检测器、归一化、绑定、EvidenceGraph、URI/digest/重建、orphan/stale/冲突/单位/外推、负对照、渠道渲染、冻结 |
+| `quickstart.py` | 880 | **E15-02**：契约、支持矩阵、session、八段时钟、干预分级、环境证据、canonical 比较、隐私扫描、负例、逐门裁决 |
+| `hero_replay.py` | 977 | **E15-03**：环境指纹/可比性、设备健康、profiler、身份、capability、正确性矩阵、actual path、confirmatory 计划、Amdahl、blocked 估计、一致性裁决、stop 规则 |
+| `docs_gate.py` | 1163 | **E15-04**：五 inventory、链接/anchor/命令/Schema/CLI/矩阵/双语/版本/隐私/可访问性逐门、缺陷归因 |
+| `supply_chain.py` | 1091 | **E15-05**：版本语义、build definition、manifest、provenance、SBOM、漏洞 disposition、许可证/权利、秘密/PII、重复构建、消费验证、撤回 |
+| `figures.py` | 813 | **E15-06**：FigureSpec、抽样（冻结 seed）、lineage 六层、聚合/实验单位/误差线、D0–D5 差异等级、Pareto、ACCESS_FRICTION |
+| `demo.py` | 731 | **E15-07**：目标、段预算、状态机、测量状态、故障矩阵、演练、录屏 manifest |
+| `narrative.py` | 562 | **E15-08**：契约、事实卡、岗位矩阵、三种时长内容门、题库、六维 rubric、FAQ/简历 |
+| `clean_room.py` | 619 | **E15-09**：契约、独立性声明、received materials、HelpLog（L0–L4）、复现层级矩阵、修复复测 |
+| `upstream.py` | 522 | **E15-10**：边界归因、最小复现、IssueDraft、PatchDesign、ReviewRound、十一维质量门、disposition |
+| `first_impression.py` | 480 | **E15-11**：契约、参与者画像、任务集、答案 key、编码、误解、角色 block 分析、复测 |
+| `interface_map.py` | 302 | **495 步 → 796 引用** 解析与校验（dataclass 字段引用可解析） |
+
+### 21.2 配置与驱动
+
+| 制品 | 位置 | 说明 |
+|---|---|---|
+| 实验驱动 | `scripts/release/run_e15.py`（341 行） | `--list`/`--prerequisites`/`--interface-map`/`--objects`/`--spec-audit`/`--spec-check`/`--smoke`/`--experiment`；**默认拒绝产出结论** |
+| 词汇表生成器 | `scripts/release/gen_release_specs.py`（346 行） | `--check` 漂移校验；8 份 YAML 单一事实源 |
+| 接口图生成器 | `scripts/release/gen_interface_map.py`（83 行） | 生成并校验 `S15_interface_map_generated.md`；不完整映射拒绝落盘 |
+| 冻结词汇表 | `configs/release/*.yaml`（8 份） | `claim-taxonomy`/`detector-patterns`/`evidence-package`/`documentation-policy`/`release-policy`/`figure-audit`/`demo-narrative`/`reproduction-upstream`。**不含任何测量值、不含本机绝对路径** |
+
+### 21.3 测试与门禁
+
+| 项 | 结果 |
+|---|---|
+| 全量 CPU 测试 | **3293 passed, 4 deselected** |
+| S15 专项测试 | **72 passed**（`tests/unit/release/` 3 文件 40 项 + `tests/property/test_release_invariants.py` 28 项 + 边界 4 项） |
+| 依赖边界门 | `rules=1.9.0 files=297 modules=297 edges=722 violations=0 cycles=0 status=PASS`（新增区域 `release` + 规则 **R17/R18**） |
+| 495 步接口解析 | `steps=495/495 references=796 ok=True steps_without_interfaces=0` |
+| 词汇表审计 | `kinds=8 missing_kinds=[] duplicate_kinds=[] ok=True cross_document_problems=0` |
+| 驱动 smoke | `status=smoke claim_allowed=False`（11 实验 + 8 基础设施模块全通过） |
+| lint | `All checks passed!`（本阶段文件） |
+| 文档链接 | 本阶段新增文件 **0 断链**；43 处断链全部落在既有文件 |
+| 四重门 | `write_verdict` 在无 `--execute`／前置未满足／无 raw samples／无 candidate+ledger 时**拒绝**写结论 |
+
+### 21.4 阻塞与交接
+
+**实验层全部 `BLOCKED`**：`release_candidate`/`claim_ledger`/`public_artifact`（G0 未建立）、
+`reviewer_resource`/`participant_resource`/`upstream_authorization`/`release_authorization`（外部资源/授权缺失）、
+`accelerator_device`/`documentation_builder`/`clean_environment_builder`/`scanner_tooling`/`recording_tooling`/
+`network_access`（未探测）。**11 项实验无任何 run、无 raw、无结论数字。**
+
+未覆盖边界：① 模块成熟度上限 `SOURCE`+`TEST`；② 不真正构建/发布/联系上游/跑加速器（R18 有意禁止 import `ops`）；
+③ E15-10 上游贡献、E15-09 外部复现、E15-11 参与者研究均未执行（不是 `N/A_BY_ADR`，是 `BLOCKED`）；
+④ 未声称任何 `RUNTIME` 及以上结论；⑤ 不修改 `docs/stage_experiments/**`。
+
+**报告**：`docs/reports/S15_开发报告.md`（含「实验步骤 → 代码接口」对照表 §5、
+模块调用示例 §4、未完成项 §8）
+`docs/reports/S15_阶段验收报告.md`（代码层验收 vs 实验层 BLOCKED，测试/验收标准逐条核验）
+`docs/reports/S15_interface_map_generated.md`（495 步逐条对照，生成物）。

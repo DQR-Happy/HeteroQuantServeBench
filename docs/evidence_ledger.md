@@ -713,3 +713,37 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 | S14-22 | 宿主堆上限修复：`NODE_OPTIONS` 被 `server-main.js` 的 `Hd()` 定向剥离，改以 **node CLI 实参**（`execArgv` 默认继承 `process.execArgv`）注入；宿主 cmdline 实测含 `--max-old-space-size=16384` | runtime-verified（本机） | `scripts/env/patch_vscode_server_heap.sh`；`ps -eo cmd \| grep type=extensionHost`；`v8.getHeapStatistics().heap_size_limit` 实测：默认 4.19 GB → 8192 时 8.19 GB → 16384 时 16.19 GB |
 | S14-BLOCK | **S14 实验层 BLOCKED**：必需前置 `upstream_verdicts`、`experimental_environment`、`holdout_isolation` 未满足；`distributed_launcher`/`second_device`/profiler 未解析；E14-03/04/05/F*/06/07/08 的上游链未闭环。**12 项实验无任何 run、无 raw、无结论数字** | source-only（实测登记） | `run_e14.py --prerequisites --json`；`--experiment E14-02 --json` → `status: BLOCKED`, `prerequisites_satisfied: false`, `verdict.json: "conclusion": false`；`docs/reports/S14_阶段验收报告.md` §6.2 |
 | S14-LIMIT | 未覆盖边界（如实登记）：① 模块成熟度上限 `SOURCE_INTEGRATED`（无实验执行）；② 未实现真实 trainer/engine/device 调用（R16 有意禁止 import `ops`）；③ E14-06/07/08 **未做** ADR 决策，故状态为未执行而**非** `N/A_BY_ADR`；④ 未选中任何前沿分支，未产生分支能力声明；⑤ 多模态/Agent/端侧**能力未被声称**；⑥ 本阶段不修改 `docs/stage_experiments/**`，协议留白只登记不改写 | source-only | `docs/reports/S14_开发报告.md` §8/§9；`docs/reports/S14_阶段验收报告.md` §9 |
+
+## 20. 环境故障复盘：扩展宿主 OOM（S14 期间，非阶段制品）
+
+> 机器：RTX 3090 开发机（x86_64 Linux）｜ 日期：2026-09-19 ｜ 证据等级：`development`（本机实测）
+> 完整叙述：`docs/reports/扩展宿主OOM故障复盘.md`；机器侧原始记录：`AGENTS.md` §8/§9。
+
+| ID | 声明 | 等级 | 证据 |
+|---|---|---|---|
+| ENV-OOM-01 | **根因**：扩展宿主 V8 堆撞 4 GB 默认上限 → `node::OOMErrorHandler` → `abort()` → `SIGABRT` → 宿主被自动重建。**不是**系统内存不足、不是 OOM-killer、不是网络 | runtime-verified（本机） | `FATAL ERROR: Reached heap limit` + `signal: SIGABRT`（`AGENTS.md` §8.2 摘录）；`oom_kill 0`；7 个候选原因逐一证伪（复盘 §3） |
+| ENV-OOM-02 | V8 默认 `heap_size_limit` 是**固定值，不随物理内存缩放**：本机 `totalmem=503.5 GB` 时默认 **4.19 GB**（比值 0.83%） | runtime-verified（本机，node v24.18.1） | `v8.getHeapStatistics().heap_size_limit` 实测；对照：`8192→8.19 GB`、`16384→16.19 GB`（复盘 §5.1） |
+| ENV-OOM-03 | **注入点是 node CLI 实参，不是环境变量**：`server-main.js` 的 `Hd()` 从宿主 env 删除 `NODE_OPTIONS` 等 5 个变量；而 `execArgv` 默认继承 `process.execArgv` 并被转发 | runtime-verified（本机） | 宿主 `cmdline` 含 `--max-old-space-size=16384`；`/proc/<pid>/environ` **不含** `NODE_OPTIONS`（正是该判据的假阴性来源） |
+| ENV-OOM-04 | 官方 hook `~/.vscode-server/server-env-setup` 在当前 CLI 布局下**从未被 source**（机制性失效，非配置错误） | runtime-verified（带对照组） | 探针文件 `/tmp/hqsb-env-setup-ran.log` 始终未生成；对照 `grep -a -c serve-web`=4 vs `grep -a -c env-setup`=0；`server-main.js` 中 `server-env-setup`=0 |
+| ENV-OOM-05 | `Developer: Reload Window` **不重启 server**；关闭窗口后 server **继续存活**。二者都不读启动脚本 | runtime-verified | 重载/关窗后 server pid 与启动时间不变；`Kill VS Code Server on Host` 后才变为新 pid |
+| ENV-OOM-06 | 加固脚本的 3 处**报告与状态不一致**已修：① 复验提示查 `environ`（假阴性）② `--check` 报参数值而非实测值 ③ **无参重跑静默降级天花板**（实测 16384→8192） | runtime-verified | `scripts/env/patch_vscode_server_heap.sh`；复验：显式 16384 → 磁盘 16384；无参重跑 → `already patched ×3 / patched 0`，天花板保持 16384 |
+| ENV-OOM-07 | **载体降级风险**：6 次 SIGABRT 的原始日志已被 16:27 的 server 重启清理（现存日志最早 `20260919T162322`）；仅存的 16 行摘录原在一个 **gitignored** 的本机文件中 | runtime-verified | `ls -1 ~/.vscode-server/data/logs/ \| head -1` → `20260919T162322`；`git check-ignore -v AGENTS.md` → `.gitignore:94`。**本次已随 `docs/reports/` 进入版本控制**（复盘 附录 B.1） |
+| ENV-OOM-LIMIT | 未归因/未复现（如实登记）：① **是哪个扩展在涨堆未定位**（需 heap snapshot，该操作本身加压，本轮不执行）；② cgroup `memory.max` 当时记 90 GB、本次实测 **62.0 GB**，未复现；③ `affinity` 宿主隔离**未稳定生效**（本次宿主数=1），未声称"已隔离" | source-only | 复盘 §3.1 / §6.4 / 附录 E |
+
+---
+
+## S15 交付声明（接口/代码层就位；实验层 BLOCKED，2026-09-19）
+
+> 本阶段与 §1 的 claim 分级口径一致：以下声明**只到 `test-verified` 为止**，
+> 任何 `runtime-verified` 及以上（真实 release/复现/上游贡献/参与者结论）**均未声称**。
+
+| # | 声明 | 分级 | 证据路径 |
+|---|---|---|---|
+| S15-C1 | `hqsb/release/` 19 模块 14,562 行，覆盖 E15-01～E15-11 的 495 个实验步骤、796 条接口引用，逐条 import 可解析 | test-verified | `hqsb/release/interface_map.py::resolve_interfaces`；`tests/unit/release/test_e15_interfaces.py::test_all_steps_resolve`（`steps=495/495 ok=True`） |
+| S15-C2 | 三个冻结对象 + ClaimRecord 十门裁决 + ContributionRecord 人/Agent/第三方边界可校验 | test-verified | `hqsb/release/contracts.py`；`tests/unit/release/test_release_foundations.py::TestFrozenObjects/TestClaimRecord/TestContributionRecord` |
+| S15-C3 | 负向路径在执行前被拒绝：越级 claim、脏树候选、本地 URI、无负对照扫描器、跨族单位、L3 帮助、复用候选 id | test-verified | `tests/unit/release/` + `tests/property/test_release_invariants.py`（28 项） |
+| S15-C4 | 依赖方向 R17/R18 成立，`hqsb.release` 在 CPU-minimal 环境可独立导入（子进程拉入重框架 = 0） | test-verified | `scripts/audit/import_dependency_gate.py`（`rules=1.9.0 violations=0`）；`tests/unit/release/test_release_import_boundaries.py` |
+| S15-C5 | 四重门：无 `--execute`／前置未满足／无 raw samples／无 candidate+ledger 时拒绝写 `PASS`/`FAIL` | test-verified | `hqsb/release/experiment.py::RunDirectory.write_verdict`；`scripts/release/run_e15.py --experiment E15-01` → `status=BLOCKED conclusion=false` |
+| S15-C6 | 冻结词汇表 8 份无测量值、无绝对路径，漂移可检查 | test-verified | `configs/release/*.yaml`；`hqsb/release/specs.py`；`scripts/release/gen_release_specs.py --check`（`ok=True drifted=0`） |
+| S15-C7 | 实验层 11 项全部 `BLOCKED`：无 release candidate/ledger/制品、无 reviewer/参与者/上游授权、加速器/构建器/扫描器未探测 | **blocked** | `scripts/release/run_e15.py --prerequisites --probe`（前置清单逐项列出） |
+| S15-LIMIT | 未声称：任何实验结论数字；"quickstart 30 分钟可完成""hero story 已复现""已通过 SBOM/许可证/秘密检查""已完成外部复现/上游贡献""招聘者 5 分钟理解项目"（协议 §3 明列为不能声明） | planned | `docs/stage_experiments/details/S15/README.md` §3 |
