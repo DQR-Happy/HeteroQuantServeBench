@@ -50,7 +50,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 GATE_NAME = "import_dependency_gate"
-RULES_VERSION = "1.8.0"
+RULES_VERSION = "1.9.0"
 
 #: Architectural regions. A module belongs to the first region whose dotted
 #: prefix matches it. Order matters (most specific first).
@@ -69,6 +69,7 @@ REGION_PREFIXES: List[Tuple[str, str]] = [
     ("evaluation", "hqsb.evaluation"),
     ("infra", "hqsb.infra"),
     ("experimental", "hqsb.experimental"),
+    ("release", "hqsb.release"),
     ("ops", "ops"),
 ]
 
@@ -354,6 +355,49 @@ RULES: List[Dict[str, Any]] = [
             "without a device (E14-01: core-only 环境必须不拉实验重依赖)."
         ),
         "source_regions": ["experimental"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R17",
+        "name": "lower_layers_do_not_depend_on_release",
+        "description": (
+            "hqsb.release is the release / open-source / job-evidence layer (S15): it consumes the "
+            "frozen S00–S14 evidence (acceptance records, claim ledger, evidence bundles) and must "
+            "stay above every other region, so core/models/benchmark/backends/hardware/quant/"
+            "integration/runtime/serving/distributed/compiler/evaluation/infra/experimental may not "
+            "import it (a lower layer importing the publication layer would let release/communication "
+            "concerns leak into the measurement layers)."
+        ),
+        "source_regions": [
+            "core",
+            "models",
+            "benchmark",
+            "backends",
+            "hardware",
+            "quant",
+            "integration",
+            "runtime",
+            "serving",
+            "distributed",
+            "compiler",
+            "evaluation",
+            "infra",
+            "experimental",
+        ],
+        "forbidden_target_regions": ["release"],
+    },
+    {
+        "id": "R18",
+        "name": "release_does_not_import_kernel_implementations",
+        "description": (
+            "hqsb.release addresses packages, models, kernels, containers and upstream repositories "
+            "through digest/identity/manifest records and capability names, never by importing the ops "
+            "package; the layer must run on the CPU-minimal installation (no module-level torch/triton/"
+            "numpy/requests/httpx) so that claim/quickstart/replay/docs/release/figure/demo/narrative/"
+            "reproduction/upstream contracts stay testable without a device or network (S15: the audit "
+            "tooling must not itself require a GPU or the internet)."
+        ),
+        "source_regions": ["release"],
         "forbidden_target_regions": ["ops"],
     },
 ]

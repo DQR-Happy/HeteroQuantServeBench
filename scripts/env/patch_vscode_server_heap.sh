@@ -30,16 +30,50 @@
 #   scripts/env/patch_vscode_server_heap.sh --revert     # restore .orig
 #   VSCODE_HEAP_MB=12288 scripts/env/patch_vscode_server_heap.sh
 #
-# Verification after a server restart:
-#   for p in $(ps -eo pid,cmd | grep "[t]ype=extensionHost" | awk '{print $1}'); do
-#     tr '\0' '\n' < /proc/$p/environ | grep NODE_OPTIONS; done
+# Verification after a server restart -- check the CMDLINE, not the environment:
+#   ps -eo cmd | grep "[t]ype=extensionHost" | grep -o -- "--max-old-space-size=[0-9]*"
+# (Do NOT verify with `/proc/<pid>/environ | grep NODE_OPTIONS`: `Hd()` in
+#  server-main.js deletes NODE_OPTIONS from the forked extension host, so the
+#  environment NEVER shows it even when the ceiling IS in effect.  That check
+#  would report a false negative.)
 
 set -eu
 
-HEAP_MB="${VSCODE_HEAP_MB:-8192}"
 SERVERS_DIR="${HOME}/.vscode-server/cli/servers"
-MARKER="max-old-space-size=${HEAP_MB}"
+DEFAULT_HEAP_MB=8192
 MODE="patch"
+
+# Which ceiling to install?
+#   * an explicit VSCODE_HEAP_MB always wins (that is how you deliberately change it);
+#   * otherwise, if a launcher ALREADY carries a ceiling, keep it.
+#     Without this rule, re-running the script with no argument would silently
+#     *lower* an installed 16384 back to the 8192 default -- a silent downgrade,
+#     and one that only shows up after the next server restart (2026-09-19: this
+#     happened, hence the rule).
+#   * otherwise fall back to the default.
+if [ -n "${VSCODE_HEAP_MB:-}" ]; then
+    HEAP_MB="$VSCODE_HEAP_MB"
+    HEAP_SOURCE="VSCODE_HEAP_MB (explicit)"
+else
+    HEAP_MB=""
+    for launcher in "$SERVERS_DIR"/Stable-*/server/bin/code-server; do
+        [ -f "$launcher" ] || continue
+        detected="$(grep 'server-main.js' "$launcher" 2>/dev/null | head -1 \
+            | grep -o -- '--max-old-space-size=[0-9]*' | head -1 | sed 's/.*=//')"
+        if [ -n "$detected" ]; then
+            HEAP_MB="$detected"
+            break
+        fi
+    done
+    if [ -n "$HEAP_MB" ]; then
+        HEAP_SOURCE="already installed on disk"
+    else
+        HEAP_MB="$DEFAULT_HEAP_MB"
+        HEAP_SOURCE="default"
+    fi
+fi
+
+MARKER="max-old-space-size=${HEAP_MB}"
 
 for arg in "$@"; do
     case "$arg" in
@@ -60,6 +94,7 @@ found=0
 patched=0
 skipped=0
 failed=0
+installed=""   # ceiling actually present on disk (reported by --check)
 
 # Every installed server version is patched, so a version bump does not silently
 # lose the ceiling again.
@@ -69,13 +104,16 @@ for launcher in "$SERVERS_DIR"/Stable-*/server/bin/code-server; do
 
     case "$MODE" in
         check)
+            # Report the ceiling that is ACTUALLY on disk, not the requested
+            # default: printing `HEAP_MB` here would read "8192 MB" on a machine
+            # whose launcher says 16384, i.e. a check that lies about the state.
             exec_line="$(grep 'server-main.js' "$launcher" 2>/dev/null | head -1)"
-            if [ -n "$exec_line" ] && [ "${exec_line#*$MARKER}" != "$exec_line" ]; then
-                echo "[check] exec line PATCHED: $launcher"
-            elif [ -n "$exec_line" ] && [ "${exec_line#*--max-old-space-size=}" != "$exec_line" ]; then
-                echo "[check] exec line patched with a DIFFERENT ceiling: $exec_line"
+            detected="$(printf '%s\n' "$exec_line" | grep -o -- '--max-old-space-size=[0-9]*' | head -1 | sed 's/.*=//')"
+            if [ -n "$detected" ]; then
+                echo "[check] PATCHED, exec-line ceiling ${detected} MB: $launcher"
+                installed="$detected"
             else
-                echo "[check] exec line NOT patched: $launcher"
+                echo "[check] NOT patched (no heap flag on the exec line): $launcher"
             fi
             continue
             ;;
@@ -151,12 +189,14 @@ echo "launchers found : $found"
 echo "patched         : $patched"
 echo "already ok/no-op: $skipped"
 echo "failed          : $failed"
-echo "heap ceiling    : ${HEAP_MB} MB (ceiling, not a preallocation)"
+echo "heap ceiling    : ${HEAP_MB} MB (ceiling, not a preallocation; source: ${HEAP_SOURCE})"
+[ -n "$installed" ] && echo "detected on disk: ${installed} MB"
+echo ""
+echo "改动天花板：VSCODE_HEAP_MB=<MB> 显式指定（不加则沿用磁盘上已有的值，不会静默升降）"
 echo ""
 echo "生效条件：必须重启 SERVER，窗口重载不够。"
 echo "  客户端：Ctrl+Shift+P -> 'Remote-SSH: Kill VS Code Server on Host'"
 echo "  等价： ssh <host> 'pkill -f .vscode-server'  （会断开当前连接，客户端会自动重连）"
-echo "复验（shell 里执行，<pid> 换成 extensionHost 的 pid）："
-echo "  ps -eo pid,cmd | grep '[t]ype=extensionHost'"
-echo '  tr "\000" "\n" < /proc/<pid>/environ | grep NODE_OPTIONS'
+echo "复验（查 cmdline，不要查 environ —— 见本脚本头部说明）："
+echo "  ps -eo cmd | grep '[t]ype=extensionHost' | grep -o -- '--max-old-space-size=[0-9]*'"
 exit 0
