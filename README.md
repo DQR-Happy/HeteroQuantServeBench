@@ -10,7 +10,42 @@ benchmark，使每一次优化都能从 Kernel 追踪到模型、服务和硬件
 
 ## Current stage
 
-**S14（训推协同与前沿扩展）—— 接口/代码层就位；实验层 BLOCKED。**
+**S15（发布、开源与求职证据）—— 接口/代码层就位；实验层 BLOCKED。**
+
+S15 已交付 E15-01~E15-11 共 **11 项实验、495 个实验步骤**的能力接口
+（`hqsb/release/` **19 模块 / 14,562 行**：三个冻结对象（ReleaseCandidateSnapshot/
+PublicEvidenceBundle/FinalAcceptanceDecision）、ClaimRecord 十门裁决与稳定 ID、
+ContributionRecord 人/Agent/第三方边界、全局 Claim Ledger/声明扫描/证据门（E15-01）、
+clean CPU quickstart 契约（E15-02）、GPU/NPU hero 重放与 Amdahl 预测（E15-03）、
+可执行文档/双语一致性/能力矩阵（E15-04）、release 供应链/provenance/SBOM/许可证（E15-05）、
+图表→raw lineage 与重生成（E15-06）、demo 故障注入与诚实降级（E15-07）、
+3/10/30 分钟讲述与对抗问答（E15-08）、第三方 clean-room 复现（E15-09）、
+真实上游贡献（E15-10）、目标读者首屏研究（E15-11）、四重门脚手架与 495 步接口对照表）
++ `scripts/release/` 驱动与 2 个生成器 + `configs/release/` 8 份冻结词汇表（**无测量值**），
+由 72 个 S15 专用测试（单元 40 + 属性 28 + 边界 4；全量 **3293 passed, 4 deselected**）、
+依赖边界 gate（规则 R1–**R18**；`violations=0 cycles=0`）、
+接口解析（**495/495 步 / 796 引用 / 0 失败**）、8/8 配置逐字段审计与 19 模块 CPU smoke 自检证明。
+**未执行任何正式实验、未产出任何 claim/quickstart/replay/docs/release/figure/demo/
+narrative/reproduction/upstream/usability 结论数字。**
+
+实验层为 `BLOCKED`：`release_candidate`/`claim_ledger`/`public_artifact` 未建立，且
+`reviewer_resource`/`participant_resource`/`upstream_authorization`/`release_authorization`
+外部资源/授权缺失。驱动入口默认拒绝产结论：
+
+```bash
+python3 scripts/release/run_e15.py --list                    # 11 实验 / 495 步
+python3 scripts/release/run_e15.py --prerequisites --probe    # 前置门 → satisfied=false
+python3 scripts/release/run_e15.py --interface-map            # 495 步 / 796 接口对照表
+python3 scripts/release/run_e15.py --spec-audit               # 8/8 配置逐字段审计
+python3 scripts/release/run_e15.py --smoke                    # CPU 自检 smoke（claim_allowed=false）
+python3 scripts/release/run_e15.py --experiment E15-01        # 仍拒绝（status=BLOCKED, conclusion=false）
+```
+
+详见 `docs/reports/S15_开发报告.md`（含「实验步骤 → 代码接口」对照表）、
+`docs/reports/S15_阶段验收报告.md`（区分代码层验收与实验层 BLOCKED）；
+495 步逐条对照见 `docs/reports/S15_interface_map_generated.md`。
+
+上一阶段 S14（训推协同与前沿扩展）为代码/接口层就位、实验层 `BLOCKED`：
 
 S14 已交付 E14-01~E14-05、E14-F1~F4、E14-06~08 共 **12 项实验、480 个实验步骤**的能力接口
 （`hqsb/experimental/` **21 模块 / 17,328 行**：canonical 身份与 seed bundle、S14 词汇表与四个状态机、
