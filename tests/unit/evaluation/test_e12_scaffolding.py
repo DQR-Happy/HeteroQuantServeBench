@@ -65,23 +65,35 @@ class TestInterfaceMapAndSpecs:
 
 
 class TestPrerequisites:
-    def test_prerequisites_are_honest_about_the_repo_state(self) -> None:
-        status = exp.check_prerequisites(str(REPO_ROOT))
+    def test_prerequisites_are_honest_about_the_repo_state(self, tmp_path) -> None:
+        # An independent checkout has no ignored private evidence. Missing
+        # evidence must block the gate without breaking the software tests.
+        status = exp.check_prerequisites(str(tmp_path))
         assert status.satisfied is False
-        # Recovered legacy evidence now includes PASS verdicts for S03/S04,
-        # satisfying the minimum upstream-stage *count*.  It still cannot
-        # unlock S12: the evidence predates the unified source state and the
-        # required multi-hardware coverage is absent.
-        assert "s01_contracts_and_identity" not in status.missing
-        assert "s02_model_workload_quality_freeze" not in status.missing
-        assert "s03_s11_upstream_evidence_chain" not in status.missing
+        assert "s01_contracts_and_identity" in status.missing
+        assert "s02_model_workload_quality_freeze" in status.missing
+        assert "s03_s11_upstream_evidence_chain" in status.missing
         upstream = next(
             check
             for check in status.checks
             if check.name == "s03_s11_upstream_evidence_chain"
         )
-        assert upstream.detail["usable_stages"] >= exp.MIN_UPSTREAM_STAGES
-        assert {"S03", "S04"}.issubset(set(upstream.detail["stages"]))
+        assert upstream.detail["usable_stages"] == 0
+        assert "multi_hardware_coverage" in status.missing
+
+    def test_upstream_pass_evidence_does_not_prove_hardware_coverage(self, tmp_path):
+        for stage in ("S01", "S02", "S03", "S04"):
+            path = tmp_path / "docs" / "stage_experiments" / stage / "fixture" / "raw" / "verdict.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"overall": "PASS"}), encoding="utf-8")
+        config = tmp_path / "configs" / "models" / "qwen3_1_7b.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text("model: fixture\n", encoding="utf-8")
+        status = exp.check_prerequisites(str(tmp_path))
+        assert not status.satisfied
+        assert "s01_contracts_and_identity" not in status.missing
+        assert "s02_model_workload_quality_freeze" not in status.missing
+        assert "s03_s11_upstream_evidence_chain" not in status.missing
         assert "multi_hardware_coverage" in status.missing
 
     def test_check_reports_evidence_pointers(self) -> None:
