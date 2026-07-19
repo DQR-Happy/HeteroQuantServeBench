@@ -9,6 +9,7 @@ from hqsb.quant import sensitivity as sens
 from hqsb.quant.adapters import (
     AWQ_ADAPTER,
     GPTQ_ADAPTER,
+    SMOOTHQUANT_ADAPTER,
     SourceTensorRecord,
     adapter_availability_report,
     audit_field_mapping,
@@ -85,6 +86,31 @@ class TestFieldMappingAudit:
         ]
         report = audit_field_mapping(["a"], mappings)
         assert report["duplicate_fields"] == ["a"]
+
+    @pytest.mark.parametrize(
+        "adapter", [GPTQ_ADAPTER, AWQ_ADAPTER, SMOOTHQUANT_ADAPTER]
+    )
+    def test_declared_method_fields_have_no_silent_drop(self, adapter):
+        report = audit_field_mapping(adapter.source_fields, adapter.field_mappings())
+        assert report["audit_passed"] is True
+        assert report["unmapped_fields"] == []
+
+    def test_transform_planes_are_in_source_record_audit(self):
+        record = SourceTensorRecord(
+            name="layer.weight",
+            shape=(1, 2),
+            bits=4,
+            symmetric=True,
+            group_size=2,
+            packed_payload=pack_canonical([1, -1], 4),
+            scales=[0.5],
+            pre_scale=[2.0, 4.0],
+            post_scale=[0.5, 0.25],
+        )
+        converted = AWQ_ADAPTER.convert_record(record, rows=1, cols=2)
+        assert converted["mapping_audit"]["audit_passed"] is True
+        assert converted["pre_scale"] == [2.0, 4.0]
+        assert converted["post_scale"] == [0.5, 0.25]
 
 
 @pytest.mark.unit

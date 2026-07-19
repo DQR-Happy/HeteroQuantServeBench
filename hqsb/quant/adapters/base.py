@@ -214,22 +214,29 @@ class SourceTensorRecord:
     post_scale: Optional[Sequence[float]] = None
 
     def source_fields(self) -> List[str]:
-        return sorted(
-            {
-                "name",
-                "shape",
-                "bits",
-                "symmetric",
-                "group_size",
-                "packed_payload",
-                "scales",
-                "zeros",
-                "source_nibble_order",
-                "source_axis",
-                "container",
-                *self.source_metadata.keys(),
-            }
-        )
+        fields = {
+            "name",
+            "shape",
+            "bits",
+            "symmetric",
+            "group_size",
+            "packed_payload",
+            "scales",
+            "zeros",
+            "source_nibble_order",
+            "source_axis",
+            "container",
+            *self.source_metadata.keys(),
+        }
+        # Transform planes are part of the source artifact whenever present.
+        # Omitting them here would let an AWQ/SmoothQuant adapter pass the
+        # no-silent-drop audit while silently losing the very transform that
+        # distinguishes the method from plain RTN.
+        if self.pre_scale is not None:
+            fields.add("pre_scale")
+        if self.post_scale is not None:
+            fields.add("post_scale")
+        return sorted(fields)
 
     def payload_sha256(self) -> str:
         return hashlib.sha256(self.packed_payload).hexdigest()
@@ -305,6 +312,16 @@ class CanonicalQuantConverter:
                 f"source.{key}": value
                 for key, value in sorted(record.source_metadata.items())
             },
+            "pre_scale": (
+                [float(value) for value in record.pre_scale]
+                if record.pre_scale is not None
+                else None
+            ),
+            "post_scale": (
+                [float(value) for value in record.post_scale]
+                if record.post_scale is not None
+                else None
+            ),
         }
 
     def field_mappings(self, record: SourceTensorRecord) -> List[FieldMapping]:
@@ -325,6 +342,10 @@ class CanonicalQuantConverter:
             mappings.append(
                 FieldMapping(key, f"provenance.source.{key}", PRESERVED)
             )
+        if record.pre_scale is not None:
+            mappings.append(FieldMapping("pre_scale", "transform.pre_scale", MAPPED))
+        if record.post_scale is not None:
+            mappings.append(FieldMapping("post_scale", "transform.post_scale", MAPPED))
         return mappings
 
 

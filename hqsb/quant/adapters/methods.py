@@ -89,17 +89,33 @@ class MethodAdapter:
             "qweight": FieldMapping("qweight", "canonical.qvalues", "derived"),
             "qzeros": FieldMapping("qzeros", "canonical.zeros", "derived"),
             "scales": FieldMapping("scales", "canonical.scales", "mapped"),
-            "g_idx": FieldMapping("g_idx", "provenance.source.g_idx", "preserved-as-extension"),
+            "g_idx": FieldMapping(
+                "g_idx", "provenance.source.g_idx", "preserved-as-extension"
+            ),
             "group_size": FieldMapping("group_size", "scheme.group_size", "mapped"),
             "bits": FieldMapping("bits", "scheme.bits", "mapped"),
             "sym": FieldMapping("sym", "scheme.symmetric", "mapped"),
-            "version": FieldMapping("version", "provenance.source.version", "preserved-as-extension"),
+            "version": FieldMapping(
+                "version", "provenance.source.version", "preserved-as-extension"
+            ),
+            # AutoAWQ uses different public/source names for the same
+            # canonical semantics.  They are explicit aliases, not
+            # unsupported fields.
+            "w_bit": FieldMapping("w_bit", "scheme.bits", "mapped"),
+            "q_group_size": FieldMapping(
+                "q_group_size", "scheme.group_size", "mapped"
+            ),
+            "zero_point": FieldMapping(
+                "zero_point", "scheme.symmetric+canonical.zeros", "derived"
+            ),
         }
         if self.transform != "none":
             table["smooth_scale"] = FieldMapping(
                 "smooth_scale", "transform.scale", "derived"
             )
-            table["alpha"] = FieldMapping("alpha", "provenance.source.alpha", "preserved-as-extension")
+            table["alpha"] = FieldMapping(
+                "alpha", "provenance.source.alpha", "preserved-as-extension"
+            )
         for extra in self.extra_extension_fields:
             table[extra] = FieldMapping(
                 extra, f"provenance.source.{extra}", "preserved-as-extension"
@@ -116,7 +132,11 @@ class MethodAdapter:
                     loss_reason="no canonical target declared for this field",
                 ),
             )
-        return list(table.values())
+        # A per-method mapping table contains exactly the fields declared by
+        # that source format.  Returning mappings for another library's
+        # fields would make ``unknown_fields`` fail even when this adapter is
+        # complete, and would blur which source schema was actually audited.
+        return [table[field_name] for field_name in self.source_fields]
 
     def converter(self) -> CanonicalQuantConverter:
         scheme = QuantScheme(
