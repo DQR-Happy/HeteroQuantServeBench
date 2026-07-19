@@ -203,7 +203,7 @@ def project_c6(
         "energy": {"joules": fields.energy_joules},
     }
     correctness = CorrectnessReport(
-        passed=fields.quality_status in ("pass", "partial"),
+        passed=fields.quality_status == "pass",
         method="hqsb.runtime.comparison.recompute_metrics",
         details={"runtime_quality_status": fields.quality_status},
     )

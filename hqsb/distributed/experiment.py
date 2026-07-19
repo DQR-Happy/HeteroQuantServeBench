@@ -32,6 +32,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from hqsb.core.experiment_io import RunStorage, run_directory_path
 from hqsb.core.errors import ConfigError
 from hqsb.runtime.experiment import EXPERIMENT_RECORD_FIELDS  # reused field list
 
@@ -749,7 +750,7 @@ class EvidenceManifest:
 # ── run directory ──────────────────────────────────────────────────────────
 
 
-class RunDirectory:
+class RunDirectory(RunStorage):
     """Creates and manages one ``experiment_results/S10/<E>/<run_id>/`` tree."""
 
     def __init__(self, root: str, experiment_id: str, run_id: str) -> None:
@@ -759,9 +760,7 @@ class RunDirectory:
             raise ConfigError("run_id must not be empty")
         self.experiment_id = experiment_id
         self.run_id = run_id
-        self.path = os.path.abspath(
-            os.path.join(root, "experiment_results", STAGE, experiment_id, run_id)
-        )
+        self.path = run_directory_path(root, STAGE, experiment_id, run_id)
 
     def create(self) -> str:
         os.makedirs(self.path, exist_ok=True)
@@ -769,51 +768,9 @@ class RunDirectory:
             os.makedirs(os.path.join(self.path, sub), exist_ok=True)
         return self.path
 
-    def write_json(self, relative: str, payload: Any) -> str:
-        path = os.path.join(self.path, relative)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, sort_keys=True, indent=2, ensure_ascii=False)
-        return path
 
-    def write_text(self, relative: str, text: str) -> str:
-        path = os.path.join(self.path, relative)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        return path
 
-    def write_jsonl(self, relative: str, rows: Sequence[Mapping[str, Any]]) -> str:
-        path = os.path.join(self.path, relative)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            for row in rows:
-                handle.write(json.dumps(dict(row), sort_keys=True, ensure_ascii=False) + "\n")
-        return path
 
-    def record_command(
-        self,
-        index: int,
-        command: Sequence[str],
-        stdout: str = "",
-        stderr: str = "",
-        returncode: int = 0,
-    ) -> Dict[str, Any]:
-        name = f"{index:02d}_{'_'.join(part for part in command[:3] if part)}"[:60]
-        self.write_json(
-            os.path.join("commands", f"{name}.json"),
-            {"command": list(command), "returncode": returncode, "cwd": os.getcwd()},
-        )
-        if stdout:
-            self.write_text(os.path.join("stdout", f"{name}.stdout"), stdout)
-        if stderr:
-            self.write_text(os.path.join("stderr", f"{name}.stderr"), stderr)
-        return {
-            "command": list(command),
-            "returncode": returncode,
-            "stdout": f"stdout/{name}.stdout" if stdout else "",
-            "stderr": f"stderr/{name}.stderr" if stderr else "",
-        }
 
     def write_preregistration(self, prereg: Preregistration) -> str:
         return self.write_text("preregistration.json", prereg.to_json())

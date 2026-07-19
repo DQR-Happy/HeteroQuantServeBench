@@ -250,6 +250,16 @@ def project_c6(fields: S11ResultFields) -> Dict[str, Any]:
     }
 
 
+def to_benchmark_result(fields: S11ResultFields, *, timestamp: float, **metadata: Any):
+    """Export C6; ``project_c6`` remains the field-coverage inspection API."""
+    from hqsb.core.contracts.projection import result_from_projection
+
+    return result_from_projection(
+        project_c6(fields), namespace="s11", run_id=fields.compile_id,
+        timestamp=timestamp, **metadata,
+    )
+
+
 # ── C7 projection ──────────────────────────────────────────────────────────
 
 C7_KIND_MAP: Mapping[str, str] = {

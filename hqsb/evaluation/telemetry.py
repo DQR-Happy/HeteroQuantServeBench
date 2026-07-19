@@ -369,6 +369,16 @@ def project_c6(fields: S12ResultFields) -> Dict[str, Any]:
     }
 
 
+def to_benchmark_result(fields: S12ResultFields, *, timestamp: float, **metadata: Any):
+    """Export validated evaluation fields in C6.summary.s12, without new claims."""
+    from hqsb.core.contracts.projection import result_from_projection
+
+    return result_from_projection(
+        project_c6(fields), namespace="s12", run_id=fields.comparison_id,
+        timestamp=timestamp, **metadata,
+    )
+
+
 # ── C7 projection ──────────────────────────────────────────────────────────
 
 C7_KIND_MAP: Mapping[str, str] = {
@@ -454,6 +464,31 @@ def project_c7(record: CampaignTraceRecord) -> Dict[str, Any]:
         "problems": problems,
         "ok": not problems,
     }
+
+
+def to_trace_event(record: CampaignTraceRecord):
+    """Export a real C7 event; preserve richer S12 kinds in attributes.
+
+    C7 1.0 has no policy/energy/cost/lineage event enums. Those are analysis
+    outputs, so they map to OUTPUT; no new enum is silently introduced.
+    """
+    from hqsb.core.contracts.trace import TraceEvent, TraceEventType
+
+    problems = record.validate()
+    if problems or not record.event_kind:
+        raise ConfigError("invalid evaluation trace", details={"problems": problems})
+    if record.started_at_ns < 0 or record.ended_at_ns < 0:
+        raise ConfigError("trace timestamps must be non-negative")
+    event_type = (
+        TraceEventType.KERNEL if record.event_kind == "benchmark_run"
+        else TraceEventType.OUTPUT
+    )
+    return TraceEvent(
+        event_type=event_type, timestamp_ns=record.started_at_ns,
+        trace_id=record.trace_id, span_id=record.span_id,
+        parent_span_id=record.parent_span_id or None, name=record.event_kind,
+        attributes={"s12": record.as_dict()},
+    )
 
 
 def span_chain_check(records: Sequence[CampaignTraceRecord]) -> Dict[str, Any]:
