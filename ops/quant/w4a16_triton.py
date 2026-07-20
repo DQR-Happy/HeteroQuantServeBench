@@ -206,10 +206,7 @@ def prepare_weights(
     consistently with the recorded layout. Anything else is a refusal with a
     reason (never an implicit fallback).
     """
-    _require_torch_triton()
     import os
-
-    import torch
 
     from hqsb.quant import packing
     from hqsb.quant.artifact import _weight_matrix_shape
@@ -242,14 +239,21 @@ def prepare_weights(
         raise ConfigError(
             f"variant declares an unusable row_stride_bytes={row_stride}"
         )
-    payload = open(
-        os.path.join(document.artifact_dir, "variants", record.filename), "rb"
-    ).read()
+    with open(os.path.join(document.artifact_dir, "variants", record.filename), "rb") as stream:
+        payload = stream.read()
     if len(payload) != row_stride * rows:
         raise ConfigError(
             f"payload is {len(payload)} bytes but the layout implies "
             f"{row_stride * rows}"
         )
+    # Packing validation and the storage-only reference need no Triton or
+    # accelerator. Device capability is checked only by the execution path.
+    try:
+        import torch
+    except ImportError as exc:
+        raise CapabilityError("preparing weight tensors requires torch") from exc
+    if str(device).startswith("cuda") and not torch.cuda.is_available():
+        raise CapabilityError("preparing CUDA weights requires a CUDA device")
     packed = torch.frombuffer(bytearray(payload), dtype=torch.uint8).reshape(
         rows, row_stride
     ).to(device)
