@@ -19,8 +19,9 @@ carrying a stable ``reason_code``. Nothing is silently coerced:
 * a mismatched ``weight`` length is **not** ignored;
 * a NaN/Inf/non-positive ``epsilon`` is **not** passed through.
 
-The lower C ABI enforces the same policy for dtype/variant/epsilon/shape, so a
-caller that bypasses this bridge still cannot get a silent wrong result.
+The lower C ABI checks scalar metadata but cannot infer Tensor allocation,
+dtype or lifetime from a raw pointer. Direct C callers must supply valid device
+buffers and a live stream; this bridge is the Tensor-aware validation boundary.
 """
 
 from __future__ import annotations
@@ -45,6 +46,8 @@ RMSNORM_REASON_CODES = (
     "WEIGHT_SHAPE_MISMATCH",
     "EPSILON_INVALID",
     "OUT_TENSOR_MISMATCH",
+    "ALIAS_INVALID",
+    "STREAM_INVALID",
 )
 
 #: C ABI variant codes accepted by ``hqsb_rmsnorm_forward_ex_c``.
@@ -144,9 +147,7 @@ class _CudaRmsnormBridge:
         ]
         fn.restype = ctypes.c_int
 
-        # Optional: the stream-aware entry point (added by E03-01). The symbol
-        # may be absent on a stale build, in which case callers fall back to
-        # the default-stream entry point.
+        # A stale library must not silently redirect work to the default stream.
         self._has_ex = hasattr(lib, "hqsb_rmsnorm_forward_ex_c")
         if self._has_ex:
             fn_ex = lib.hqsb_rmsnorm_forward_ex_c
@@ -298,11 +299,22 @@ class _CudaRmsnormBridge:
                     f"out dtype {out.dtype} != expected {expected}",
                     {"out_dtype": str(out.dtype)},
                 )
-            if not out.is_cuda or not out.is_contiguous():
+            if not out.is_cuda or not out.is_contiguous() or out.device != x.device:
                 raise RmsNormContractError(
                     "OUT_TENSOR_MISMATCH",
-                    "out must be a contiguous CUDA tensor",
+                    "out must be contiguous and on the same CUDA device as x",
                     {"out_device": str(out.device)},
+                )
+            def overlaps(left, right):
+                start_left, start_right = left.data_ptr(), right.data_ptr()
+                return (start_left < start_right + right.numel() * right.element_size()
+                        and start_right < start_left + left.numel() * left.element_size())
+
+            if ((overlaps(out, x) and out.data_ptr() != x.data_ptr())
+                    or overlaps(out, weight)):
+                raise RmsNormContractError(
+                    "ALIAS_INVALID", "out may exactly alias x, but must not partially "
+                    "overlap x or overlap weight",
                 )
 
         try:
@@ -346,8 +358,9 @@ class _CudaRmsnormBridge:
             epsilon: denominator stabilizer (finite, > 0).
             out: Optional pre-allocated output tensor; else allocated.
             stream: Optional explicit CUDA stream: a ``torch.cuda.Stream`` or a
-                raw ``cudaStream_t`` integer. ``None`` keeps the historical
-                default-stream behaviour.
+                raw ``cudaStream_t`` integer. ``None`` uses PyTorch's current
+                stream on x.device; integer 0 explicitly selects its default
+                stream. Raw handles must remain valid until completion.
 
         Returns:
             The output tensor ``(rows, hidden)``.
@@ -360,21 +373,31 @@ class _CudaRmsnormBridge:
         """
         import torch
 
-        lib = self._ensure_loaded()
         rows, hidden, dtype_code = self._validate(x, weight, dtype, out, epsilon)
         variant_code = _resolve_variant_code(variant)
+        lib = self._ensure_loaded()
+        if not self._has_ex:
+            raise CudaRmsnormUnavailable(
+                "loaded RMSNorm library lacks the stream-aware ABI; rebuild it"
+            )
 
         if out is None:
             out = torch.empty_like(x)
 
         if stream is None:
-            stream_ptr = None
+            stream_object = torch.cuda.current_stream(x.device)
         elif hasattr(stream, "cuda_stream"):
-            stream_ptr = int(stream.cuda_stream)
+            stream_object = stream
         else:
-            stream_ptr = int(stream)
+            if not isinstance(stream, int) or isinstance(stream, bool) or stream < 0:
+                raise RmsNormContractError("STREAM_INVALID", "stream must be a live CUDA stream or integer handle")
+            stream_object = (torch.cuda.default_stream(x.device) if stream == 0
+                             else torch.cuda.ExternalStream(stream, device=x.device))
+        if stream_object.device != x.device:
+            raise RmsNormContractError("STREAM_INVALID", "stream and tensors must use the same device")
+        stream_ptr = int(stream_object.cuda_stream)
 
-        if self._has_ex and stream_ptr is not None:
+        with torch.cuda.device(x.device):
             err = lib.hqsb_rmsnorm_forward_ex_c(
                 ctypes.c_void_p(x.data_ptr()),
                 ctypes.c_void_p(weight.data_ptr()),
@@ -386,21 +409,12 @@ class _CudaRmsnormBridge:
                 variant_code,
                 ctypes.c_void_p(stream_ptr),
             )
-        else:
-            # Stream is either unspecified (default stream) or the built
-            # library predates the stream-aware entry point.
-            err = lib.hqsb_rmsnorm_forward_c(
-                ctypes.c_void_p(x.data_ptr()),
-                ctypes.c_void_p(weight.data_ptr()),
-                ctypes.c_void_p(out.data_ptr()),
-                rows,
-                hidden,
-                ctypes.c_float(epsilon),
-                dtype_code,
-                variant_code,
-            )
         if err != 0:
-            raise RuntimeError(f"hqsb_rmsnorm_forward_c failed with cudaError={err}")
+            raise RuntimeError(f"hqsb_rmsnorm_forward_ex_c failed with cudaError={err}")
+        # ctypes launches are invisible to PyTorch's caching allocator.
+        # Retain all three allocations until this stream has finished using them.
+        for tensor in (x, weight, out):
+            tensor.record_stream(stream_object)
         return out
 
     def resolve_dispatch(self, x, weight, out, *, dtype: str, variant=0):
