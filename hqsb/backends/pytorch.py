@@ -18,7 +18,6 @@ Reference semantics (S02 execution step 2):
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -31,7 +30,7 @@ from hqsb.core.contracts.backend import (
 )
 from hqsb.core.contracts.model import ModelArtifact
 from hqsb.core.contracts.workload import WorkloadSpec
-from hqsb.core.errors import BackendError
+from hqsb.core.errors import BackendError, CapabilityError, ConfigError
 from hqsb.benchmark.model_core import benchmark_model_core
 from hqsb.benchmark.memory import cuda_memory_snapshot
 from hqsb.benchmark.workload import make_fixed_token_input
@@ -47,6 +46,8 @@ class PyTorchBackend(Backend):
         dtype: Weight precision (default FP16).
         attention_backend: Attention implementation (default eager).
         verify_manifest: Optional SHA256 manifest to verify before loading.
+        manifest_allow_extra: Explicit metadata exceptions to the strict manifest gate.
+        cpu_staging: Load through swappable CPU tensors before GPU consolidation.
     """
 
     def __init__(
@@ -56,11 +57,15 @@ class PyTorchBackend(Backend):
         dtype: torch.dtype = torch.float16,
         attention_backend: str = "eager",
         verify_manifest: Optional[str] = None,
+        manifest_allow_extra: tuple[str, ...] = (),
+        cpu_staging: bool = False,
     ) -> None:
         self._model_path = model_path
         self._dtype = dtype
         self._attention_backend = attention_backend
         self._verify_manifest = verify_manifest
+        self._manifest_allow_extra = tuple(manifest_allow_extra)
+        self._cpu_staging = cpu_staging
 
         self._tokenizer: Any = None
         self._model: Any = None
@@ -100,9 +105,19 @@ class PyTorchBackend(Backend):
         # Idempotent load: re-loading the same artifact is a no-op. This
         # makes `engine.run` and caller-managed loads safe to compose.
         if self._model is not None and self._artifact is not None:
-            if self._artifact.model_id == artifact.model_id:
+            if self._artifact.identity_hash() == artifact.identity_hash():
                 logger.debug("Model %s already loaded; skipping.", artifact.model_id)
                 return
+            raise BackendError(
+                "a different artifact is already loaded; close the backend before "
+                "loading another revision, dtype or file manifest"
+            )
+
+        if artifact.dtype != str(self._dtype).removeprefix("torch."):
+            raise CapabilityError(
+                "artifact dtype differs from the configured PyTorch dtype",
+                details={"requested_dtype": artifact.dtype, "actual_dtype": str(self._dtype)},
+            )
 
         try:
             from hqsb.models.loader import load_qwen3
@@ -112,6 +127,8 @@ class PyTorchBackend(Backend):
                 dtype=self._dtype,
                 attention_backend=self._attention_backend,
                 verify_manifest=self._verify_manifest,
+                allow_extra=self._manifest_allow_extra,
+                cpu_staging=self._cpu_staging,
             )
         except Exception as exc:
             raise BackendError(
@@ -122,18 +139,20 @@ class PyTorchBackend(Backend):
         self._artifact = artifact
 
     def warmup(self, workload: object) -> None:
-        """Run a single short generation pass to warm caches and allocator."""
+        """Run the requested number of short passes to warm caches and allocator."""
         if not isinstance(workload, WorkloadSpec):
             raise TypeError("warmup expects WorkloadSpec")
         self._require_loaded()
 
-        inputs = make_fixed_token_input(
-            self._tokenizer,
-            workload.input_tokens,
-            device=self._device(),
-        )
-        # Warmup with a tiny output; not timed or recorded.
-        benchmark_model_core(self._model, inputs, output_tokens=2)
+        self._validate_workload(workload)
+        if workload.warmup == 0:
+            return
+        inputs = self._inputs(workload)
+        # Honor the C2 warmup count without recording warmup as a sample.
+        for _ in range(workload.warmup):
+            benchmark_model_core(
+                self._model, inputs, output_tokens=min(2, workload.output_tokens)
+            )
 
     def generate(self, workload: object, inputs: object) -> GenerationOutput:
         """Run ``repetitions`` model-core passes and return raw samples.
@@ -145,23 +164,27 @@ class PyTorchBackend(Backend):
         if not isinstance(workload, WorkloadSpec):
             raise TypeError("generate expects WorkloadSpec")
         self._require_loaded()
+        self._validate_workload(workload)
+        model_inputs = self._inputs(workload, inputs)
 
         samples: List[GenerationSample] = []
         first_pass_metrics: Dict[str, Any] = {}
 
         try:
             for _ in range(workload.repetitions):
-                inputs = make_fixed_token_input(
-                    self._tokenizer,
-                    workload.input_tokens,
-                    device=self._device(),
-                )
                 result = benchmark_model_core(
-                    self._model, inputs, workload.output_tokens
+                    self._model, model_inputs, workload.output_tokens
                 )
                 samples.append(self._to_sample(result))
                 if not first_pass_metrics:
                     first_pass_metrics = self._backend_metrics(result)
+                    first_pass_metrics["artifact_verification"] = {
+                        "manifest": self._verify_manifest,
+                        "enabled": self._verify_manifest is not None,
+                        "strict_extra": True,
+                        "allow_extra": list(self._manifest_allow_extra),
+                    }
+                    first_pass_metrics["cpu_staging"] = self._cpu_staging
         except Exception as exc:
             raise BackendError(
                 f"generation failed for workload {workload.name!r}: {exc}"
@@ -172,6 +195,40 @@ class PyTorchBackend(Backend):
             trace_events=[],
             backend_metrics=first_pass_metrics,
         )
+
+    def _validate_workload(self, workload: WorkloadSpec) -> None:
+        """Refuse semantics the fixed-length greedy reference cannot honor."""
+        unsupported = (
+            workload.batch_size != 1 or workload.sampling != "greedy"
+            or workload.stop_condition != "output_tokens"
+            or workload.concurrency != 1 or workload.timeout_s is not None
+        )
+        if unsupported:
+            raise CapabilityError(
+                "PyTorch reference supports batch=1, greedy, fixed output_tokens, "
+                "concurrency=1 and no execution timeout"
+            )
+        if workload.input_tokens + workload.output_tokens > self.capabilities().max_context:
+            raise CapabilityError("workload exceeds the reference context limit")
+
+    def _inputs(self, workload: WorkloadSpec, inputs: object = None) -> Dict[str, Any]:
+        """Preserve explicit C2/C4 token IDs; synthesize only when absent."""
+        tokens = inputs if inputs is not None else workload.token_ids
+        if tokens is None:
+            return make_fixed_token_input(
+                self._tokenizer, workload.input_tokens, device=self._device()
+            )
+        if not isinstance(tokens, (list, tuple)) or any(
+            not isinstance(token, int) or isinstance(token, bool) or token < 0
+            for token in tokens
+        ):
+            raise ConfigError("inputs must be a sequence of non-negative integer token IDs")
+        if len(tokens) != workload.input_tokens:
+            raise ConfigError("explicit token count differs from WorkloadSpec.input_tokens")
+        if workload.token_ids is not None and list(tokens) != workload.token_ids:
+            raise ConfigError("C4 inputs differ from frozen WorkloadSpec.token_ids")
+        input_ids = torch.tensor([tokens], dtype=torch.long, device=self._device())
+        return {"input_ids": input_ids, "attention_mask": torch.ones_like(input_ids)}
 
     def health(self) -> bool:
         return self._model is not None

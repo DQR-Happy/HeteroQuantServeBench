@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Tuple
+from typing import Any, Tuple
 
 import torch
 from modelscope import AutoModelForCausalLM, AutoTokenizer
@@ -24,7 +24,6 @@ from hqsb.benchmark.memory import (
     memory_budget_bytes,
     model_weight_bytes,
 )
-from hqsb.core.errors import ArtifactError
 from hqsb.models.manifest import verify_or_raise
 
 logger = logging.getLogger(__name__)
