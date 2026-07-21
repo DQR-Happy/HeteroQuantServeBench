@@ -76,6 +76,8 @@ def _summarize(samples: List[GenerationSample]) -> Dict[str, Any]:
 
     total_output_tokens = sum(s.output_tokens for s in samples)
     total_e2e_ms = sum(e2e_ms)
+    total_decode_tokens = sum(max(s.output_tokens - 1, 0) for s in samples)
+    total_decode_ms = sum(decode_total_ms)
 
     return {
         "repetitions": len(samples),
@@ -84,11 +86,17 @@ def _summarize(samples: List[GenerationSample]) -> Dict[str, Any]:
         "decode_total_ms_mean": _mean(decode_total_ms),
         "model_core_e2e_ms_mean": _mean(e2e_ms),
         "decode_tokens_per_s": (
+            total_decode_tokens / (total_decode_ms / 1000.0)
+            if total_decode_ms > 0
+            else 0.0
+        ),
+        "output_tokens_per_s": (
             total_output_tokens / (total_e2e_ms / 1000.0)
             if total_e2e_ms > 0
             else 0.0
         ),
         "itl": latency_summary(itl_all),
+        "throughput_semantics": "decode_tail_and_output_v2",
     }
 
 
@@ -100,17 +108,20 @@ def _determinism_correctness(samples: List[GenerationSample]) -> CorrectnessRepo
     """Default correctness gate: token sequences must be deterministic."""
     if not samples:
         return CorrectnessReport(passed=False, method="determinism")
+    malformed = [index for index, sample in enumerate(samples)
+                 if len(sample.generated_token_ids) != sample.output_tokens
+                 or len(sample.itl_ms) != max(sample.output_tokens - 1, 0)]
     hashes = {
         hashlib.sha256(
             json.dumps(s.generated_token_ids).encode("utf-8")
         ).hexdigest()
         for s in samples
     }
-    deterministic = len(hashes) == 1
+    deterministic = len(hashes) == 1 and not malformed
     return CorrectnessReport(
         passed=deterministic,
         method="determinism",
-        details={"distinct_sequence_hashes": len(hashes)},
+        details={"distinct_sequence_hashes": len(hashes), "malformed_samples": malformed},
     )
 
 
@@ -170,14 +181,20 @@ class BenchmarkEngine:
             ) from exc
 
         samples = output.samples
+        run_id = new_run_id()
         summary = _summarize(samples)
+        summary["trace"] = {
+            "run_id": run_id,
+            "trace_ids": sorted({event.trace_id for event in output.trace_events}),
+            "events": [event.model_dump(mode="json") for event in output.trace_events],
+        }
         if output.backend_metrics:
             summary["backend_metrics"] = output.backend_metrics
         correctness = _determinism_correctness(samples)
         resource = self._aggregate_resource(samples)
 
         return BenchmarkResult(
-            run_id=new_run_id(),
+            run_id=run_id,
             timestamp=time.time(),
             environment=environment or EnvironmentInfo(),
             git_commit=git_commit,
@@ -198,6 +215,13 @@ class BenchmarkEngine:
         artifact: Optional[ModelArtifact],
     ) -> None:
         capability = self.backend.capabilities()
+        context = workload.input_tokens + workload.output_tokens
+        if capability.max_context is not None and context > capability.max_context:
+            raise CapabilityError(
+                f"requested context {context} exceeds backend "
+                f"{self.backend.name!r} max_context {capability.max_context}",
+                details={"requested_context": context, "max_context": capability.max_context},
+            )
         if workload.batch_size > capability.max_batch:
             raise CapabilityError(
                 f"workload batch {workload.batch_size} exceeds backend "
