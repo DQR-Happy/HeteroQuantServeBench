@@ -25,6 +25,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from hqsb.core.contracts.model import ModelArtifact
+from hqsb.core.contracts.workload import WorkloadSpec
 from hqsb.core.errors import BackendError, CapabilityError, ConfigError
 from hqsb.runtime.request import (
     BackendSpec,
@@ -579,6 +581,7 @@ class ReferenceRuntimeAdapter(RuntimeAdapter):
     def __init__(self, backend: Any, spec: BackendSpec) -> None:
         super().__init__(name=getattr(backend, "name", "reference"), spec=spec)
         self.backend = backend
+        self._identity: Optional[ModelIdentity] = None
 
     def capability(self) -> CapabilityReport:
         declared = self.backend.capabilities()
@@ -591,14 +594,15 @@ class ReferenceRuntimeAdapter(RuntimeAdapter):
             "SUPPORTED_WITH_CONSTRAINT",
             constraint=f"dtypes={list(declared.supported_dtypes)}",
         )
-        report.declare("sampling_mode", "SUPPORTED_EXACT")
+        report.declare("sampling_mode", "SUPPORTED_WITH_CONSTRAINT", constraint="greedy only")
         report.declare(
             "streaming",
-            "SUPPORTED_EXACT" if declared.streaming else "UNSUPPORTED_REJECT",
-            reason="" if declared.streaming else "C4 backend reports streaming=False",
+            "UNSUPPORTED_REJECT",
+            reason="this synchronous C4 bridge implements generate only",
         )
-        report.declare("cancel", "SUPPORTED_EXACT")
-        report.declare("timeout", "SUPPORTED_EXACT")
+        for operation in ("cancel", "timeout"):
+            report.declare(operation, "UNSUPPORTED_REJECT",
+                           reason="the synchronous C4 contract has no interrupt hook")
         report.declare(
             "prefix_cache",
             "UNSUPPORTED_REJECT",
@@ -628,21 +632,84 @@ class ReferenceRuntimeAdapter(RuntimeAdapter):
                 "never guesses a model path)",
                 details={"field": "artifact"},
             )
-        self.backend.load(artifact)
+        try:
+            if not isinstance(artifact, ModelArtifact):
+                raise ConfigError("artifact must implement the C1 ModelArtifact contract")
+            # S07 uses the canonical C1 digest at this bridge. Never return a
+            # caller-supplied identity that disagrees with the loaded contract.
+            expected = (artifact.model_id, artifact.revision, artifact.dtype, artifact.identity_hash())
+            actual = (identity.model_id, identity.revision, identity.precision, identity.model_manifest_sha256)
+            if actual != expected or identity.quant_artifact_hash:
+                raise ConfigError("runtime identity differs from the C1 artifact identity")
+            self.backend.load(artifact)
+        except Exception:
+            self.transition(AdapterState.FAILED, "C4 load failed")
+            raise
+        self._identity = identity
         self.transition(AdapterState.LOADED, "load complete")
         return identity.as_dict()
 
+    def _workload(self, request: RequestSpec, *, warmup: int = 0) -> WorkloadSpec:
+        """Translate supported S07 semantics to C2, refusing lossy conversion."""
+        self.require_open()
+        if self._identity != request.identity:
+            raise CapabilityError("request identity differs from the loaded artifact")
+        unsupported = []
+        if request.streaming:
+            unsupported.append("streaming")
+        if request.timeout_s is not None:
+            unsupported.append("timeout")
+        if request.prefix_cache_enabled or request.shared_prefix_group:
+            unsupported.append("prefix_cache")
+        sampling = request.sampling
+        if (sampling.mode != "greedy" or sampling.top_k != 0 or sampling.top_p != 1.0
+                or sampling.repetition_penalty != 1.0 or sampling.logprobs != 0
+                or sampling.generator != "runtime_default"):
+            unsupported.append("sampling")
+        stop = request.stop
+        if (stop.stop_token_ids or stop.stop_string_layer != "none"
+                or (stop.eos_token_id is not None and not stop.ignore_eos)):
+            unsupported.append("stop")
+        if request.backend_extensions or request.priority:
+            unsupported.append("backend_extensions/priority")
+        if unsupported:
+            raise CapabilityError(
+                "C4 reference bridge cannot honor: " + ", ".join(unsupported),
+                details={"unsupported_fields": unsupported},
+            )
+        capability = self.backend.capabilities()
+        if not capability.supports_dtype(request.identity.precision):
+            raise CapabilityError("request precision is not supported by the C4 backend")
+        if capability.max_context is not None and request.input_tokens + stop.max_new_tokens > capability.max_context:
+            raise CapabilityError("request exceeds the C4 backend context limit")
+        return WorkloadSpec(
+            name=request.request_id, input_tokens=request.input_tokens,
+            output_tokens=stop.max_new_tokens, token_ids=list(request.input_token_ids),
+            seed=sampling.seed if sampling.seed is not None else 0,
+            sampling="greedy", warmup=warmup, repetitions=1,
+        )
+
     def warmup(self, request: RequestSpec) -> Mapping[str, Any]:
-        self.transition(AdapterState.WARMED, "warmup")
-        self.backend.warmup(request)
+        workload = self._workload(request, warmup=1)
+        try:
+            self.backend.warmup(workload)
+        except Exception:
+            self.transition(AdapterState.FAILED, "C4 warmup failed")
+            raise
+        if self.state != AdapterState.WARMED:
+            self.transition(AdapterState.WARMED, "warmup")
         return {"shapes": [request.input_tokens], "compile": False, "graph": False}
 
     def generate(self, request: RequestSpec) -> GenerationResult:
-        self.require_open()
-        output = self.backend.generate(request, inputs=request.input_token_ids)
+        workload = self._workload(request)
+        output = self.backend.generate(workload, inputs=request.input_token_ids)
         samples = getattr(output, "samples", [])
-        first = samples[0] if samples else None
-        tokens = tuple(getattr(first, "generated_token_ids", ())) if first else ()
+        if len(samples) != 1:
+            raise BackendError("one runtime request must produce exactly one C4 sample")
+        first = samples[0]
+        tokens = tuple(first.generated_token_ids)
+        if len(tokens) != request.stop.max_new_tokens or first.output_tokens != len(tokens):
+            raise BackendError("C4 sample violates the fixed-length output contract")
         return GenerationResult(
             request_id=request.request_id,
             token_ids=tokens,
@@ -653,12 +720,14 @@ class ReferenceRuntimeAdapter(RuntimeAdapter):
                 "first_token_ms": float(
                     getattr(first, "first_token_selection_ms", 0.0) or 0.0
                 ),
+                "decode_total_ms": float(sum(first.itl_ms)),
             },
             usage={
                 "input_tokens": int(getattr(first, "input_tokens", request.input_tokens)),
                 "output_tokens": int(getattr(first, "output_tokens", len(tokens))),
             },
-            raw={"backend_metrics": dict(getattr(output, "backend_metrics", {}))},
+            raw={"backend_metrics": dict(getattr(output, "backend_metrics", {})),
+                 "itl_ms": list(first.itl_ms)},
         )
 
     def metrics(self) -> Mapping[str, Any]:
