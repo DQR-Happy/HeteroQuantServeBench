@@ -1,5 +1,7 @@
 # HeteroQuantServeBench 项目完整剖析、最终架构、全阶段路线图与秋招证据手册
 
+> 历史架构与设计蓝图，正文基于下述旧提交。2026-09-20 的实现状态和操作入口以 [现状总览](../project_status.md) 与 [使用说明书](../manual/使用说明书.md) 为准；此文中的“最终架构”不表示已经完成全部实验验收。
+
 > 文档版本：2026-08-17  
 > 审计对象：`DQR-Happy/HeteroQuantServeBench` 的 `origin/main`  
 > 审计基线：`4bc59e76be3262f788792410fb590dd8af5a4054`  
