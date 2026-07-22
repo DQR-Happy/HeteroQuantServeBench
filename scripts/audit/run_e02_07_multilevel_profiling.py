@@ -37,14 +37,12 @@ import datetime
 import hashlib
 import json
 import logging
-import os
-import re
 import shlex
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from hqsb.benchmark import multilevel_profiling as mp
 

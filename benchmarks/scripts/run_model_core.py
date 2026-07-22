@@ -21,7 +21,6 @@ import json
 import logging
 import os
 import platform
-import sys
 import time
 from typing import Any, Dict, List
 
@@ -31,7 +30,6 @@ import torch
 import transformers
 
 from hqsb.benchmark.cli import positive_int
-from hqsb.benchmark.metrics import latency_summary
 from hqsb.benchmark.model_core import benchmark_model_core
 from hqsb.benchmark.resource_monitor import TegrastatsMonitor
 from hqsb.benchmark.tegrastats_parser import (

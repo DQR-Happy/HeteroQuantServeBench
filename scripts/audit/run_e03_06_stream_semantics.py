@@ -7,7 +7,6 @@ import argparse
 import ctypes
 import hashlib
 import json
-import os
 import platform
 import re
 import threading
@@ -670,7 +669,6 @@ def collect(args) -> int:
     for operator in ("rmsnorm", "fused"):
         for topology in ("default", "nondefault", "cross", "dual"):
             timelines.append(timeline_case(output, api, ids, operator, topology))
-    default_ids = {x["operator"] if "operator" in x else "": None for x in []}
     observed_defaults = {}
     for operator in ("rmsnorm", "fused"):
         item = next(x for x in timelines if x["topology"] == "default" and

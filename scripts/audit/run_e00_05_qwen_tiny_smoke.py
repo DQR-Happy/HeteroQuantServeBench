@@ -57,7 +57,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -635,7 +635,7 @@ def main() -> int:
         json.dumps(frozen, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     commands.append(
-        f"python3 scripts/audit/run_e00_05_qwen_tiny_smoke.py --gate-only"
+        "python3 scripts/audit/run_e00_05_qwen_tiny_smoke.py --gate-only"
     )
 
     # 3) CPU artifact gate + identity freeze

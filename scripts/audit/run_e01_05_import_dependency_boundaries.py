@@ -71,7 +71,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _AUDIT_DIR = _REPO_ROOT / "scripts" / "audit"
@@ -503,8 +503,6 @@ def case_gate_exit_propagation() -> Dict[str, Any]:
         "negative",
         "clean exit 0; bad graph exit non-zero",
     )
-    results: Dict[str, Any] = {}
-
     # clean production graph via CLI
     rc_clean, out_clean, _ = _run_gate_cli(
         [(ns, str(path)) for ns, path in _REAL_SCANS]

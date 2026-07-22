@@ -9,7 +9,6 @@ import datetime as dt
 import hashlib
 import json
 import math
-import os
 import platform
 import random
 import statistics
@@ -395,8 +394,6 @@ def summarize(args) -> int:
     matrix = aggregate_precise(precise_rows)
     write_json(out / "validation_holdout.json", {"rows": matrix})
     baseline_rows = json.loads((REPO / "docs/stage_experiments/S04/E04-04/raw/gemm_curves.json").read_text())["rows"]
-    baseline = {(r["family"], r["M"]): r for r in baseline_rows
-                if r["backend"] in ("pytorch_cublas_opaque", "triton_fixed")}
     grouped_baseline: Dict[Tuple[str, int], List[Mapping[str, Any]]] = {}
     for r in baseline_rows:
         if r["backend"] in ("pytorch_cublas_opaque", "triton_fixed"):

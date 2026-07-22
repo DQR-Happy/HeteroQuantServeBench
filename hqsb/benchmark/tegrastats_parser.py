@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 import statistics
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 # ── Regex patterns for tegrastats output fields ────────────────────

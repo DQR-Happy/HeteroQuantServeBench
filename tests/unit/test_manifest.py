@@ -12,7 +12,6 @@ import os
 import pytest
 
 from hqsb.models.manifest import (
-    ManifestEntry,
     compute_sha256,
     parse_manifest,
     verify_model_files,

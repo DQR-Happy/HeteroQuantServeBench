@@ -70,14 +70,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import platform
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -98,9 +97,7 @@ from hqsb.core.schema.migrate import (  # noqa: E402
     C6_SCHEMA_VERSION,
     LEGACY_FAMILY_VERSION,
     MIGRATOR_VERSION,
-    defaults_filled,
     detect_family,
-    is_current_c6_document,
     migrate_any,
     plan_migration,
     source_version_info,

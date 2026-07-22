@@ -43,12 +43,10 @@ from __future__ import annotations
 import argparse
 import copy
 import csv
-import hashlib
 import json
 import platform
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -60,8 +58,6 @@ if str(_REPO_ROOT) not in sys.path:
 from hqsb.core.config import (  # noqa: E402
     BenchmarkConfig,
     ConfigLoader,
-    config_hash,
-    sha256_hex,
 )
 from hqsb.core.errors import (  # noqa: E402
     ExitCode,

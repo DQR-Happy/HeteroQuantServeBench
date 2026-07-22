@@ -49,7 +49,6 @@ from hqsb.models.loader import load_qwen3
 from hqsb.quant.model_weight_only import (
     apply_model_quant_artifact,
     artifact_disk_usage,
-    load_manifest as load_model_quant_manifest,
     save_model_quant_artifact,
 )
 

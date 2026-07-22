@@ -24,7 +24,7 @@ to be subtracted *and the method recorded*, so :class:`UbBudget` carries a
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from hqsb.core.errors import ConfigError, UsageError
@@ -817,7 +817,7 @@ def compute_tiling(request: TilingRequest, limits: TilingLimits) -> Tuple[Option
             asked,
         )
     try:
-        item_bytes = dtype_bytes(request.dtype)
+        dtype_bytes(request.dtype)
         dtype_bytes(request.accum_dtype)
     except UsageError as exc:
         return None, TilingRejection(REJECT_DTYPE, str(exc), asked)

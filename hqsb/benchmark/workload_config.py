@@ -9,7 +9,7 @@ never drift from one another (S02 execution step 5).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, List, Mapping, Sequence
 
 import yaml
 

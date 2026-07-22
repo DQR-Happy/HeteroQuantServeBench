@@ -22,14 +22,12 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime
-import json
 import logging
 import os
 import platform
 import subprocess
 import sys
-import time
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import torch
 
@@ -37,7 +35,6 @@ from hqsb.core.contracts import (
     BenchmarkResult,
     EnvironmentInfo,
     ModelArtifact,
-    WorkloadSpec,
 )
 from hqsb.core.errors import HqsbError
 from hqsb.backends import PyTorchBackend
@@ -72,6 +69,18 @@ def _build_parser() -> argparse.ArgumentParser:
             _REPO_ROOT, "docs", "benchmark", "model_sha256_manifest.txt"
         ),
         help="SHA256 manifest for artifact binding",
+    )
+    parser.add_argument(
+        "--allow-extra",
+        action="append",
+        default=[],
+        metavar="PATH_OR_GLOB",
+        help="Explicit metadata exception to the strict model manifest gate (repeatable)",
+    )
+    parser.add_argument(
+        "--cpu-staging",
+        action="store_true",
+        help="Load through swappable CPU tensors before GPU consolidation (Jetson)",
     )
     parser.add_argument(
         "--output-dir",
@@ -210,6 +219,8 @@ def main() -> int:
         backend = PyTorchBackend(
             model_path=args.model_path,
             verify_manifest=args.manifest,
+            manifest_allow_extra=tuple(args.allow_extra),
+            cpu_staging=args.cpu_staging,
         )
     except HqsbError as exc:
         logger.error("setup failed: %s", exc)

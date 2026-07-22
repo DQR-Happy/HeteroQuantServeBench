@@ -13,7 +13,6 @@ from hqsb.core.contracts import (
     BackendCapability,
     BenchmarkResult,
     EnvironmentInfo,
-    GenerationSample,
     ModelArtifact,
     OperatorSpec,
     QuantArtifact,

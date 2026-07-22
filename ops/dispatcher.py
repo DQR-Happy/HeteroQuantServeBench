@@ -21,7 +21,7 @@ explain *why* an implementation was chosen — never a silent heuristic.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 
 from ops.capability import BackendCapabilities, detect_capabilities
 

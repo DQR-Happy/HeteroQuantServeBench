@@ -292,7 +292,6 @@ def run_once_entry(
     config_hash = config_identity(model_path)
 
     eos_id = int(getattr(tokenizer, "eos_token_id", -1) or -1)
-    do_sample = False
     policy_hash = generation_policy_hash(
         do_sample=False,
         max_new_tokens=requested_output_tokens,
@@ -309,11 +308,6 @@ def run_once_entry(
         top_k=top_k,
         eos_token_id=eos_id,
     )
-
-    requested_dtype_actual = str(dict(model.named_parameters()).popitem()[1].dtype)
-    # Actual dtype/device of the causal LM head logits after prefill is not
-    # stored on the model; use first parameter dtype + module device for the
-    # record.
 
     load_seconds = round(time.perf_counter() - load_start, 3)
 

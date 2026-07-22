@@ -15,7 +15,6 @@ import concurrent.futures
 import hashlib
 import inspect
 import json
-import os
 import platform
 import statistics
 import subprocess
@@ -24,7 +23,7 @@ import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 
 REPO = Path(__file__).resolve().parents[2]

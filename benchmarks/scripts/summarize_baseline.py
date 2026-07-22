@@ -19,7 +19,7 @@ import json
 import os
 import statistics
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 def _avg_across_repetitions(runs: List[Dict[str, Any]], key: str) -> float:

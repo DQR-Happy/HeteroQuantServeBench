@@ -47,7 +47,6 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 import torch
 
-from hqsb.benchmark.correctness import hash_token_sequence
 from hqsb.benchmark.power_thermal import (
     POWER_THERMAL_PROTOCOL,
     RAIL_SCOPE,
@@ -1490,15 +1489,6 @@ def _run_verify(args: argparse.Namespace) -> int:
             declared = block["declared"]
             observed = (block.get("observed_configured") or {}).get(
                 "nvpmodel_mode_id"
-            )
-            gpu_max_observed = (
-                (block.get("observed_configured") or {}).get("sysfs_gpu") or {}
-            ).get("max_freq_hz")
-            gpu_max_expected = (
-                (block.get("state_after_enter") or {})
-                .get("sysfs", {})
-                .get("gpu_devfreq", {})
-                .get("max_freq_hz")
             )
             matches = observed == declared["nvpmodel_id"]
             observable_modes_ok = observable_modes_ok and matches

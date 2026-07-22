@@ -59,7 +59,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -81,7 +81,7 @@ from hqsb.core.errors import (  # noqa: E402
     exit_code_for,
 )
 from hqsb.core.ids import new_run_id  # noqa: E402
-from hqsb.core.registry import Registry, RegistryHub  # noqa: E402
+from hqsb.core.registry import RegistryHub  # noqa: E402
 
 EXPERIMENT_ID = "E01-03"
 STAGE = "S01"

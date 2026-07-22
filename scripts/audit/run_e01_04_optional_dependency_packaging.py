@@ -65,7 +65,6 @@ from __future__ import annotations
 import argparse
 import email.parser
 import hashlib
-import io
 import json
 import os
 import platform
@@ -77,7 +76,7 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -239,7 +238,6 @@ def _read_wheel_metadata(wheel_path: str) -> Dict[str, Any]:
     """Parse the wheel's dist-info METADATA into requires/extra/tags."""
     requires_dist: List[str] = []
     provides_extra: List[str] = []
-    tags: List[str] = []
     with zipfile.ZipFile(wheel_path) as zf:
         meta_names = [n for n in zf.namelist() if n.endswith(".dist-info/METADATA")]
         if not meta_names:

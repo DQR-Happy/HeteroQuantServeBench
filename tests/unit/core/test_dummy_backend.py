@@ -13,7 +13,6 @@ import pytest
 
 from hqsb.backends import DummyBackend, make_dummy_backend
 from hqsb.core.contracts import (
-    EnvironmentInfo,
     ModelArtifact,
     WorkloadSpec,
 )

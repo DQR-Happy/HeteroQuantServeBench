@@ -22,7 +22,7 @@ import sys
 
 import torch
 
-from hqsb.core.contracts import ModelArtifact, WorkloadSpec
+from hqsb.core.contracts import ModelArtifact
 from hqsb.backends import PyTorchBackend
 from hqsb.benchmark.profiling import (
     cumulative_kernel_time_us,
@@ -61,9 +61,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _profile_case(backend, tokenizer, model, name, isl, osl, output_dir):
-    workload = WorkloadSpec(
-        name=name, input_tokens=isl, output_tokens=osl, repetitions=1
-    )
     inputs = make_fixed_token_input(
         tokenizer, isl, device="cuda" if torch.cuda.is_available() else "cpu"
     )

@@ -23,7 +23,7 @@ import hashlib
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 from hqsb.core.errors import ConfigError, UsageError
 from hqsb.core.fingerprint import canonical_json, sha256_hex

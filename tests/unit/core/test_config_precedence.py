@@ -7,7 +7,6 @@ semantic hash scope, secret redaction, and cross-field validation.
 
 from __future__ import annotations
 
-import copy
 
 import pytest
 

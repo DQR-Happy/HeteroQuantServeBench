@@ -9,7 +9,6 @@ import gzip
 import hashlib
 import json
 import math
-import os
 import platform
 import shutil
 import struct

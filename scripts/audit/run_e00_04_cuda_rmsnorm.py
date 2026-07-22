@@ -56,7 +56,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -70,7 +70,6 @@ from hqsb.core.fingerprint import (  # noqa: E402
     collect_power,
     collect_python,
     collect_volatile,
-    sha256_hex,
 )
 from hqsb.core.ids import new_run_id  # noqa: E402
 from hqsb.hardware.probe import cuda_device_probe  # noqa: E402
@@ -529,7 +528,7 @@ def run_negative_path(out_dir: Path) -> Dict[str, Any]:
 
     log_lines: List[str] = []
     log_lines.append("# E00-04 negative path: CUDA_VISIBLE_DEVICES=\"\"")
-    log_lines.append(f"# command: CUDA_VISIBLE_DEVICES=\"\" python3 -c <probe>")
+    log_lines.append("# command: CUDA_VISIBLE_DEVICES=\"\" python3 -c <probe>")
     log_lines.append("")
 
     probe_proc = subprocess.run(
@@ -668,11 +667,11 @@ def main() -> int:
     if args.clean_first:
         build_cmd_line += " --clean-first"
     commands = [
-        f"cmake -S . -B build/jetson-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=87",
+        "cmake -S . -B build/jetson-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=87",
         build_cmd_line,
         f"{_DEVICE_QUERY_BIN}",
         f"{_RMSNORM_TEST_BIN}",
-        f"CUDA_VISIBLE_DEVICES=\"\" python3 -c <negative probe>",
+        "CUDA_VISIBLE_DEVICES=\"\" python3 -c <negative probe>",
         f"CUDA_VISIBLE_DEVICES=\"\" {_DEVICE_QUERY_BIN}",
     ]
     (out_dir / "command.txt").write_text("\n".join(commands) + "\n", encoding="utf-8")

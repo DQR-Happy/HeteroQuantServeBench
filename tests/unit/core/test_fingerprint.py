@@ -14,7 +14,6 @@ from hqsb.core.fingerprint import (
     OsSection,
     PowerSection,
     PythonSection,
-    RunFingerprint,
     VolatileObservations,
     canonical_json,
     collect_packages,

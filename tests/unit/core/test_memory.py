@@ -7,7 +7,6 @@ import pytest
 from hqsb.benchmark.memory import (
     DEFAULT_RESERVE_MB,
     DEFAULT_RESERVE_RATIO,
-    KvCacheInfo,
     compute_kv_cache_info,
     memory_budget_bytes,
     model_kv_cache_config,

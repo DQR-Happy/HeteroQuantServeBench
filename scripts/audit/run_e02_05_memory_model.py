@@ -36,21 +36,18 @@ import platform
 import statistics
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
 
 from hqsb.benchmark import memory_experiment as me
-from hqsb.benchmark.memory import process_rss_bytes, process_swap_bytes
 from hqsb.benchmark.memory_model import (
     MIB,
     DeviceMemorySampler,
     bytes_to_mib,
     memory_snapshot,
     model_memory_inventory,
-    snapshot_used_bytes,
 )
 from hqsb.benchmark.resource_monitor import TegrastatsMonitor
 from hqsb.benchmark.tegrastats_parser import (

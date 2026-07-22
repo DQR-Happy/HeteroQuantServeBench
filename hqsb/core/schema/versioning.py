@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 from functools import total_ordering
-from typing import Callable, Dict, List, Mapping, Sequence, Tuple
+from typing import Callable, List, Mapping, Tuple
 
 from hqsb.core.errors import SchemaVersionError
 

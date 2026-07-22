@@ -94,10 +94,7 @@ from hqsb.core.errors import (  # noqa: E402
 )
 from hqsb.core.ids import new_run_id  # noqa: E402
 from hqsb.core.logging import (  # noqa: E402
-    JsonLineFormatter,
     configure_logging,
-    get_span_id,
-    get_trace_id,
     set_trace_context,
 )
 from hqsb.core.registry import Registry, RegistryHub  # noqa: E402
@@ -822,7 +819,6 @@ def audit_correlation(control: Dict[str, Any]) -> Dict[str, Any]:
     c6_has_trace_links = any(
         e.get("trace_id") == run_id or e.get("run_id") == run_id for e in trace_events
     )
-    result_has_trace_events = "trace_events" in result
     result_run_id = result.get("run_id")
     run_trace_linked = c6_has_trace_links
 

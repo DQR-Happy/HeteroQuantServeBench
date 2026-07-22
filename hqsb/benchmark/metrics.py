@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Sequence
 
 
 def percentile(values: Sequence[float], quantile: float) -> float:

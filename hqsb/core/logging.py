@@ -13,7 +13,6 @@ import contextvars
 import json
 import logging
 import sys
-import time
 from typing import Any, Dict, Optional
 
 # Context variables holding the ambient trace/span for the current

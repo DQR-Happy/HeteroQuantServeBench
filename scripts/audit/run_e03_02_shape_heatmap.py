@@ -2230,7 +2230,6 @@ def run_summarize(args: argparse.Namespace) -> int:
         return 2
     plan_cases, plan_meta = load_plan(output_dir)
     protocol = _read_json(output_dir / "protocol.json") or {}
-    provenance = _read_json(output_dir / "provenance.json") or {}
     ceiling = _read_json(output_dir / "device_ceiling.json") or {}
     resources = _read_json(output_dir / "resources.json") or {}
 

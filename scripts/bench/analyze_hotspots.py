@@ -19,13 +19,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from hqsb.benchmark.roofline import (
     ORIN_NANO_SUPER_FP16,
     HotspotClass,
     amdahl_max_speedup,
-    classify_hotspot,
 )
 
 _GEMM_SHARE_THRESHOLD = 0.5
