@@ -17,6 +17,7 @@ _HAS_TRITON = _caps.triton_available and _caps.cuda_available
 
 pytestmark = [
     pytest.mark.unit,
+    pytest.mark.hardware,
     pytest.mark.skipif(not _HAS_TRITON, reason="Triton/CUDA not available"),
 ]
 

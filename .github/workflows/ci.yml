@@ -18,12 +18,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install core package (CPU-only, no hardware deps)
+      - name: Install core, benchmark and test dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,benchmark]" --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: Run CPU unit + property tests
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          CUDA_VISIBLE_DEVICES: ""
         run: |
           pytest -m "not hardware and not e2e and not performance" -q
 
@@ -31,9 +34,11 @@ jobs:
         run: |
           python scripts/audit/import_dependency_gate.py
 
-#      - name: Lint with ruff
-#        run: |
-#          ruff check hqsb tests
+      - name: Lint Python source and runners
+        run: ruff check hqsb ops scripts tests benchmarks
+
+      - name: Check public documentation links
+        run: python scripts/check_docs.py
 
 #      - name: Type check with mypy
 #        run: |

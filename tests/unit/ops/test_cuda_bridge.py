@@ -18,6 +18,7 @@ _HAS_CUDA = _caps.cuda_rmsnorm_available and _caps.cuda_available
 
 pytestmark = [
     pytest.mark.unit,
+    pytest.mark.hardware,
     pytest.mark.skipif(not _HAS_CUDA, reason="CUDA RMSNorm lib not available"),
 ]
 
