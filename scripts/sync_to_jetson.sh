@@ -17,24 +17,50 @@
 # 消失，且 ninja 认为目标"已是最新"而拒绝重编）。
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 JETSON_USER="${JETSON_USER:-jetson}"
 JETSON_HOST="${JETSON_HOST:-192.168.10.7}"
-REMOTE_DIR="${REMOTE_DIR:-/home/jetson/work/HeteroQuantServeBench}"
+REMOTE_DIR="${HQSB_REMOTE_DIR:-${REMOTE_DIR:-/home/jetson/work/HeteroQuantServeBench}}"
 
-DEST="${JETSON_USER}@${JETSON_HOST}:${REMOTE_DIR}"
+DEST="${HQSB_REMOTE_HOST:-${JETSON_USER}@${JETSON_HOST}}:${REMOTE_DIR}"
+
+RSYNC_OPTIONS=(-avz)
+if [[ "${1:-}" == "--dry-run" && $# -eq 1 ]]; then
+  RSYNC_OPTIONS+=(--dry-run)
+elif [[ $# -ne 0 ]]; then
+  echo "Usage: ./scripts/sync_to_jetson.sh [--dry-run]" >&2
+  exit 2
+fi
 
 echo "==> 同步 $(pwd)  ->  ${DEST}"
-rsync -avz \
+rsync "${RSYNC_OPTIONS[@]}" \
   --exclude '.git/' \
   --exclude '__pycache__/' \
   --exclude '*.pyc' \
   --exclude '.codebuddy/' \
   --exclude '.vscode/' \
+  --exclude '.agents/' \
+  --exclude '.codex/' \
+  --exclude '.venv*/' \
+  --exclude 'venv/' \
+  --exclude '.pytest_cache/' \
+  --exclude '.mypy_cache/' \
+  --exclude '.ruff_cache/' \
+  --exclude '*.egg-info/' \
   --exclude 'buddy_history/' \
   --exclude 'build/' \
   --exclude 'docs/stage_experiments/' \
-  --exclude 'reports/' \
-  --exclude 'third_party/' \
+  --exclude '/reports/' \
+  --exclude '/models/' \
+  --exclude '/artifacts/' \
+  --exclude '/datasets/' \
+  --exclude '/checkpoints/' \
+  --exclude '/experiment_results/' \
+  --exclude '/third_party/cutlass/' \
+  --exclude '.env*' \
+  --exclude '*.pem' \
+  --exclude '*.key' \
   ./ "${DEST}/"
 
 echo "==> 同步完成"

@@ -8,11 +8,13 @@
 #   JETSON_USER=jetson  JETSON_HOST=192.168.10.7  REMOTE_DIR=/home/jetson/work/HeteroQuantServeBench
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+
 JETSON_USER="${JETSON_USER:-jetson}"
 JETSON_HOST="${JETSON_HOST:-192.168.10.7}"
-REMOTE_DIR="${REMOTE_DIR:-/home/jetson/work/HeteroQuantServeBench}"
+REMOTE_DIR="${HQSB_REMOTE_DIR:-${REMOTE_DIR:-/home/jetson/work/HeteroQuantServeBench}}"
 
-SRC="${JETSON_USER}@${JETSON_HOST}:${REMOTE_DIR}/docs/stage_experiments/"
+SRC="${HQSB_REMOTE_HOST:-${JETSON_USER}@${JETSON_HOST}}:${REMOTE_DIR}/docs/stage_experiments/"
 
 echo "==> 拉取 ${SRC}  ->  ./docs/stage_experiments/"
 rsync -avz "${SRC}" ./docs/stage_experiments/

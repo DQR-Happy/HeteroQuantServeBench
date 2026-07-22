@@ -94,3 +94,5 @@ Thumbs.db
 AGENTS.md
 # S05 experiment run directories (raw execution data; local / archive separately)
 /experiment_results/
+
+/docs
