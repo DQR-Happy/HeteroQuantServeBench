@@ -1,0 +1,15 @@
+# Server-owned configuration; model paths and remote URLs never come from the browser.
+deployments:
+  - id: qwen-reference
+    name: Qwen3 · FP16 Reference
+    provider: pytorch
+    platform: CUDA / Jetson
+    model: Qwen/Qwen3-1.7B
+    model_path: ~/models/hqsb/Qwen3-1.7B
+    attention: eager
+    precision: float16
+    context_limit: 2048
+    max_output_tokens: 512
+max_pending: 8
+request_deadline_ms: 120000
+secure_cookie: false
