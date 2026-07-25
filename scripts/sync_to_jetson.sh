@@ -50,6 +50,11 @@ rsync "${RSYNC_OPTIONS[@]}" \
   --exclude '*.egg-info/' \
   --exclude 'buddy_history/' \
   --exclude 'build/' \
+  --exclude 'node_modules/' \
+  --exclude 'dist/' \
+  --exclude '.console/' \
+  --exclude 'test-results/' \
+  --exclude 'playwright-report/' \
   --exclude 'docs/stage_experiments/' \
   --exclude '/reports/' \
   --exclude '/models/' \

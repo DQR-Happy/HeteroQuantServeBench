@@ -50,7 +50,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 GATE_NAME = "import_dependency_gate"
-RULES_VERSION = "1.9.0"
+RULES_VERSION = "1.10.0"
 
 #: Architectural regions. A module belongs to the first region whose dotted
 #: prefix matches it. Order matters (most specific first).
@@ -70,6 +70,7 @@ REGION_PREFIXES: List[Tuple[str, str]] = [
     ("infra", "hqsb.infra"),
     ("experimental", "hqsb.experimental"),
     ("release", "hqsb.release"),
+    ("console", "hqsb.console"),
     ("ops", "ops"),
 ]
 
@@ -398,6 +399,20 @@ RULES: List[Dict[str, Any]] = [
             "tooling must not itself require a GPU or the internet)."
         ),
         "source_regions": ["release"],
+        "forbidden_target_regions": ["ops"],
+    },
+    {
+        "id": "R19",
+        "name": "lower_layers_do_not_depend_on_console",
+        "description": "The console composes evidence and providers; lower layers never depend on its UI/API lifecycle.",
+        "source_regions": ["core", "benchmark", "backends", "models", "hardware", "quant", "integration", "runtime", "serving", "distributed", "compiler", "evaluation", "infra", "experimental", "release", "ops"],
+        "forbidden_target_regions": ["console"],
+    },
+    {
+        "id": "R20",
+        "name": "console_does_not_import_kernel_implementations",
+        "description": "Console uses isolated providers and read-only source identity, never concrete kernel implementations.",
+        "source_regions": ["console"],
         "forbidden_target_regions": ["ops"],
     },
 ]
