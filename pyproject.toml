@@ -39,6 +39,12 @@ serving = [
     "uvicorn>=0.29",
     "httpx>=0.27",
 ]
+# Console API / remote-engine bridge. GPU dependencies remain vendor-managed.
+console = [
+    "fastapi==0.115.12",
+    "uvicorn==0.34.3",
+    "httpx==0.28.1",
+]
 # Ascend/CANN backend (S09).
 ascend = [
     "torch-npu",

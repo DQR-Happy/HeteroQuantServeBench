@@ -96,3 +96,11 @@ AGENTS.md
 /experiment_results/
 
 /docs
+
+# Private console state and frontend generated files
+.console/
+.venv-console/
+node_modules/
+*.tsbuildinfo
+playwright-report/
+test-results/
