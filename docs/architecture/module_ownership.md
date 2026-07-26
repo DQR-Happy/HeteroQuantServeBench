@@ -6,8 +6,8 @@
 > S12 追加 `evaluation` 区域与规则 R11/R12；
 > S13 追加 `infra` 区域与规则 R13/R14；
 > S14 追加 `experimental` 区域与规则 R15/R16；
-> S15 追加 `release` 区域与规则 R17/R18
-> 版本：1.9.0
+> S15 追加 `release` 区域与规则 R17/R18；Console 追加展示与交互层及 R19/R20
+> 版本：1.10.0
 
 本文定义 HQSB 各 Python 模块的职责边界、所有权和依赖方向，是后续所有阶段
 开发与 Code Review 的约束依据。任何违反依赖方向的导入都会在
@@ -18,7 +18,9 @@
 `tests/unit/compiler/test_compiler_import_boundaries.py`
 与 `tests/unit/experimental/test_experimental_import_boundaries.py`、
 `tests/unit/release/test_release_import_boundaries.py`
-以及 `scripts/audit/import_dependency_gate.py`（规则 R1–R18）中被 CI 拦截。
+以及 `scripts/audit/import_dependency_gate.py`（规则 R1–R20）中被 CI 拦截。
+
+Console 增量（2026-09-20）：`hqsb.console` 是顶层应用组合层，负责认证、HTTP/SSE、部署协调、SQLite 任务存储和只读证据索引。允许使用 backend Provider、基础配置与纯 Python 遥测解析器；不得 import `ops`（R20），不得在 API 进程模块级导入 torch/triton/transformers。其他区域不得反向 import `hqsb.console`（R19）。`hqsb.backends.interactive` 通过进程内惰性导入运行真实模型，不修改 C4/C6/C7 和既有 ServingBackend 语义。`web/console` 只通过版本化 HTTP 契约访问应用。
 
 ## 1. 依赖图（Dependency Graph）
 
