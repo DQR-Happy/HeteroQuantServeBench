@@ -62,6 +62,12 @@ class Settings(BaseModel):
     request_deadline_ms: int = Field(120000, ge=1000, le=600000)
     max_body_bytes: int = Field(262144, ge=4096, le=1048576)
     secure_cookie: bool = False
+    # Explicit operator opt-in for Tegra CUPTI; the network API stays unprivileged.
+    privileged_worker: bool = False
+    profile_min_available_bytes: int = Field(768 * 1024 * 1024, ge=0)
+    artifact_min_available_bytes: int = Field(384 * 1024 * 1024, ge=0)
+    artifact_budget_bytes: int = Field(8 * 1024**3, ge=1024**2)
+    quantization_timeout_s: int = Field(900, ge=30, le=3600)
 
     @model_validator(mode="after")
     def unique_ids(self):
