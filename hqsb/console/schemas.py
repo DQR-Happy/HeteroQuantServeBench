@@ -20,7 +20,7 @@ class Metrics(BaseModel):
 class RunRecord(BaseModel):
     model_config = ConfigDict(extra="allow")
     id: str
-    kind: Literal["load", "unload", "generate"]
+    kind: Literal["load", "unload", "generate", "quantize"]
     state: Literal[
         "queued",
         "running",
