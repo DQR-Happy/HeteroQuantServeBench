@@ -14,12 +14,19 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8765, type=int)
     parser.add_argument("--config", type=Path)
+    parser.add_argument(
+        "--privileged-worker",
+        action="store_true",
+        help="Use a fixed sudo worker for Tegra GPU profiling; requires existing sudo -n permission",
+    )
     args = parser.parse_args()
     from hqsb.console.config import load_settings
     from hqsb.console.app import create_app
     import uvicorn
 
     settings = load_settings(args.config)
+    if args.privileged_worker:
+        settings.privileged_worker = True
     settings.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(settings.data_dir, 0o700)
     # A second API using this store must not create another model worker.

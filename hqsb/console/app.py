@@ -16,11 +16,13 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from pydantic import BaseModel, ConfigDict, Field
 
 from hqsb.console.config import Settings
+from hqsb.console import __version__
 from hqsb.console.evidence import EvidenceCatalog
 from hqsb.console.service import ConsoleService, ServiceError
 from hqsb.console.schemas import RunPage, RunRecord
 from hqsb.console.store import TERMINAL
 from hqsb.console.telemetry import Telemetry
+from hqsb.console.analysis_routes import analysis_router
 
 PREFIX = "/api/console/v1"
 
@@ -39,6 +41,7 @@ class InferenceRequest(BaseModel):
     max_output_tokens: int = Field(128, ge=1, le=4096)
     deadline_ms: int = Field(120000, ge=1000, le=600000)
     save_input: bool = False
+    observation_mode: Literal["off", "basic", "operators"] = "basic"
 
 
 class Login(BaseModel):
@@ -65,7 +68,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
 
     app = FastAPI(
         title="HQSB Console",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
         docs_url=None,
         redoc_url=None,
@@ -181,7 +184,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
 
     @app.get("/healthz")
     def health():
-        return {"status": "ok", "api_version": "1"}
+        return {"status": "ok", "api_version": "1", "version": __version__}
 
     @app.post(PREFIX + "/session/login")
     def login(body: Login, request: Request):
@@ -213,7 +216,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
         return {
             "api_version": "1",
             "role": "operator",
-            "version": "0.1.0",
+            "version": __version__,
             "mode": "live",
             "features": [
                 "inference",
@@ -223,6 +226,12 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
                 "telemetry",
                 "compare",
                 "export",
+                "observation",
+                "operator_profile",
+                "memory_accounting",
+                "memory_dataflow",
+                "research",
+                "quantization_artifacts",
             ],
             "limits": {
                 "max_pending": settings.max_pending,
@@ -456,6 +465,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
                     cfg["deployment"]["precision"],
                     row["metrics"].get("measurement_profile"),
                     row["metrics"].get("output_tokens"),
+                    cfg.get("observation_mode", "basic"),
                 )
             )
         if any(item != signatures[0] for item in signatures[1:]):
@@ -470,6 +480,8 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
             "quality": "not_evaluated",
             "notice": "交互单次运行仅作诊断；尚无质量基准、重复统计或硬件因果结论。",
         }
+
+    app.include_router(analysis_router(settings, svc), prefix=PREFIX)
 
     @app.get("/{path:path}")
     def frontend(path: str):
