@@ -32,9 +32,10 @@ def worker_main(connection, cancel, config):
             try:
                 if command["kind"] == "load":
                     result = provider.load()
-                elif command["kind"] == "generate":
+                elif command["kind"] in {"generate", "quantize"}:
                     result = {}
-                    for event in provider.generate(command["payload"], cancel):
+                    operation = getattr(provider, command["kind"])
+                    for event in operation(command["payload"], cancel):
                         if event["kind"] == "result":
                             result = event
                         else:
