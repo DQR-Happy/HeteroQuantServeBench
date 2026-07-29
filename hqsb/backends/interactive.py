@@ -13,25 +13,34 @@ import os
 import time
 from pathlib import Path
 
+from hqsb.backends.tensor_memory import cache_inventory, parameter_inventory
+
+from hqsb.backends.observation import ObservationRecorder, OperatorCapture
+
 
 class InteractivePyTorch:
     def __init__(self, config: dict):
         self.config = config
         self.model = None
         self.tokenizer = None
+        self.source_identity = None
 
     def load(self) -> dict:
         import torch
         from hqsb.models.loader import load_qwen3
 
-        self.tokenizer, self.model, seconds = load_qwen3(
-            self.config["model_path"],
-            attention_backend=self.config["attention"],
-            dtype=torch.float16,
-            cpu_staging=True,
-            verify_manifest=self.config.get("manifest"),
-            allow_extra=tuple(self.config.get("manifest_allow_extra", [])),
-        )
+        observation = ObservationRecorder()
+        observation.snapshot("before_model_load", self.memory)
+        with observation.phase("model_load"):
+            self.tokenizer, self.model, seconds = load_qwen3(
+                self.config["model_path"],
+                attention_backend=self.config["attention"],
+                dtype=torch.float16,
+                cpu_staging=True,
+                verify_manifest=self.config.get("manifest"),
+                allow_extra=tuple(self.config.get("manifest_allow_extra", [])),
+            )
+        observation.snapshot("after_model_load", self.memory)
         devices = sorted({str(p.device) for p in self.model.parameters()})
         if devices != ["cuda:0"]:
             self.close()
@@ -44,11 +53,30 @@ class InteractivePyTorch:
             file = path / name
             if file.exists():
                 identity[name] = hashlib.sha256(file.read_bytes()).hexdigest()
-        with torch.inference_mode():
+        if self.config.get("manifest"):
+            manifest_file = Path(
+                os.path.expandvars(self.config["manifest"])
+            ).expanduser()
+            self.source_identity = {
+                "hash": hashlib.sha256(manifest_file.read_bytes()).hexdigest(),
+                "scope": "verified_manifest_at_load",
+                "revision": "local_manifest_verified",
+            }
+        else:
+            self.source_identity = {
+                "hash": "unverified-metadata:"
+                + hashlib.sha256(
+                    json.dumps(identity, sort_keys=True).encode()
+                ).hexdigest(),
+                "scope": "metadata_only_unverified_weights",
+                "revision": "local_weights_not_manifest_verified",
+            }
+        with torch.inference_mode(), observation.phase("warmup"):
             x = self.tokenizer("Warmup", return_tensors="pt").to("cuda")
             out = self.model(**x, use_cache=False)
             del out, x
             torch.cuda.synchronize()
+        observation.snapshot("after_warmup", self.memory)
         return {
             "load_seconds": seconds,
             "parameter_devices": devices,
@@ -60,6 +88,12 @@ class InteractivePyTorch:
             "cuda_version": torch.version.cuda,
             "device_name": torch.cuda.get_device_name(0),
             "memory": self.memory(),
+            "parameter_bytes": sum(
+                parameter.numel() * parameter.element_size()
+                for parameter in self.model.parameters()
+            ),
+            "observation": observation.data,
+            "parameter_inventory": parameter_inventory(self.model),
         }
 
     def memory(self) -> dict:
@@ -81,55 +115,112 @@ class InteractivePyTorch:
             raise RuntimeError("Model is not loaded")
         start = time.monotonic()
         deadline = start + request["remaining_ms"] / 1000
-        prompt = self.tokenizer.apply_chat_template(
-            request["messages"],
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=False,
-        )
-        inputs = self.tokenizer(
-            prompt, return_tensors="pt", add_special_tokens=False
-        ).to("cuda")
-        input_count = int(inputs["input_ids"].shape[1])
         limit = request["max_output_tokens"]
-        if input_count + limit > self.config["context_limit"]:
-            raise ValueError(
-                f"Context limit exceeded: {input_count}+{limit}>{self.config['context_limit']}"
-            )
-        eos = self.model.generation_config.eos_token_id
-        eos_ids = set(eos if isinstance(eos, list) else [eos])
+        observation = ObservationRecorder(
+            request.get("observation_mode", "basic"),
+            start=start,
+            execution={
+                "provider": "pytorch",
+                "device": "cuda:0",
+                "dtype": "float16",
+                "quant_execution_path": "fp16_reference",
+                "attention_backend": self.config["attention"],
+                "decoding": "greedy",
+                "use_cache": True,
+                "gpu_duration_source": "profiler_only",
+                "sampling_policy": "all_output_tokens_host_timing",
+            },
+        )
+        capture = OperatorCapture(
+            torch,
+            enabled=observation.mode == "operators",
+            capture_dir=request.get("capture_dir"),
+            capture_id=request.get("capture_id"),
+        )
+        observation.data["profile"] = capture.summary
         ids, times, text = [], [], ""
-        cache = None
-        current = inputs["input_ids"]
-        attention = inputs["attention_mask"]
+        cache = current = attention = inputs = out = None
         torch.cuda.reset_peak_memory_stats()
-        runtime_start = time.monotonic()
+        observation.snapshot("before_request", self.memory)
         finish = "length"
         try:
+            with observation.phase("chat_template"):
+                prompt = self.tokenizer.apply_chat_template(
+                    request["messages"],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=False,
+                )
+            with observation.phase("tokenize"):
+                inputs = self.tokenizer(
+                    prompt, return_tensors="pt", add_special_tokens=False
+                )
+            input_count = int(inputs["input_ids"].shape[1])
+            if input_count + limit > self.config["context_limit"]:
+                raise ValueError(
+                    f"Context limit exceeded: {input_count}+{limit}>{self.config['context_limit']}"
+                )
+            with observation.phase("input_transfer"):
+                inputs = inputs.to("cuda")
+            current = inputs["input_ids"]
+            attention = inputs["attention_mask"]
+            eos = self.model.generation_config.eos_token_id
+            eos_ids = set(eos if isinstance(eos, list) else [eos])
+            runtime_start = time.monotonic()
             with torch.inference_mode():
-                for _ in range(limit):
+                for index in range(limit):
                     if cancel.is_set():
                         finish = "cancelled"
                         break
                     if time.monotonic() >= deadline:
                         finish = "timed_out"
                         break
-                    out = self.model(
-                        input_ids=current,
-                        attention_mask=attention,
-                        past_key_values=cache,
-                        use_cache=True,
+                    if index == 0:
+                        with observation.phase("profiler_start"):
+                            capture.start()
+                            capture.attach_modules(self.model)
+                    phase = "prefill" if index == 0 else "decode"
+                    token_start = observation.now_ms()
+                    with (
+                        observation.phase(phase),
+                        capture.region(f"hqsb.{phase}.token_{index + 1}"),
+                    ):
+                        model_start = time.monotonic()
+                        out = self.model(
+                            input_ids=current,
+                            attention_mask=attention,
+                            past_key_values=cache,
+                            use_cache=True,
+                        )
+                        model_end = time.monotonic()
+                        # This existing .item() waits for selection; host timings
+                        # intentionally expose the wait instead of calling it GPU time.
+                        token = int(out.logits[:, -1, :].argmax(-1).item())
+                        selection_end = time.monotonic()
+                        cache = out.past_key_values
+                        out = None
+                        ids.append(token)
+                        times.append((selection_end - runtime_start) * 1000)
+                        text = self.tokenizer.decode(
+                            ids,
+                            skip_special_tokens=True,
+                            clean_up_tokenization_spaces=False,
+                        ).rstrip("\ufffd")
+                        decode_end = time.monotonic()
+                    observation.token(
+                        index=index + 1,
+                        phase=phase,
+                        start_ms=token_start,
+                        duration_ms=observation.now_ms() - token_start,
+                        model_host_ms=(model_end - model_start) * 1000,
+                        selection_ms=(selection_end - model_end) * 1000,
+                        detokenize_ms=(decode_end - selection_end) * 1000,
                     )
-                    token = int(out.logits[:, -1, :].argmax(-1).item())
-                    cache = out.past_key_values
-                    del out
-                    ids.append(token)
-                    times.append((time.monotonic() - runtime_start) * 1000)
-                    text = self.tokenizer.decode(
-                        ids,
-                        skip_special_tokens=True,
-                        clean_up_tokenization_spaces=False,
-                    ).rstrip("\ufffd")
+                    with observation.phase("profiler_step_finalize"):
+                        capture.step_completed()
+                    if index == 0:
+                        observation.snapshot("after_prefill", self.memory)
+                    stream_start = observation.now_ms()
                     yield {
                         "kind": "output",
                         "text": text,
@@ -138,16 +229,29 @@ class InteractivePyTorch:
                         "input_tokens": input_count,
                         "runtime_first_token_ms": times[0],
                     }
+                    if observation.mode != "off":
+                        observation.data["phases"].append(
+                            {
+                                "name": "stream_consumer_wait",
+                                "start_ms": stream_start,
+                                "duration_ms": observation.now_ms() - stream_start,
+                                "source": "host_monotonic",
+                            }
+                        )
                     if token in eos_ids:
                         finish = "stop"
                         break
-                    current = torch.tensor([[token]], device="cuda", dtype=torch.long)
-                    attention = torch.cat(
-                        (attention, attention.new_ones((1, 1))), dim=1
-                    )
+                    with observation.phase("prepare_decode"):
+                        current = torch.tensor(
+                            [[token]], device="cuda", dtype=torch.long
+                        )
+                        attention = torch.cat(
+                            (attention, attention.new_ones((1, 1))), dim=1
+                        )
             elapsed = (time.monotonic() - runtime_start) * 1000
             memory = self.memory()
-            yield {
+            observation.snapshot("after_generation", self.memory)
+            result = {
                 "kind": "result",
                 "text": text,
                 "finish_reason": finish,
@@ -169,16 +273,42 @@ class InteractivePyTorch:
                     "memory": memory,
                     "measurement_profile": "interactive-greedy-host-monotonic-v1",
                     "quality": "not_evaluated",
+                    "observation": observation.data,
+                    "kv_inventory": cache_inventory(cache),
                 },
             }
         finally:
-            del cache, current, attention, inputs
+            with observation.phase("profiler_finalize"):
+                capture.finish(total_tokens=len(ids))
+                capture.save_summary()
+            with observation.phase("request_cleanup"):
+                del out, cache, current, attention, inputs
+                gc.collect()
+                torch.cuda.empty_cache()
+            observation.snapshot("after_cleanup", self.memory)
+        yield result
+
+    def quantize(self, request, cancel):
+        """Create a storage artifact; leave resident FP16 model weights intact."""
+        from hqsb.backends.quantization import quantize_loaded_model
+
+        if self.model is None or self.source_identity is None:
+            raise RuntimeError("Model is not loaded")
+        try:
+            yield from quantize_loaded_model(
+                self.model, request, cancel, self.source_identity
+            )
+        finally:
             gc.collect()
-            torch.cuda.empty_cache()
+            import torch
+
+            if torch.cuda.is_initialized():
+                torch.cuda.empty_cache()
 
     def close(self):
         self.model = None
         self.tokenizer = None
+        self.source_identity = None
         gc.collect()
         import torch
 
