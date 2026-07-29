@@ -347,8 +347,9 @@ def _scale_utilization(
     """
     if not q or not scales:
         return float("nan")
-    steps = max(1, scheme.qmax - scheme.qmin)
-    half = steps / 2.0
+    # Signed codes span both sides of zero. Half of the full signed span
+    # would count only +/-127 in INT8, duplicating boundary occupancy.
+    half = max(abs(scheme.qmin), abs(scheme.qmax)) / 2.0
     used = 0
     for code in q:
         if abs(code) >= half:
@@ -423,10 +424,13 @@ def w8a8_reference(
 ) -> List[float]:
     """Quantized mathematical reference with per-unit scale broadcast.
 
-    Implements ``Y = s_x * s_w * (q_x - z_x)(q_w - z_w)`` with per-row
-    (per-token) and per-output-channel (per-group) scale broadcast. The
-    accumulator is exact; only the final scaling is floating point, which is
-    the same order the epilogue uses, so a kernel mismatch is a real finding.
+    ``X`` is row-major ``[M,K]`` and ``W`` is row-major ``[K,N]``.
+    Activation scales contain one scalar or M per-token values; weight
+    scales contain one scalar or N per-output-channel values. There is one
+    quantization unit along K per row/channel. Multiple K groups need
+    separate partial accumulations and explicit group boundaries, which this
+    epilogue-only oracle does not accept. Integer accumulation is exact;
+    only final scaling and the optional bias use floating point.
     """
     if x_zeros is not None or w_zeros is not None:
         raise ConfigError(
@@ -434,18 +438,28 @@ def w8a8_reference(
             "before calling the reference (or the reference must be extended); "
             "silently ignoring zero points would hide a correctness bug"
         )
+    if x_units_per_row != 1 or w_units_per_row != 1:
+        raise ConfigError(
+            "multiple K groups require explicit group boundaries and partial "
+            "accumulations; this reference supports one unit per row/channel"
+        )
+    for name, scales, count in (("x_scales", x_scales, m), ("w_scales", w_scales, n)):
+        if len(scales) not in (1, count):
+            raise ConfigError(
+                f"{name} must contain one scalar or {count} row/channel scales, "
+                f"got {len(scales)}"
+            )
+        for index, scale in enumerate(scales):
+            if not math.isfinite(float(scale)) or float(scale) <= 0:
+                raise ConfigError(f"{name}[{index}] must be finite and positive")
+    if bias is not None and len(bias) != n:
+        raise ConfigError(f"bias has {len(bias)} values, expected N={n}")
     accumulated = int32_accumulate(x_q, w_q, m=m, n=n, k=k)
     out: List[float] = []
     for row in range(m):
-        if x_units_per_row == 1:
-            x_scale = float(x_scales[0])
-        else:
-            x_scale = float(x_scales[row * x_units_per_row])
+        x_scale = float(x_scales[0 if len(x_scales) == 1 else row])
         for col in range(n):
-            if w_units_per_row == 1:
-                w_scale = float(w_scales[0])
-            else:
-                w_scale = float(w_scales[col * w_units_per_row])
+            w_scale = float(w_scales[0 if len(w_scales) == 1 else col])
             value = x_scale * w_scale * accumulated[row * n + col]
             if bias is not None:
                 value += float(bias[col])

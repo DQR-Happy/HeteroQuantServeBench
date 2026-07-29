@@ -113,6 +113,8 @@ class KvQuantSpec:
 
 def _scale_count(granularity: str, *, tokens: int, heads: int, group_size: Optional[int], head_dim: int) -> int:
     """Number of scales for one of K/V under a granularity (E05-08 §4)."""
+    if tokens == 0:
+        return 0
     if granularity == KV_PER_TENSOR:
         return 1
     if granularity == KV_PER_TOKEN_HEAD:
@@ -204,13 +206,15 @@ def kv_capacity(
     batch: int = 1,
     workspace_bytes: int = 0,
     duplicated_cache_bytes: int = 0,
-    dtype_bytes: int = 4,
+    dtype_bytes: int = 2,
 ) -> KvCapacity:
     """Compute the full capacity model for one KV configuration.
 
     ``2`` (K and V) is applied per component rather than to a naive total, so
     asymmetric K/V bits, different granularities and a residual window are all
-    representable.
+    representable. ``dtype_bytes`` is the residual-window element size and
+    defaults to FP16. A 16-bit K or V payload is unquantized FP16 and has no
+    scale/zero-point planes, while page bookkeeping still applies.
     """
     if min(layers, kv_heads, head_dim, tokens) < 1:
         raise ConfigError(
@@ -228,14 +232,14 @@ def kv_capacity(
 
     payload = _payload(spec.k_bits) + _payload(spec.v_bits)
     scale_bytes_per = {"float16": 2, "float32": 4, "float64": 8}[spec.scale_dtype]
-    k_scales = sequences * layers * _scale_count(
+    k_scales = 0 if spec.k_bits == 16 else sequences * layers * _scale_count(
         spec.k_granularity,
         tokens=quantized_tokens,
         heads=kv_heads,
         group_size=spec.k_group_size,
         head_dim=head_dim,
     )
-    v_scales = sequences * layers * _scale_count(
+    v_scales = 0 if spec.v_bits == 16 else sequences * layers * _scale_count(
         spec.v_granularity,
         tokens=quantized_tokens,
         heads=kv_heads,
@@ -279,10 +283,15 @@ def fp16_baseline_bytes(
     return layers * kv_heads * head_dim * 2 * dtype_bytes * tokens * max(1, batch)
 
 
-def capacity_ratio(spec: KvQuantSpec, *, layers: int, kv_heads: int, head_dim: int, tokens: int, batch: int = 1) -> Dict[str, Any]:
-    """Realized capacity ratio including all metadata (never payload-only)."""
+def capacity_ratio(spec: KvQuantSpec, *, layers: int, kv_heads: int, head_dim: int, tokens: int, batch: int = 1, dtype_bytes: int = 2) -> Dict[str, Any]:
+    """Capacity ratio against FP16, with an explicit residual element size.
+
+    ``dtype_bytes`` only changes the residual window; the comparison baseline
+    stays FP16 so requesting an FP32 residual cannot silently change both sides.
+    """
     capacity = kv_capacity(
-        spec, layers=layers, kv_heads=kv_heads, head_dim=head_dim, tokens=tokens, batch=batch
+        spec, layers=layers, kv_heads=kv_heads, head_dim=head_dim, tokens=tokens, batch=batch,
+        dtype_bytes=dtype_bytes,
     )
     baseline = fp16_baseline_bytes(
         layers=layers, kv_heads=kv_heads, head_dim=head_dim, tokens=tokens, batch=batch
