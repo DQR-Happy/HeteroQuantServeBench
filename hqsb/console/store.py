@@ -11,6 +11,20 @@ from pathlib import Path
 
 TERMINAL = frozenset({"completed", "failed", "cancelled", "timed_out", "interrupted"})
 
+# Project away detailed payloads in SQLite, before allocating Python objects.
+# Full inputs, tensors, operator rows and manifests remain available via get().
+LIST_DETAIL_PATHS = (
+    "$.result",
+    "$.config.messages",
+    "$.config.actual_runtime.parameter_inventory",
+    "$.metrics.observation",
+    "$.metrics.kv_inventory",
+    "$.metrics.generated_token_ids",
+    "$.metrics.token_itl_ms",
+    "$.metrics.quantization.weight_error.per_tensor_metrics",
+    "$.metrics.quantization.weight_error.per_tensor_wall_time_s",
+)
+
 
 class Store:
     def __init__(self, directory: Path):
@@ -108,13 +122,23 @@ class Store:
             ).fetchall()
             return [json.loads(row[0]) for row in rows]
 
-    def list(self, limit: int = 100, offset: int = 0) -> dict:
+    def list(
+        self, limit: int = 100, offset: int = 0, *, kind: str | None = None
+    ) -> dict:
         with self.lock:
+            clause = " WHERE json_extract(body, '$.kind')=?" if kind else ""
+            parameters = (kind,) if kind else ()
             rows = self.db.execute(
-                "SELECT body FROM runs ORDER BY created DESC LIMIT ? OFFSET ?",
-                (limit, offset),
+                "SELECT json_remove(body, "
+                + ",".join("?" for _ in LIST_DETAIL_PATHS)
+                + ") FROM runs"
+                + clause
+                + " ORDER BY created DESC LIMIT ? OFFSET ?",
+                (*LIST_DETAIL_PATHS, *parameters, limit, offset),
             ).fetchall()
-            total = self.db.execute("SELECT count(*) FROM runs").fetchone()[0]
+            total = self.db.execute(
+                "SELECT count(*) FROM runs" + clause, parameters
+            ).fetchone()[0]
             return {
                 "items": [json.loads(row[0]) for row in rows],
                 "total": total,
@@ -123,18 +147,22 @@ class Store:
 
     def recover(self):
         with self.lock:
-            rows = self.db.execute("SELECT id,body FROM runs").fetchall()
-        for run_id, body in rows:
-            if json.loads(body)["state"] not in TERMINAL:
-                self.update(
-                    run_id,
-                    {
-                        "state": "interrupted",
-                        "cleanup": "unknown",
-                        "error": "Service restarted; previous execution was not replayed.",
-                    },
-                    "error",
-                )
+            rows = self.db.execute(
+                "SELECT id FROM runs WHERE json_extract(body, '$.state') NOT IN ("
+                + ",".join("?" for _ in TERMINAL)
+                + ")",
+                tuple(TERMINAL),
+            ).fetchall()
+        for (run_id,) in rows:
+            self.update(
+                run_id,
+                {
+                    "state": "interrupted",
+                    "cleanup": "unknown",
+                    "error": "Service restarted; previous execution was not replayed.",
+                },
+                "error",
+            )
 
     def close(self):
         with self.lock:
