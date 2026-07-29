@@ -641,7 +641,12 @@ def _iter_sources(paths: Sequence[str]) -> Iterable[str]:
         for dirpath, dirnames, filenames in os.walk(path):
             dirnames[:] = [name for name in dirnames if name != "__pycache__"]
             for filename in filenames:
-                if filename.endswith(_SOURCE_SUFFIXES):
+                # macOS may materialize AppleDouble resource forks as
+                # ``._foo.py`` when a tree is copied to Linux.  The suffix is
+                # misleading: these are binary metadata sidecars, not Python
+                # sources, and must never participate in the schema-owner
+                # audit.
+                if not filename.startswith("._") and filename.endswith(_SOURCE_SUFFIXES):
                     yield os.path.join(dirpath, filename)
 
 
