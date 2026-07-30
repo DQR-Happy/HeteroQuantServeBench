@@ -37,11 +37,15 @@ def _complete_root(root: str) -> None:
         os.path.join(root, E.REQUEST_FIXTURE_CANDIDATES[0]), {"fixture": "frozen"}
     )
     _write_json(
-        os.path.join(root, E.S07_EVIDENCE_DIR, E.CAPABILITY_PROBE_NAME), {"probe": "done"}
+        os.path.join(root, E.S07_EVIDENCE_DIR, E.CAPABILITY_PROBE_NAME),
+        {
+            "probe_complete": True,
+            "verified_usable_engines": ["vllm"],
+        },
     )
     _write_json(
         os.path.join(root, E.S07_EVIDENCE_DIR, E.MAIN_RUNTIME_SELECTION_NAME),
-        {"selected": "vllm"},
+        {"selected_engine": "vllm", "selected_verified": True},
     )
     _write_json(
         os.path.join(root, "docs", "stage_experiments", "S07", "run-1", "environment_fingerprint.json"),
@@ -55,16 +59,29 @@ class TestPrerequisites:
         status = E.check_prerequisites(_REPO_ROOT)
         assert not status.satisfied
         assert "s04_5_model_reintegration_evidence" in status.missing
-        assert "runtime_capability_probe" in status.missing
         assert "main_runtime_selection" in status.missing
 
-    def test_scaffolding_cannot_satisfy_its_own_prerequisites(self):
-        """The probe/selection live in the protocol tree, which this code never writes."""
+    def test_negative_probe_does_not_create_a_verified_selection(self):
+        """A completed negative probe is evidence, but it cannot select an engine."""
         status = E.check_prerequisites(_REPO_ROOT)
         checks = {check.name: check for check in status.checks}
-        for name in ("runtime_capability_probe", "main_runtime_selection"):
-            assert not checks[name].satisfied
-            assert "hqsb/runtime cannot satisfy it" in checks[name].reason
+        assert checks["runtime_capability_probe"].satisfied
+        assert not checks["main_runtime_selection"].satisfied
+        assert "no verified main-runtime selection" in checks["main_runtime_selection"].reason
+
+    def test_placeholder_probe_and_selection_do_not_unlock_execution(self):
+        with tempfile.TemporaryDirectory(prefix="hqsb-s07-placeholder-") as root:
+            _write_json(
+                os.path.join(root, E.S07_EVIDENCE_DIR, E.CAPABILITY_PROBE_NAME),
+                {"probe": "done"},
+            )
+            _write_json(
+                os.path.join(root, E.S07_EVIDENCE_DIR, E.MAIN_RUNTIME_SELECTION_NAME),
+                {"selected": "vllm"},
+            )
+            checks = {check.name: check for check in E.check_prerequisites(root).checks}
+            assert not checks["runtime_capability_probe"].satisfied
+            assert not checks["main_runtime_selection"].satisfied
 
     def test_c6_c7_contract_is_available(self):
         checks = {check.name: check for check in E.check_prerequisites(_REPO_ROOT).checks}

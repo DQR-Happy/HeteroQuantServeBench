@@ -172,6 +172,22 @@ def _find_verdicts(root: str, stage: str) -> List[Dict[str, Any]]:
     return verdicts
 
 
+def _read_json_object(path: str) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Read a bounded prerequisite document and reject empty placeholders."""
+    if not os.path.isfile(path):
+        return None, "file does not exist"
+    try:
+        if os.path.getsize(path) > 4_000_000:
+            return None, "file exceeds the 4 MB prerequisite budget"
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+    if not isinstance(payload, dict):
+        return None, "top-level JSON value is not an object"
+    return payload, ""
+
+
 def check_prerequisites(root: str) -> PrerequisiteStatus:
     """Inspect the repository for the S07 evidence chain (never for intent)."""
     checks: List[PrerequisiteCheck] = []
@@ -255,34 +271,51 @@ def check_prerequisites(root: str) -> PrerequisiteStatus:
     )
 
     probe = os.path.join(root, S07_EVIDENCE_DIR, CAPABILITY_PROBE_NAME)
+    probe_payload, probe_error = _read_json_object(probe)
+    verified_engines = (
+        probe_payload.get("verified_usable_engines", []) if probe_payload else []
+    )
+    probe_ok = bool(probe_payload and probe_payload.get("probe_complete") is True)
     checks.append(
         PrerequisiteCheck(
             name="runtime_capability_probe",
-            satisfied=os.path.isfile(probe),
-            evidence=probe if os.path.isfile(probe) else "",
+            satisfied=probe_ok,
+            evidence=probe if probe_ok else "",
             reason=(
                 ""
-                if os.path.isfile(probe)
-                else f"no runtime capability probe at {probe}; the probe must be "
-                "produced on the target machine by the experiment run — scaffolding "
-                "in hqsb/runtime cannot satisfy it"
+                if probe_ok
+                else f"no valid completed runtime capability probe at {probe}; "
+                f"detail: {probe_error or 'probe_complete is not true'}"
             ),
         )
     )
 
     selection = os.path.join(root, S07_EVIDENCE_DIR, MAIN_RUNTIME_SELECTION_NAME)
+    selection_payload, selection_error = _read_json_object(selection)
+    selected_engine = selection_payload.get("selected_engine") if selection_payload else None
+    selection_ok = bool(
+        selection_payload
+        and selection_payload.get("selected_verified") is True
+        and isinstance(selected_engine, str)
+        and selected_engine
+        and selected_engine in verified_engines
+    )
+    if selection_payload:
+        selection_detail = selection_payload.get(
+            "reason", "selected engine is absent or not verified"
+        )
+    else:
+        selection_detail = selection_error or "selection file is absent"
     checks.append(
         PrerequisiteCheck(
             name="main_runtime_selection",
-            satisfied=os.path.isfile(selection),
-            evidence=selection if os.path.isfile(selection) else "",
+            satisfied=selection_ok,
+            evidence=selection if selection_ok else "",
             reason=(
                 ""
-                if os.path.isfile(selection)
-                else f"no main-runtime selection at {selection}; the source-level "
-                "primary runtime must be chosen from a capability probe, not assumed "
-                "by a document (details README §6). Scaffolding in hqsb/runtime "
-                "cannot satisfy it"
+                if selection_ok
+                else f"no verified main-runtime selection at {selection}; "
+                f"detail: {selection_detail}"
             ),
         )
     )
