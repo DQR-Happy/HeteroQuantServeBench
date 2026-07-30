@@ -15,7 +15,7 @@ import math
 import os
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import numpy as np
 import torch
@@ -24,6 +24,10 @@ import torch
 MODEL_ARTIFACT_SCHEMA = "hqsb.model_quant_artifact"
 MODEL_ARTIFACT_VERSION = "1.0.0"
 PACKING_VERSION = "hqsb-canonical-signed-row-major/1.0.0"
+
+
+class QuantizationCancelled(RuntimeError):
+    """Cooperative cancellation; an incomplete artifact has no manifest."""
 
 
 def _sha256_file(path: Path) -> str:
@@ -122,8 +126,14 @@ def save_model_quant_artifact(
     source_revision: str,
     excluded_suffixes: Iterable[str] = ("lm_head",),
     row_chunk: int = 32,
+    progress: Callable[[dict[str, Any]], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Stream quantized Linear weights to a portable artifact directory."""
+    """Stream quantized weights; optional callbacks run between bounded chunks.
+
+    Cooperative jobs require a fresh directory so cancellation cannot leave an
+    older manifest claiming that partially replaced payloads are complete.
+    """
     if bits not in (4, 8):
         raise ValueError("bits must be 4 or 8")
     if bits == 4 and (group_size is None or group_size <= 0):
@@ -134,6 +144,18 @@ def save_model_quant_artifact(
         raise ValueError("row_chunk must be positive")
 
     root = Path(directory)
+    if (progress is not None or cancel_check is not None) and (
+        root / "manifest.json"
+    ).exists():
+        raise FileExistsError(
+            "Cooperative quantization requires a fresh artifact directory"
+        )
+
+    def check_cancelled():
+        if cancel_check is not None and cancel_check():
+            raise QuantizationCancelled("Quantization cancelled before artifact commit")
+
+    check_cancelled()
     root.mkdir(parents=True, exist_ok=True)
     tensors_root = root / "tensors"
     tensors_root.mkdir(parents=True, exist_ok=True)
@@ -148,6 +170,7 @@ def save_model_quant_artifact(
     total_values = 0
 
     for index, (name, module) in enumerate(selected):
+        check_cancelled()
         weight = module.weight.detach()
         rows, cols = (int(weight.shape[0]), int(weight.shape[1]))
         stem = _safe_name(index, name)
@@ -166,6 +189,7 @@ def save_model_quant_artifact(
 
         with q_path.open("wb") as q_handle, scale_path.open("wb") as scale_handle:
             for begin in range(0, rows, row_chunk):
+                check_cancelled()
                 end = min(rows, begin + row_chunk)
                 source = weight[begin:end].float()
                 if not bool(torch.isfinite(source).all().item()):
@@ -177,7 +201,9 @@ def save_model_quant_artifact(
                     q = torch.round(source / scales).clamp(-127, 127).to(torch.int8)
                     reconstructed = q.float() * scales
                     q_payload = q.cpu().contiguous().numpy().tobytes()
-                    scale_payload = scales.squeeze(1).cpu().numpy().astype("<f4").tobytes()
+                    scale_payload = (
+                        scales.squeeze(1).cpu().numpy().astype("<f4").tobytes()
+                    )
                     saturated += int((q.abs() == 127).sum().item())
                 else:
                     assert group_size is not None
@@ -192,7 +218,9 @@ def save_model_quant_artifact(
                     grouped = source_padded.reshape(end - begin, groups, group_size)
                     amax = grouped.abs().amax(dim=2, keepdim=True)
                     scales = torch.where(amax == 0, torch.ones_like(amax), amax / 7.0)
-                    q_grouped = torch.round(grouped / scales).clamp(-7, 7).to(torch.int8)
+                    q_grouped = (
+                        torch.round(grouped / scales).clamp(-7, 7).to(torch.int8)
+                    )
                     reconstructed = (q_grouped.float() * scales).reshape(
                         end - begin, padded_cols
                     )[:, :cols]
@@ -218,9 +246,25 @@ def save_model_quant_artifact(
                 tensor_sq_error += float(torch.sum(delta * delta).item())
                 tensor_sq_source += float(torch.sum(source * source).item())
                 tensor_abs_error += float(torch.sum(delta.abs()).item())
-                tensor_max_error = max(tensor_max_error, float(delta.abs().max().item()))
+                tensor_max_error = max(
+                    tensor_max_error, float(delta.abs().max().item())
+                )
+                if progress is not None:
+                    progress(
+                        {
+                            "stage": "quantizing",
+                            "tensor": name,
+                            "completed_tensors": index,
+                            "total_tensors": len(selected),
+                            "rows_processed": end,
+                            "total_rows": rows,
+                        }
+                    )
 
-        q_record = _file_record(q_path, "canonical_qvalues", f"int{bits}-packed", q_count)
+        check_cancelled()
+        q_record = _file_record(
+            q_path, "canonical_qvalues", f"int{bits}-packed", q_count
+        )
         scale_record = _file_record(
             scale_path, "dequant_scales", "float32-le", scale_count
         )
@@ -247,9 +291,9 @@ def save_model_quant_artifact(
                 "byte_order": "little",
                 "nibble_order": "even-index-low-odd-index-high" if bits == 4 else None,
                 "row_byte_aligned": True,
-                "tail_valid": cols % group_size if bits == 4 and cols % int(group_size) else (
-                    group_size if bits == 4 else cols
-                ),
+                "tail_valid": cols % group_size
+                if bits == 4 and cols % int(group_size)
+                else (group_size if bits == 4 else cols),
             },
             "files": {"qvalues": q_record, "scales": scale_record},
             "metrics": {
@@ -267,6 +311,17 @@ def save_model_quant_artifact(
         total_abs_error += tensor_abs_error
         max_abs_error = max(max_abs_error, tensor_max_error)
         total_values += q_count
+        if progress is not None:
+            progress(
+                {
+                    "stage": "quantizing",
+                    "tensor": name,
+                    "completed_tensors": index + 1,
+                    "total_tensors": len(selected),
+                    "rows_processed": rows,
+                    "total_rows": rows,
+                }
+            )
 
     identity = {
         "schema": MODEL_ARTIFACT_SCHEMA,
@@ -333,6 +388,7 @@ def save_model_quant_artifact(
         },
     }
     manifest_path = root / "manifest.json"
+    check_cancelled()
     temporary = root / ".manifest.json.tmp"
     temporary.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
@@ -352,8 +408,15 @@ def load_manifest(directory: str | Path) -> dict[str, Any]:
     identity = {
         key: manifest[key]
         for key in (
-            "schema", "version", "source", "quantization", "module_policy",
-            "packing_version", "coverage", "tensors", "runtime_contract",
+            "schema",
+            "version",
+            "source",
+            "quantization",
+            "module_policy",
+            "packing_version",
+            "coverage",
+            "tensors",
+            "runtime_contract",
         )
     }
     identity_hash = hashlib.sha256(_canonical_bytes(identity)).hexdigest()
@@ -374,7 +437,9 @@ def _validate_payload(root: Path, tensor_dir: Path, record: dict[str, Any]) -> P
     if path.stat().st_size != record.get("bytes"):
         raise ValueError(f"artifact payload size mismatch: {path.relative_to(root)}")
     if _sha256_file(path) != record.get("sha256"):
-        raise ValueError(f"artifact payload checksum mismatch: {path.relative_to(root)}")
+        raise ValueError(
+            f"artifact payload checksum mismatch: {path.relative_to(root)}"
+        )
     return path
 
 
@@ -417,10 +482,12 @@ def apply_model_quant_artifact(
             q_array = np.memmap(q_path, dtype=np.int8, mode="r", shape=(rows, cols))
             for begin in range(0, rows, row_chunk):
                 end = min(rows, begin + row_chunk)
-                q = torch.from_numpy(np.asarray(q_array[begin:end]).copy()).to(weight.device)
-                scale = torch.from_numpy(
-                    np.asarray(scale_array[begin:end]).copy()
-                ).to(weight.device)
+                q = torch.from_numpy(np.asarray(q_array[begin:end]).copy()).to(
+                    weight.device
+                )
+                scale = torch.from_numpy(np.asarray(scale_array[begin:end]).copy()).to(
+                    weight.device
+                )
                 dequantized = q.float() * scale[:, None]
                 weight[begin:end].copy_(dequantized.to(weight.dtype))
         elif bits == 4:
@@ -431,18 +498,30 @@ def apply_model_quant_artifact(
             if scale_array.size != rows * groups:
                 raise ValueError(f"scale count mismatch for {name}")
             scales = scale_array.reshape(rows, groups)
-            packed = np.memmap(q_path, dtype=np.uint8, mode="r", shape=(rows, row_bytes))
+            packed = np.memmap(
+                q_path, dtype=np.uint8, mode="r", shape=(rows, row_bytes)
+            )
             for begin in range(0, rows, row_chunk):
                 end = min(rows, begin + row_chunk)
-                payload = torch.from_numpy(np.asarray(packed[begin:end]).copy()).to(weight.device)
+                payload = torch.from_numpy(np.asarray(packed[begin:end]).copy()).to(
+                    weight.device
+                )
                 low = torch.bitwise_and(payload, 0xF).to(torch.int8)
                 high = torch.bitwise_right_shift(payload, 4).to(torch.int8)
-                q_unsigned = torch.stack((low, high), dim=2).reshape(end - begin, -1)[:, :cols]
-                q = torch.where(q_unsigned >= 8, q_unsigned - 16, q_unsigned).to(torch.int8)
-                scale = torch.from_numpy(np.asarray(scales[begin:end]).copy()).to(weight.device)
+                q_unsigned = torch.stack((low, high), dim=2).reshape(end - begin, -1)[
+                    :, :cols
+                ]
+                q = torch.where(q_unsigned >= 8, q_unsigned - 16, q_unsigned).to(
+                    torch.int8
+                )
+                scale = torch.from_numpy(np.asarray(scales[begin:end]).copy()).to(
+                    weight.device
+                )
                 padded_cols = groups * group_size
                 if padded_cols != cols:
-                    q_padded = torch.nn.functional.pad(q, (0, padded_cols - cols), value=0)
+                    q_padded = torch.nn.functional.pad(
+                        q, (0, padded_cols - cols), value=0
+                    )
                 else:
                     q_padded = q
                 dequantized = (
@@ -487,6 +566,7 @@ __all__ = [
     "MODEL_ARTIFACT_SCHEMA",
     "MODEL_ARTIFACT_VERSION",
     "PACKING_VERSION",
+    "QuantizationCancelled",
     "apply_model_quant_artifact",
     "artifact_disk_usage",
     "iter_quantized_linears",
