@@ -10,7 +10,7 @@ import { Button, Progress, Space, Table, Tag } from 'antd';
 import { Link } from 'react-router-dom';
 import { api, date, fmt, gib } from '../api/client';
 import type { Overview as OverviewData, Run } from '../api/types';
-import { Panel, Stat, Status, Chart, QueryState } from '../components';
+import { Panel, Stat, Status, Chart, QueryState, runKindLabel } from '../components';
 
 export default function Overview() {
   const query = useQuery({
@@ -74,6 +74,15 @@ export default function Overview() {
           </div>
         </div>
       </div>
+      <div className="release-strip">
+        <Tag color="green">v0.2.1 可视化工作流</Tag>
+        <Link to="/memory-flow">
+          <strong>查看内存结构与数据流 →</strong>
+        </Link>
+        <Link to="/playground">采集阶段与算子</Link>
+        <Link to="/research">钻取 kernel / 硬件证据</Link>
+        <Link to="/quantization">生成 RTN 量化候选</Link>
+      </div>
       <QueryState loading={query.isPending} error={query.error} />
       <div className="stats-grid">
         <Stat
@@ -117,15 +126,13 @@ export default function Overview() {
               {fmt(gib(last?.host_available_bytes), 2)} <small>GiB</small>
             </strong>
           </div>
-          <Progress
-            percent={
-              last?.host_total_bytes && last.host_available_bytes != null
-                ? Math.round((1 - last.host_available_bytes / last.host_total_bytes) * 100)
-                : 0
-            }
-            showInfo={false}
-            strokeColor="#f17b53"
-          />
+          {last?.host_total_bytes && last.host_available_bytes != null ? (
+            <Progress
+              percent={Math.round((1 - last.host_available_bytes / last.host_total_bytes) * 100)}
+              showInfo={false}
+              strokeColor="#f17b53"
+            />
+          ) : null}
           <div className="muted small">
             {last
               ? `${data?.telemetry.host} · 主机共享内存口径，非模型独占显存`
@@ -192,8 +199,7 @@ export default function Overview() {
             {
               title: '类型',
               dataIndex: 'kind',
-              render: (kind: string) =>
-                kind === 'generate' ? '交互推理' : kind === 'load' ? '加载部署' : '卸载部署',
+              render: runKindLabel,
             },
             { title: '状态', dataIndex: 'state', render: (s: string) => <Status state={s} /> },
             {

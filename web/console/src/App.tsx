@@ -24,6 +24,8 @@ import { QueryState } from './components';
 const Overview = lazy(() => import('./pages/Overview'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Devices = lazy(() => import('./pages/Devices'));
+const MemoryFlow = lazy(() => import('./pages/MemoryFlow'));
+const Research = lazy(() => import('./pages/Research'));
 const Runs = lazy(() => import('./pages/Runs').then((m) => ({ default: m.Runs })));
 const RunDetail = lazy(() => import('./pages/Runs').then((m) => ({ default: m.RunDetail })));
 const Evidence = lazy(() => import('./pages/Evidence'));
@@ -160,7 +162,9 @@ export default function App() {
     { key: '/', icon: <DashboardOutlined />, label: '总览' },
     { key: '/playground', icon: <ThunderboltOutlined />, label: '推理工作台' },
     { key: '/devices', icon: <DeploymentUnitOutlined />, label: '设备与部署' },
+    { key: '/memory-flow', icon: <SwapOutlined />, label: '内存与数据流' },
     { key: '/runs', icon: <UnorderedListOutlined />, label: '运行记录' },
+    { key: '/research', icon: <FileSearchOutlined />, label: '深度分析' },
     { type: 'divider' as const },
     { key: '/compare', icon: <SwapOutlined />, label: '运行对比' },
     { key: '/quantization', icon: <ExperimentOutlined />, label: '量化与质量' },
@@ -235,6 +239,7 @@ export default function App() {
           </div>
           <div className="topbar-right">
             <span className="small muted">HeteroQuantServeBench</span>
+            <Tag className="version-tag">UI v0.2.1</Tag>
             <Tag className="live-tag">
               <span className="live-dot" /> LIVE
             </Tag>
@@ -254,8 +259,10 @@ export default function App() {
               <Route path="/" element={<Overview />} />
               <Route path="/playground" element={<Playground />} />
               <Route path="/devices" element={<Devices />} />
+              <Route path="/memory-flow" element={<MemoryFlow />} />
               <Route path="/runs" element={<Runs />} />
               <Route path="/runs/:id" element={<RunDetail />} />
+              <Route path="/research" element={<Research />} />
               <Route path="/compare" element={<Compare />} />
               <Route path="/quantization" element={<Evidence mode="quantization" />} />
               <Route path="/kernels" element={<Kernels />} />

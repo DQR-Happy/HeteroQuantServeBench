@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Session } from '../api/types';
 import { PageHead, Panel, QueryState } from '../components';
+import CapabilityMatrix from '../features/observability/Capabilities';
 
 export function Showcase() {
   return (
@@ -168,6 +169,7 @@ export function SettingsPage() {
           ]}
         />
       </Panel>
+      <CapabilityMatrix />
       <Alert
         showIcon
         type="info"

@@ -6,8 +6,19 @@ import { Link, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { api, base, date, fmt, gib, terminal } from '../api/client';
 import type { Run, RunPage } from '../api/types';
-import { Chart, JsonView, PageHead, Panel, QueryState, Stat, Status } from '../components';
+import {
+  Chart,
+  JsonView,
+  PageHead,
+  Panel,
+  QueryState,
+  Stat,
+  Status,
+  runKindLabel,
+} from '../components';
 import { useRun } from '../hooks';
+import ObservationPanel from '../features/observability/ObservationPanel';
+import QuantizationRun from '../features/research/QuantizationRun';
 
 export function Runs() {
   const [offset, setOffset] = useState(0),
@@ -83,7 +94,7 @@ export function Runs() {
                 </Link>
               ),
             },
-            { title: '类型', dataIndex: 'kind' },
+            { title: '类型', dataIndex: 'kind', render: runKindLabel },
             { title: '部署', render: (_, r) => r.config.deployment.name },
             { title: '状态', dataIndex: 'state', render: (s: string) => <Status state={s} /> },
             { title: '首内容 / ms', render: (_, r) => fmt(r.metrics.console_first_content_ms) },
@@ -111,6 +122,11 @@ export function RunDetail() {
         extra={
           <Space>
             {r && <Status state={r.state} />}
+            {r?.kind === 'generate' && (
+              <Link to={`/memory-flow?run=${encodeURIComponent(r.id)}`}>
+                <Button>内存结构与数据流</Button>
+              </Link>
+            )}
             <Button icon={<DownloadOutlined />} href={`${base}/runs/${id}/export`}>
               JSON
             </Button>
@@ -140,6 +156,7 @@ export function RunDetail() {
               )
             }
           />
+          {r.kind === 'quantize' && <QuantizationRun run={r} />}
           <div className="stats-grid">
             <Stat label="服务端首内容" value={r.metrics.console_first_content_ms} unit="ms" />
             <Stat label="Runtime 首 token" value={r.metrics.runtime_first_token_ms} unit="ms" />
@@ -218,6 +235,11 @@ export function RunDetail() {
                       )}
                     </>
                   ),
+                },
+                {
+                  key: 'observation',
+                  label: '全链路观测',
+                  children: <ObservationPanel runId={r.id} observation={r.metrics.observation} />,
                 },
                 { key: 'config', label: '实际配置', children: <JsonView value={r.config} /> },
                 {

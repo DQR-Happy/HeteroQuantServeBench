@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import { api, date, fmt } from '../api/client';
 import type { Evidence, EvidenceDetail, EvidenceFile } from '../api/types';
 import { JsonView, PageHead, Panel, QueryState, Status } from '../components';
+import QuantizationBuilder from '../features/research/QuantizationBuilder';
 
 export function EvidenceViewer({ id, onClose }: { id?: string; onClose: () => void }) {
   const query = useQuery({
@@ -92,6 +93,7 @@ export default function EvidencePage({
           description="历史模型级路径含全权重 FP16 反量化控制实验；请同时阅读 verdict、质量门和实际 kernel 路径。当前交互工作台只开放经过接线的部署。"
         />
       )}
+      {mode === 'quantization' && <QuantizationBuilder />}
       {mode === 'experiments' && (
         <Alert
           className="section-gap"
@@ -107,7 +109,7 @@ export default function EvidencePage({
           <div className="stat-value">{filtered.length}</div>
           <div className="stat-hint">以 verdict.json 实际存在为准</div>
         </div>
-        {['PASS', 'FAIL', 'BLOCKED'].map((s) => (
+        {['PASS', 'FAIL', 'BLOCKED', 'N/A_BY_ADR'].map((s) => (
           <div className="stat" key={s}>
             <div className="stat-label">
               <Status state={s} />

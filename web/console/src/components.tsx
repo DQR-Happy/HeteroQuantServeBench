@@ -22,10 +22,21 @@ echarts.use([
   CanvasRenderer,
 ]);
 
+const runKinds: Record<string, string> = {
+  generate: '交互推理',
+  load: '加载部署',
+  unload: '卸载部署',
+  quantize: '量化转换',
+};
+export function runKindLabel(kind: string) {
+  return runKinds[kind] ?? kind;
+}
+
 const labels: Record<string, string> = {
   ready: '已就绪',
   unloaded: '未加载',
   loading: '加载中',
+  quantizing: '量化中',
   draining: '排空中',
   queued: '排队中',
   running: '执行中',
@@ -36,8 +47,11 @@ const labels: Record<string, string> = {
   timed_out: '超时',
   interrupted: '执行中断',
   PASS: '通过',
+  PASS_NEGATIVE: '负结果通过',
   FAIL: '未通过',
   BLOCKED: '受阻',
+  'N/A_BY_ADR': '按 ADR 不适用',
+  NOT_RUN: '未运行',
   UNKNOWN: '未标注',
   NOT_EXECUTED: '未执行',
 };
@@ -46,7 +60,7 @@ export function Status({ state }: { state: string }) {
     ? 'success'
     : ['failed', 'FAIL', 'timed_out'].includes(state)
       ? 'error'
-      : ['loading', 'running', 'queued', 'cancel_requested'].includes(state)
+      : ['loading', 'running', 'queued', 'cancel_requested', 'quantizing'].includes(state)
         ? 'processing'
         : 'default';
   return <Tag color={color}>{labels[state] ?? state}</Tag>;

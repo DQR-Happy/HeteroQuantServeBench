@@ -26,6 +26,8 @@ import { api, terminal } from '../api/client';
 import type { Deployment, InferenceRequest, Run, Session } from '../api/types';
 import { PageHead, Panel, Stat, Status, QueryState } from '../components';
 import { useRun } from '../hooks';
+import ObservationControl from '../features/observability/ObservationControl';
+import type { ObservationMode } from '../features/observability/types';
 
 export default function Playground() {
   const { message } = App.useApp();
@@ -44,6 +46,7 @@ export default function Playground() {
   const [system, setSystem] = useState('你是一位严谨的技术助手。请用中文简明回答。');
   const [tokens, setTokens] = useState(128);
   const [save, setSave] = useState(false);
+  const [observationMode, setObservationMode] = useState<ObservationMode>('basic');
   const [submitted, setSubmitted] = useState<{ id: string; time: number }>();
   const [sending, setSending] = useState(false);
   const run = useRun(submitted?.id, submitted?.time);
@@ -65,6 +68,7 @@ export default function Playground() {
         max_output_tokens: Math.min(tokens, deployment.max_output_tokens),
         deadline_ms: Math.min(120000, deadlineLimit),
         save_input: save,
+        observation_mode: localProvider ? observationMode : 'off',
       };
       const row = await api<Run>('/requests', body);
       client.setQueryData(['run', row.id], row);
@@ -185,6 +189,12 @@ export default function Playground() {
             <span>上下文上限</span>
             <strong>{deployment?.context_limit ?? '—'} tokens</strong>
           </div>
+          <ObservationControl
+            value={observationMode}
+            onChange={setObservationMode}
+            disabled={active}
+            local={localProvider}
+          />
           <Collapse
             ghost
             items={[

@@ -1,8 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Alert, App, Button, Descriptions, Space, Table, Tag } from 'antd';
 import { api, fmt, gib } from '../api/client';
 import type { Deployment, Telemetry } from '../api/types';
 import { Chart, JsonView, PageHead, Panel, QueryState, Stat, Status } from '../components';
+import MemoryInspector from '../features/memory/MemoryInspector';
+import TensorLedger from '../features/memory/TensorLedger';
 
 export default function Devices() {
   const client = useQueryClient();
@@ -36,6 +39,11 @@ export default function Devices() {
         kicker="COMPUTE & DEPLOYMENTS"
         title="设备与部署"
         description="管理模型生命周期，观察实际执行节点。平台名称不代表已完成硬件适配认证。"
+        extra={
+          <Link to="/memory-flow">
+            <Button type="primary">打开内存结构与数据流</Button>
+          </Link>
+        }
       />
       <div className="stats-grid">
         <Stat
@@ -130,6 +138,8 @@ export default function Devices() {
           </div>
         ))}
       </Panel>
+      <MemoryInspector />
+      <TensorLedger />
       <div className="grid-two">
         <Panel
           title="共享内存趋势"

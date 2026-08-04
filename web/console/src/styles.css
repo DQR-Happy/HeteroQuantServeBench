@@ -1053,3 +1053,124 @@ summary {
   margin: 7px 0 0;
   font-size: 10px;
 }
+.wide-select {
+  width: 100%;
+}
+.release-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+  border: 1px solid #dce8e0;
+  background: #f4f8f5;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 0 0 24px;
+  font-size: 12px;
+}
+.observation-control {
+  margin: 12px 0 18px;
+}
+.observation-control .ant-alert {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.observation-toolbar {
+  justify-content: space-between;
+  align-items: center;
+}
+.memory-stats {
+  gap: 12px;
+}
+.memory-stats .stat {
+  border: 1px solid #e2eae6;
+}
+.memory-deployment {
+  margin-top: 26px;
+  padding-top: 12px;
+  border-top: 1px solid #e5ebe7;
+}
+.memory-snapshot {
+  min-width: 0;
+  background: #f7faf8;
+  border: 1px solid #e4ece7;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.memory-snapshot > strong,
+.memory-snapshot > span {
+  display: block;
+  margin-bottom: 8px;
+}
+.metric-pairs {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 1.4fr);
+  gap: 10px;
+  font-size: 12px;
+  margin: 18px 0 0;
+}
+.metric-pairs dt {
+  color: #788b80;
+}
+.metric-pairs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.kernel-name,
+.evidence-path {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 11px;
+}
+.counter-capture {
+  margin: 16px 0 24px;
+}
+.counter-capture > code {
+  display: block;
+  margin-bottom: 14px;
+}
+.execution-proof {
+  padding: 18px;
+  border-radius: 10px;
+  background: #f2f6f3;
+  line-height: 1.8;
+}
+.execution-proof p {
+  margin-bottom: 0;
+}
+.finding-card {
+  padding: 20px;
+  border: 1px solid #dfe9e2;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.finding-card h3 {
+  margin-top: 0;
+}
+.finding-evidence {
+  background: #f5f8f6;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 12px;
+}
+.quantization-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+  margin: 20px 0;
+}
+@media (max-width: 700px) {
+  .quantization-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .observation-toolbar .ant-space {
+    max-width: 100%;
+  }
+  .version-tag {
+    display: none;
+  }
+}
