@@ -1,5 +1,8 @@
 import type { components } from './generated';
-export type InferenceRequest = components['schemas']['InferenceRequest'];
+import type { Observation, ObservationMode } from '../features/observability/types';
+export type InferenceRequest = components['schemas']['InferenceRequest'] & {
+  observation_mode?: ObservationMode;
+};
 export type Deployment = {
   id: string;
   name: string;
@@ -22,6 +25,22 @@ export type Deployment = {
   };
 };
 export type Metrics = {
+  observation?: Observation;
+  quantization?: {
+    status: string;
+    method: string;
+    bits: number;
+    group_size: number | null;
+    execution_path: string;
+    quality: string;
+    native_deployment_available: boolean;
+    resident_model_modified: boolean;
+    source_identity_scope?: string;
+    bytes?: { qvalues: number; scales: number; manifest: number; total: number };
+    coverage?: unknown;
+    weight_error?: unknown;
+    limitations?: string[];
+  };
   input_tokens?: number | null;
   output_tokens?: number | null;
   console_first_content_ms?: number | null;
@@ -62,6 +81,15 @@ export type Run = {
   cleanup: string;
   quality: string;
   finish_reason?: string;
+  progress?: {
+    stage?: string;
+    tensor?: string;
+    completed_tensors?: number;
+    total_tensors?: number;
+    rows_processed?: number;
+    total_rows?: number;
+  };
+  result?: { kind?: string; artifact_id?: string; manifest?: unknown; metrics?: Metrics };
 };
 export type Message = components['schemas']['Message'];
 export type RunPage = { items: Run[]; total: number; next_offset: number | null };
