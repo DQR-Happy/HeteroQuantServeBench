@@ -35,6 +35,7 @@ fi
 
 echo "==> 同步 $(pwd)  ->  ${DEST}"
 rsync "${RSYNC_OPTIONS[@]}" \
+  --exclude '._*' \
   --exclude '.git/' \
   --exclude '__pycache__/' \
   --exclude '*.pyc' \
