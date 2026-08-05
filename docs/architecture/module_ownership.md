@@ -22,6 +22,10 @@
 
 Console 增量（2026-09-20）：`hqsb.console` 是顶层应用组合层，负责认证、HTTP/SSE、部署协调、SQLite 任务存储和只读证据索引。允许使用 backend Provider、基础配置与纯 Python 遥测解析器；不得 import `ops`（R20），不得在 API 进程模块级导入 torch/triton/transformers。其他区域不得反向 import `hqsb.console`（R19）。`hqsb.backends.interactive` 通过进程内惰性导入运行真实模型，不修改 C4/C6/C7 和既有 ServingBackend 语义。`web/console` 只通过版本化 HTTP 契约访问应用。
 
+Console v0.2 增量（2026-09-21）：`console.analysis_routes` 只组合 HTTP 资源；`resources` 负责只读主机/进程口径，`captures` 负责有界 trace 查询，`research` 负责历史证据适配，`optimization` 负责未验证优化假设与导出。`backends.observation` 在 worker 内采集，`backends.tensor_memory` 只读 tensor 元数据，`backends.quantization` 在同一设备所有者内复用量化算法并以临时目录原子发布制品。它们不反向依赖 Console。浏览器 `features/{observability,memory,research}` 分别呈现这些契约；不能计算正式验收结论或决定真实 dispatch。详细 trace 和 packed 制品独立存放，SQLite 仅保存任务、摘要及事件。
+
+Console v0.2.1：`console.dataflow` 是不导入设备运行时的纯证据投影；通过 `captures.project` 单遍聚合已保留事件，避免再次复制完整 trace。浏览器 `features/memory-flow` 负责权重面积布局、KV 层视图与逻辑流程交互；不推断物理地址、GPU 缓存流量或跨时钟阶段归属。当前资源、加载时权重与请求末尾 KV 分别标注来源和时间。
+
 ## 1. 依赖图（Dependency Graph）
 
 ```mermaid
@@ -167,7 +171,7 @@ import `torch`/`triton`/`numpy`。
 | `hqsb.core.schema` | 版本化 + 迁移 | `core.errors` | — |
 | `hqsb.core.config` | 配置加载 + hash | `core.errors`、`pydantic`、`yaml` | — |
 | `hqsb.core.registry` | 插件注册 | `core.errors` | — |
-| `hqsb.backends.*` | 具体 backend 实现 | `core` | 不得被 `core` 反向依赖 |
+| `hqsb.backends.*` | 具体 backend 实现及进程内 Provider | `core`；具体 PyTorch 实现可使用 `models`/`benchmark`，交互 worker 的量化桥可惰性调用 `quant`；GPU/模型依赖只在执行进程按需加载 | 不得被 `core` 反向依赖；不得反向 import `console`/`runtime`/`serving` |
 | `hqsb.benchmark.engine` | backend 接口编排 → BenchmarkResult | `core`、`benchmark.metrics` | 具体 backend/model loader |
 | `hqsb.benchmark.model_core` | PyTorch reference 内部实现（S02 归入 backend） | `core`、`models.loader` | — |
 | `hqsb.models.loader` | 模型加载（local-only） | `core.contracts`、`core.errors` | — |

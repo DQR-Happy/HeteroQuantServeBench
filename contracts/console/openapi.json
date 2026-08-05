@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "HQSB Console",
-    "version": "0.1.0"
+    "version": "0.2.1"
   },
   "paths": {
     "/healthz": {
@@ -694,6 +694,618 @@
         }
       }
     },
+    "/api/console/v1/resources": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Resources",
+        "operationId": "resources_api_console_v1_resources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/capabilities": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Capabilities",
+        "operationId": "capabilities_api_console_v1_capabilities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/deployments/{deployment_id}/memory-inventory": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Memory Inventory",
+        "operationId": "memory_inventory_api_console_v1_deployments__deployment_id__memory_inventory_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/research": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Research Overview",
+        "operationId": "research_overview_api_console_v1_research_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/research/export": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Research Export",
+        "operationId": "research_export_api_console_v1_research_export_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/research/artifacts/{artifact_id}/download": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Research Download",
+        "operationId": "research_download_api_console_v1_research_artifacts__artifact_id__download_get",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/analysis": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Analysis",
+        "operationId": "analysis_api_console_v1_runs__run_id__analysis_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/trace": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Trace",
+        "operationId": "trace_api_console_v1_runs__run_id__trace_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "const": "chrome",
+              "type": "string",
+              "default": "chrome",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/dataflow": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Dataflow",
+        "operationId": "dataflow_api_console_v1_runs__run_id__dataflow_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/trace/events": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Trace Events",
+        "operationId": "trace_events_api_console_v1_runs__run_id__trace_events_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "start_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0,
+              "title": "Start Ms"
+            }
+          },
+          {
+            "name": "end_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Ms"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/optimization": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Optimization",
+        "operationId": "optimization_api_console_v1_runs__run_id__optimization_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "markdown"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/bundle": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Evidence Bundle",
+        "operationId": "evidence_bundle_api_console_v1_runs__run_id__bundle_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/quantization/jobs": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Quantize",
+        "operationId": "quantize_api_console_v1_quantization_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuantizationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/quantization/artifacts": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Artifacts",
+        "operationId": "artifacts_api_console_v1_quantization_artifacts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/quantization/artifacts/{artifact_id}/manifest": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Artifact Manifest",
+        "operationId": "artifact_manifest_api_console_v1_quantization_artifacts__artifact_id__manifest_get",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{path}": {
       "get": {
         "summary": "Frontend",
@@ -802,6 +1414,16 @@
             "type": "boolean",
             "title": "Save Input",
             "default": false
+          },
+          "observation_mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "basic",
+              "operators"
+            ],
+            "title": "Observation Mode",
+            "default": "basic"
           }
         },
         "additionalProperties": false,
@@ -949,6 +1571,45 @@
         "type": "object",
         "title": "Metrics"
       },
+      "QuantizationRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          },
+          "bits": {
+            "type": "integer",
+            "enum": [
+              4,
+              8
+            ],
+            "title": "Bits"
+          },
+          "group_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Size"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "expected_epoch",
+          "bits"
+        ],
+        "title": "QuantizationRequest"
+      },
       "RunPage": {
         "properties": {
           "items": {
@@ -993,7 +1654,8 @@
             "enum": [
               "load",
               "unload",
-              "generate"
+              "generate",
+              "quantize"
             ],
             "title": "Kind"
           },
