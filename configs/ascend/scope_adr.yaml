@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+adr_id: S09-ADR-001
+title: Ascend low-precision claim activation
+status: accepted
+decision_date: "2026-09-21"
+decision:
+  claim_ascend_int8_or_int4_execution: false
+  e09_06_status: N/A_BY_ADR
+  reason: >-
+    The configured execution target is Jetson Orin and exposes no Ascend device,
+    CANN stack, torch_npu path or actual low-precision kernel evidence. The project
+    therefore makes no Ascend INT8/INT4 execution, quality, latency, memory or
+    energy claim.
+reactivation_conditions:
+  - A concrete Ascend SKU, firmware, driver and CANN tuple is selected.
+  - E09-01 passes on that exact tuple.
+  - A C5 QuantArtifact and actual-kernel verification plan are frozen.
+  - Quality gates and conversion-inclusive measurements are preregistered.
+non_claims:
+  - Packed weights alone do not prove low-bit compute.
+  - CPU pack/unpack smoke is not Ascend hardware evidence.
+  - Vendor specifications are not substituted for measured rows.
+

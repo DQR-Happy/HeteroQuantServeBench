@@ -1,0 +1,45 @@
+schema_version: "1.0.0"
+stage: S09
+protocol_root: docs/stage_experiments/details/S09
+evidence_root: docs/stage_experiments/S09
+collector: scripts/ascend/run_e09.py
+
+identity:
+  requested_backend: ascend
+  require_clean_or_explicit_dirty_snapshot: true
+  require_compatibility_manifest_hash: true
+  require_operator_spec_hash: true
+  require_actual_backend_and_kernel: true
+  forbid_historical_or_vendor_numbers_as_missing_samples: true
+
+hard_gates:
+  device:
+    required: true
+    probes: [npu-smi, davinci_device_node]
+  toolchain:
+    required: true
+    probes: [ccec_or_bisheng, cann_root]
+  framework:
+    required: true
+    probes: [torch_npu, builtin_npu_op_and_sync, custom_op_call]
+  profiler:
+    required_for: [E09-04, E09-08]
+    probes: [msprof, parseable_output]
+  second_backend:
+    required_for: [E09-09]
+    minimum_real_backends: 2
+
+status_policy:
+  allowed: [PASS, PASS_NEGATIVE, FAIL, BLOCKED, N/A_BY_ADR]
+  missing_ascend_device: BLOCKED
+  missing_second_backend: BLOCKED
+  collector_success_is_scientific_pass: false
+  cpu_smoke_claim_allowed: false
+  empty_performance_rows_allowed: false
+  conclusion_requires_raw_samples: true
+
+frontend:
+  verdict_glob: docs/stage_experiments/*/*/raw/verdict.json
+  catalog_endpoint: GET /api/console/v1/evidence
+  detail_endpoint: GET /api/console/v1/evidence/{evidence_id}
+  download_endpoint: GET /api/console/v1/evidence/{evidence_id}/download
