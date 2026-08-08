@@ -277,14 +277,31 @@ def cmd_experiment(
     run.write_report_skeleton(EXPERIMENT_TITLES[experiment_id])
     run.write_json("participants_or_agents.json", {"actors": [], "note": "尚无参与者/审阅者记录"})
     run.write_text("limitations.md", "（待填：实验执行前的适用边界与限制）")
-    run.write_acceptance({}, notes="尚无门禁结果；本 run 未执行任何实验")
     if not scoped.satisfied:
+        run.write_acceptance(
+            {
+                "prerequisites": rec.STATUS_BLOCKED,
+                "execution": rec.STATUS_NOT_RUN,
+                "raw_samples": rec.STATUS_NOT_RUN,
+                "candidate_and_ledger": rec.STATUS_BLOCKED,
+            },
+            notes="前置未满足；本 run 未执行任何实验，也不产生结论",
+        )
         verdict = run.write_status(
             status=rec.STATUS_BLOCKED,
             reason="prerequisites unsatisfied: " + ", ".join(scoped.missing),
             prerequisites=scoped,
         )
     else:
+        run.write_acceptance(
+            {
+                "prerequisites": rec.STATUS_PASS,
+                "execution": rec.STATUS_NOT_RUN,
+                "raw_samples": rec.STATUS_NOT_RUN,
+                "candidate_and_ledger": rec.STATUS_PASS,
+            },
+            notes="前置满足，但本 run 未执行实验；PASS 只描述前置门，不是实验结论",
+        )
         verdict = run.write_status(
             rec.STATUS_NOT_STARTED,
             "prerequisites satisfied but no experiment has been executed; see the development report "
