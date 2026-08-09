@@ -291,7 +291,7 @@ def audit_wheel_metadata(metadata: WheelMetadata, policy: DependencyPolicy) -> D
     unconditionally (it would be installed by ``pip install <core-wheel>``), and
     an extra that the wheel does not advertise although the code maps it.
     """
-    by_name = {name.replace("_", "-"): entry for name, entry in policy.by_name().items()}
+    by_name = {name.lower().replace("_", "-"): entry for name, entry in policy.by_name().items()}
     leaks: List[Dict[str, str]] = []
     for requirement in metadata.plain_requires():
         name = _distribution_name(requirement)
@@ -310,10 +310,10 @@ def audit_wheel_metadata(metadata: WheelMetadata, policy: DependencyPolicy) -> D
     for extra in rec.EXTRA_FEATURE_MAPPING:
         if extra not in metadata.provides_extra:
             missing_extras.append(extra)
-    expected_core = set(policy.core_names())
+    expected_core = {name.lower().replace("_", "-") for name in policy.core_names()}
     declared_core = {_distribution_name(item) for item in metadata.plain_requires()}
     missing_core = sorted(
-        name for name in expected_core if name.replace("_", "-") not in declared_core and name not in ("pydantic", "pyyaml")
+        name for name in expected_core if name not in declared_core and name not in ("pydantic", "pyyaml")
     )
     return {
         "wheel": metadata.as_dict(),

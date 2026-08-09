@@ -22,6 +22,7 @@ import pytest
 from hqsb.core.errors import ConfigError
 from hqsb.experimental import campaign as camp
 from hqsb.experimental import contracts as ct
+from hqsb.experimental import dependencies as dep
 from hqsb.experimental import experiment as exp
 from hqsb.experimental import identity as ident
 from hqsb.experimental import records as rec
@@ -30,6 +31,23 @@ from hqsb.experimental import telemetry as tel
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SPEC_DIR = os.path.join(REPO_ROOT, "configs", "experimental")
+
+
+@pytest.mark.unit
+def test_wheel_audit_normalises_distribution_name_case() -> None:
+    policy = dep.DependencyPolicy(entries=(
+        dep.DependencyEntry(
+            name="PyYAML", layer="core", owner="hqsb.core", purpose="config",
+            license="MIT", platforms=("any",), allowed_import_layer="module_level",
+        ),
+    ))
+    metadata = dep.WheelMetadata(
+        name="hqsb", version="0", requires_dist=("PyYAML>=5.4",),
+        provides_extra=tuple(rec.EXTRA_FEATURE_MAPPING),
+    )
+    audit = dep.audit_wheel_metadata(metadata, policy)
+    assert audit["leaks"] == []
+    assert audit["missing_core_requirements"] == []
 
 
 # ── identity ───────────────────────────────────────────────────────────────

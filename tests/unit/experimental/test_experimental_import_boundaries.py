@@ -97,7 +97,9 @@ def test_gate_declares_the_experimental_region_and_rules() -> None:
     assert "R16" in rules, "R16 (experimental must not import ops) is missing"
     assert rules["R15"]["forbidden_target_regions"] == ["experimental"]
     assert rules["R16"]["forbidden_target_regions"] == ["ops"]
-    assert gate.RULES_VERSION >= "1.8.0"
+    # Compare numeric components: lexical ordering incorrectly treats 1.10.0
+    # as older than 1.8.0.
+    assert tuple(int(part) for part in gate.RULES_VERSION.split(".")) >= (1, 8, 0)
 
 
 def _module_level_imports(path: str) -> List[str]:
