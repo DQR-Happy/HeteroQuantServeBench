@@ -10,7 +10,16 @@ from pathlib import Path
 
 
 MAX_EVIDENCE_BYTES = 8_000_000
-EVIDENCE_TEXT_SUFFIXES = {".json", ".jsonl", ".csv", ".tsv", ".txt", ".md"}
+EVIDENCE_TEXT_SUFFIXES = {
+    ".json",
+    ".jsonl",
+    ".csv",
+    ".tsv",
+    ".txt",
+    ".md",
+    ".yaml",
+    ".yml",
+}
 
 
 class EvidenceCatalog:
@@ -92,6 +101,7 @@ class EvidenceCatalog:
                     candidate
                     for directory in (path.parent, experiment_root / "post_fix", experiment_root / "model_diagnostics")
                     for candidate in directory.rglob("*")
+                    if "runs" not in candidate.relative_to(experiment_root).parts
                 ]
                 for candidate in sorted(evidence_paths):
                     if (
@@ -121,7 +131,12 @@ class EvidenceCatalog:
                         "files": refs,
                     }
                 )
-            for directory in ("ops", "configs/quantization", "configs/models"):
+            for directory in (
+                "ops",
+                "configs/quantization",
+                "configs/models",
+                "configs/ascend",
+            ):
                 for path in sorted((self.root / directory).rglob("*")):
                     if (
                         path.is_file()
