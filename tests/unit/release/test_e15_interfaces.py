@@ -60,3 +60,22 @@ def test_driver_reports_no_conclusion_by_default() -> None:
     verdict = run.write_status(rec.STATUS_BLOCKED, "prerequisites unsatisfied", None)
     assert verdict["conclusion"] is False
     assert verdict["status"] == rec.STATUS_BLOCKED
+
+
+def test_driver_can_write_non_conclusion_acceptance_package(tmp_path) -> None:
+    """A blocked interface run still writes per-gate acceptance, not an empty map."""
+    from hqsb.release import experiment as exp
+    from hqsb.release import records as rec
+
+    run = exp.RunDirectory(tmp_path, "E15-01", "blocked")
+    run.create()
+    acceptance = run.write_acceptance(
+        {
+            "prerequisites": rec.STATUS_BLOCKED,
+            "execution": rec.STATUS_NOT_RUN,
+            "raw_samples": rec.STATUS_NOT_RUN,
+        },
+        notes="non-conclusion package",
+    )
+    assert acceptance["gates"]["prerequisites"] == rec.STATUS_BLOCKED
+    assert acceptance["gates"]["execution"] == rec.STATUS_NOT_RUN
