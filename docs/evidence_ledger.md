@@ -649,8 +649,8 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 
 ## 18. S13 声明台账（生产化 / 云原生 / 可靠性）
 
-> 本节**不含任何实验结果数字**。S13 实验层为 `BLOCKED`（见 S13-BLOCK），下列声明全部是
-> 代码层/测试层事实：`test-verified` 表示有自动化测试证明，`runtime-verified` 表示本机命令实测。
+> S13 正式实验层为 `BLOCKED`（见 S13-BLOCK）。S13-01～26 是既有代码层/测试层事实；
+> S13-27～29 是 2026-09-21 Jetson 受限 campaign 的组件级运行事实，明确不等价于集群生产验收。
 
 | ID | 声明 | 等级 | 证据 |
 |---|---|---|---|
@@ -680,8 +680,11 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 | S13-24 | 418 步「实验步骤 → 代码接口」对照由 `PROTOCOL_STEPS` + `resolve_interfaces()` 导入校验；生成物与代码同步（`--check`） | test-verified | `hqsb/infra/interface_map.py`；`scripts/infra/gen_interface_map.py`；`docs/reports/S13_interface_map_generated.md` |
 | S13-25 | 驱动默认拒绝：无 `--execute`、前置未满足或无 raw 样本时 `PASS/FAIL/PASS_NEGATIVE` 一律降级 `BLOCKED`；预注册缺阈值/non-claims 直接报错 | test-verified + runtime-verified | `hqsb/infra/experiment.py`；`tests/unit/infra/test_e13_scaffolding_assets.py`；`run_e13.py --experiment E13-01 --json` |
 | S13-26 | 依赖边界：`hqsb.infra` 无模块级 torch/triton/numpy/kubernetes、无 torch 时可导入、12 个区域不反向依赖、只依赖 core、不 import ops；gate R1–**R14** 0 违规 0 环；全量 **3118 passed, 4 deselected**（S13 专用新增 195 个） | runtime-verified（本机） | `tests/unit/infra/test_infra_import_boundaries.py`；`scripts/audit/import_dependency_gate.py`（rules=1.7.0，files=256，edges=599） |
-| S13-BLOCK | S13 **实验层 BLOCKED**：必需前置 `s08_service_contract`、`s12_capacity_and_quality_baseline` 未满足；本机无 docker/kubectl/helm/cosign/syft/grype/promtool；E13-01~E13-11 无任何 run、无 raw、无结论数字 | source-only（实测登记） | `run_e13.py --prerequisites`；`docs/reports/S13_阶段验收报告.md` §3 |
-| S13-LIMIT | 未覆盖边界（如实登记）：`infra/**` 资产为模板（未构建/未渲染/未部署/未演练）；`configs/infra/**` 不含测量值，阈值需 campaign 冻结；§21 逻辑目录落到 `experiment_results/S13/`；E13-11 当前 11/12 不变量为 `NOT_RUN`；mypy 未覆盖 `hqsb/infra` | source-only | `docs/reports/S13_开发报告.md` §8/§9；`docs/reports/S13_production_architecture.md` §5 |
+| S13-27 | Jetson 受限 campaign `s13_20260921T230000Z` 已覆盖 E13-01～11：每项均有独立报告、raw、必采数据状态、criteria 对照和 38 步状态；接口合计 418/418，配置审计 13/13，专项测试 196 passed | runtime-verified（Jetson，组件范围） | `scripts/audit/run_s13_experiments.py`；`docs/stage_experiments/S13/campaign_summary.json`；`S13_阶段实验报告_20260921.md` |
+| S13-28 | 真实单机组件观测：代表性 Qwen config artifact 完成 staging→校验→原子提交→损坏隔离→切换→回滚；CUDA 8/16/32 MiB 受限分配后资源恢复；tegrastats 直接采样；隔离子进程 crash/no-progress 均被检测和终止 | runtime-verified（Jetson，组件范围） | `E13-04/raw/artifact_lifecycle.json`；`E13-06/raw/cuda_memory_probe.json`；`E13-08/raw/telemetry_probe.json`；`E13-09/raw/fault_episodes.json` |
+| S13-29 | 前端 EvidenceCatalog 发现 E13-01～11 共 11/11 项，全部 detail 可读；每项 report/verdict/raw 附件可经 list/detail/download 契约访问；181 个 manifest 文件 SHA-256 复验无失败 | runtime-verified（Jetson） | `docs/stage_experiments/S13/frontend_validation.json`；`docs/stage_experiments/S13/verification.json` |
+| S13-BLOCK | S13 **正式实验层 BLOCKED**：`s08_service_contract`、`s12_capacity_and_quality_baseline` 未满足；Jetson 有 Docker 但无可用 base image/冻结构建输入，且无 kubectl/helm、registry、SBOM/CVE/签名工具和 Prometheus/OTel；E13-01～11 的正式预期效果与单项通过标准均未满足 | runtime-verified（Jetson，阻塞登记） | `docs/stage_experiments/S13/campaign_summary.json`；各项 `raw/prerequisites.json`/`verdict.json` |
+| S13-LIMIT | 未覆盖边界（如实登记）：`infra/**` 仍是未部署模板；未构建/扫描/签名镜像，未执行空集群 bootstrap、真实调度/滚动/autoscaling/RCA、集群故障/canary/多租户攻击；FastAPI/httpx 不在远端采集解释器中，HTTP TestClient 回归记 `NOT_RUN_DEPENDENCY_UNAVAILABLE`，但目录级索引/预览读取已验证 | runtime-verified（Jetson，限制登记） | `docs/stage_experiments/S13/frontend_validation.json`；`docs/reports/S13_阶段验收报告.md` |
 
 ## 19. S14 声明台账（训推协同 / 前沿扩展 / 证据治理）
 
@@ -716,6 +719,23 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 | S14-BLOCK | **S14 实验层 BLOCKED**：必需前置 `upstream_verdicts`、`experimental_environment`、`holdout_isolation` 未满足；`distributed_launcher`/`second_device`/profiler 未解析；E14-03/04/05/F*/06/07/08 的上游链未闭环。**12 项实验无任何 run、无 raw、无结论数字** | source-only（实测登记） | `run_e14.py --prerequisites --json`；`--experiment E14-02 --json` → `status: BLOCKED`, `prerequisites_satisfied: false`, `verdict.json: "conclusion": false`；`docs/reports/S14_阶段验收报告.md` §6.2 |
 | S14-LIMIT | 未覆盖边界（如实登记）：① 模块成熟度上限 `SOURCE_INTEGRATED`（无实验执行）；② 未实现真实 trainer/engine/device 调用（R16 有意禁止 import `ops`）；③ E14-06/07/08 **未做** ADR 决策，故状态为未执行而**非** `N/A_BY_ADR`；④ 未选中任何前沿分支，未产生分支能力声明；⑤ 多模态/Agent/端侧**能力未被声称**；⑥ 本阶段不修改 `docs/stage_experiments/**`，协议留白只登记不改写 | source-only | `docs/reports/S14_开发报告.md` §8/§9；`docs/reports/S14_阶段验收报告.md` §9 |
 
+### 19.1 2026-09-21 Jetson 受限执行增量（覆盖上表“尚未执行”的历史状态）
+
+> Run ID：`s14_20260921T155357Z`。本增量只覆盖 2026-09-19 的“无 run/raw”历史描述，不把组件结果升级为阶段 PASS。
+
+| ID | 声明 | 等级 | 证据 |
+|---|---|---|---|
+| S14-RUN-01 | 12/12 项均有当前 `raw/verdict.json`、manifest、40 步执行矩阵和独立实验报告；阶段 `overall=BLOCKED` | runtime-verified（Jetson，受限范围） | `docs/stage_experiments/S14/execution_summary.json`；`S14_阶段实验报告_20260921.md` |
+| S14-RUN-02 | E14-02 单卡 tiny 训练组件完成 6 step、真实 checkpoint、stop→新对象→resume，最终参数 digest 完全一致；截断 checkpoint 被拒绝 | runtime-verified（Jetson，组件范围） | `E14-02/raw/component_results.json`；`resume_comparison.json`；`fault_cases.jsonl` |
+| S14-RUN-03 | E14-03 identity export/strict load 的 tensor、block、logits、token 和 runtime-load 门通过，max abs=0；6 类错误身份均在 serving 前拒绝；任务质量门未运行 | runtime-verified（Jetson，组件范围） | `E14-03/raw/component_results.json`；`block_logits_diffs.json`；`negative_cases.jsonl` |
+| S14-RUN-04 | E14-04 选择 SFT，实际执行一次 objective/update；policy digest 变化、trajectory/policy/reward/environment 版本及有界队列/故障记录已落盘；无任务原生 held-out 质量 | runtime-verified（Jetson，组件范围） | `E14-04/raw/component_results.json`；`trajectory_records.jsonl`；`queue_timeline.csv` |
+| S14-RUN-05 | 唯一前沿主分支冻结为 E14-F3；F1/F2/F4 均为 `N/A_BY_ADR`，E14-06 为 `N/A_BY_ADR` | ADR-verified | `E14-05/raw/frontier_selection_adr.md`；各分支 `raw/adoption_decision.json` |
+| S14-RUN-06 | F3 引用了 S02 的 24 行真实 Qwen3 full-prefill/context/KV 基线；本轮 Qwen full/chunked 尝试在加载 311 个权重条目后令远端会话以 255 中断，因此 actual-path、长上下文质量和 service 门均保持 `BLOCKED_EVIDENCE` | runtime-verified + blocked | `E14-F3/raw/baseline_capacity.csv`；`model_execution_attempt.json`；`verdict.json` |
+| S14-RUN-07 | E14-07 的 10 个受控 fake-tool episode trace 结构有效；并行/串行中位数比为 0.4575，仅允许说明该受控 workload，不声称生产 Agent 平台 | runtime-verified（组件范围） | `E14-07/raw/component_results.json`；`trace_spans.jsonl`；`service_episodes.csv` |
+| S14-RUN-08 | E14-08 仅确认 Jetson Linux aarch64/PyTorch/CUDA capability，并引用 10 行独立 S02 能耗汇总；本轮无模型执行行，采用决定为 `RESEARCH_ONLY` | runtime-verified + blocked | `E14-08/raw/component_results.json`；`power_energy_upstream.csv`；`adoption_decision.json` |
+| S14-RUN-09 | Console EvidenceCatalog 发现 S14 12/12 项、12/12 verdict detail 可读；入口为 `/api/evidence` 与 `/api/evidence/{id}` | runtime-verified（Jetson） | `docs/stage_experiments/S14/frontend_access.json` |
+| S14-RUN-10 | S14 单元/性质测试 104 passed；Console HTTP 测试在 Jetson 因缺可选 `fastapi` 未收集，但目录级 list/detail 已由实际 catalog 验证 | test-verified + dependency-blocked | `./scripts/remote_run.sh python3 -m pytest tests/unit/experimental tests/property/test_experimental_invariants.py -q`；`frontend_access.json` |
+
 ## 20. 环境故障复盘：扩展宿主 OOM（S14 期间，非阶段制品）
 
 > 机器：RTX 3090 开发机（x86_64 Linux）｜ 日期：2026-09-19 ｜ 证据等级：`development`（本机实测）
@@ -749,3 +769,38 @@ S2-14/S4-13 按“缺 raw artifact”降级为 historical-unreproduced。
 | S15-C6 | 冻结词汇表 8 份无测量值、无绝对路径，漂移可检查 | test-verified | `configs/release/*.yaml`；`hqsb/release/specs.py`；`scripts/release/gen_release_specs.py --check`（`ok=True drifted=0`） |
 | S15-C7 | 实验层 11 项全部 `BLOCKED`：无 release candidate/ledger/制品、无 reviewer/参与者/上游授权、加速器/构建器/扫描器未探测 | **blocked** | `scripts/release/run_e15.py --prerequisites --probe`（前置清单逐项列出） |
 | S15-LIMIT | 未声称：任何实验结论数字；"quickstart 30 分钟可完成""hero story 已复现""已通过 SBOM/许可证/秘密检查""已完成外部复现/上游贡献""招聘者 5 分钟理解项目"（协议 §3 明列为不能声明） | planned | `docs/stage_experiments/details/S15/README.md` §3 |
+
+## 21. S09 补采台账（Ascend capability preflight，2026-09-21）
+
+> Run ID：`s09_20260921_jetson_preflight_v3`。本节的 `runtime-verified`
+> 只表示在 Jetson 上真实验证了“Ascend/CANN 能力不存在”，不表示运行过 NPU。
+
+| ID | 声明 | 等级 | 证据 |
+|---|---|---|---|
+| S09-01 | 10 项实验均有 verdict、preregistration、必采集清单、七条标准对照、28 步状态和逐项报告 | test-verified + runtime-verified（采集器） | `docs/stage_experiments/S09/E09-01..10/`；`campaign_summary.json` |
+| S09-02 | 280 个 details 步骤全部可解析并映射到采集/拒绝入口；这不是数据面实现声明 | test-verified | `hqsb/ascend/interface_map.py`；`run_e09.py --interface-map` → `steps=280 failures=[] ok=true` |
+| S09-03 | 当前执行端是 Jetson/Tegra，`npu-smi`、Davinci 节点、CANN root、ccec/bisheng、msprof、torch_npu 均不可用 | runtime-verified（缺失能力） | `E09-01/raw/capability_snapshot.json`、`commands.jsonl`、`device_query.txt` |
+| S09-04 | Compatibility manifest schema/脱敏通过，manifest 与 S09 source tree 有可复算 SHA-256 | runtime-verified（身份） | `E09-01/raw/compatibility_manifest*`、`schema_validation.json`；manifest `597edbe4…`，source tree `17b9289d…` |
+| S09-05 | E09-01～05、07～10 科学裁决均为 BLOCKED；无 kernel/model/performance/memory/energy/profile 样本 | blocked | 各实验 `raw/verdict.json`（`raw_samples=0`、`ascend_kernel_launched=false`、`claim_allowed=false`） |
+| S09-06 | E09-06 为 N/A_BY_ADR；项目不声明 Ascend INT8/INT4，packed storage/CPU smoke 不替代 actual low-bit kernel | scoped-out | `configs/ascend/scope_adr.yaml`；`E09-06/raw/scope_activation.json` |
+| S09-07 | E09-09 为 NOT_RUN_ON_SECOND_BACKEND，不使用历史 CUDA 或厂商数字补齐 M7 | blocked | `E09-09/raw/pairability_preflight.json`、`verdict.json` |
+| S09-08 | CPU tiling/oracle smoke 通过，但明确 `simulated=true`、`claim_allowed=false` | test-verified/non-claim | 各实验 `raw/smoke.json`；`run_e09.py --smoke` |
+| S09-09 | 前端 EvidenceCatalog 能发现 10 项结果并保留 BLOCKED/N/A_BY_ADR，报告/附件可寻址 | test-verified | `tests/unit/ascend/test_s09_campaign.py`；`hqsb/console/evidence.py` |
+| S09-LIMIT | 未实现/未验证：Ascend C 可运行内核、C4 backend、framework stream/workspace、Qwen model-core、msprof/Roofline、低精度、跨硬件实测、真实 fault recovery | source-only/planned | `docs/reports/S09_开发报告.md` §2；`S09_阶段验收报告.md` |
+
+## 22. S10 补采台账（分布式资源门禁与单设备 topology preflight，2026-09-21）
+
+> Run ID：`s10_20260921_jetson_preflight_v1`。本节的 `runtime-verified`
+> 仅表示 Jetson 上真实采集了单设备拓扑/能力并运行组件回归，不表示完成多卡通信或模型实验。
+
+| ID | 声明 | 等级 | 证据 |
+|---|---|---|---|
+| S10-R01 | 目标板实测为 `1× Orin / sm_87 / 7,989,960,704 bytes`，低于 S10 正式执行所需的 2 个真实 accelerator | runtime-verified（资源门禁） | `docs/stage_experiments/S10/E10-01/raw/accelerators.json`、`topology_validation.json` |
+| S10-R02 | 单设备 TopologyManifest schema 通过；canonical 文件字节 SHA-256 可直接复算为 `6395cb9e53b70f9138cfef95fefaef0d1f48a0a65bf42712862d777bf9615ae7`；网络 MAC 已脱敏 | runtime-verified（身份） | `E10-01/raw/topology_manifest.canonical.json`、`.sha256`、`topology_commands.json` |
+| S10-R03 | 12 份 distributed 配置严格加载/逐字段审计通过；300 steps / 381 interfaces / 548 refs 均可解析 | runtime-verified（Jetson 组件） | 各实验 `raw/config_audit.json`、`raw/interface_audit.json` |
+| S10-R04 | Jetson 上 S10 单元与属性测试 `240 passed, 0 failed/error/skipped`；CPU loopback/smoke 保持 `claim_allowed=false` | runtime-verified（组件，不是科学样本） | 各实验 `raw/component_tests.json`、`raw/driver_checks.json` |
+| S10-R05 | E10-01～06、E10-08～10 科学裁决均为 BLOCKED，`raw_samples=0`、`communicator_created=false`、`multi_rank_kernel_launched=false` | blocked | 各实验 `raw/verdict.json` |
+| S10-R06 | E10-07 为 N/A_BY_ADR：当前 `claiming_parallelism=false`，不声明 PP/CP/SP correctness/performance/capacity | scoped-out | `E10-07/raw/scope_activation.json`、`configs/distributed/boundary_spec.yaml` |
+| S10-R07 | E10-08 仅验证到 L1 CPU dispatch/combine oracle；P0 所需真实 L2 AllToAll(V) 未执行，不声明完整 MoE/EP | test-verified/non-claim | `E10-08/raw/claim_level.json`、`driver_checks.json` |
+| S10-R08 | 前端 EvidenceCatalog 实际发现 10/10 个 S10 verdict，状态保持 9×BLOCKED + 1×N/A_BY_ADR，全部 detail 可读 | runtime-verified（前端契约） | `docs/stage_experiments/S10/frontend_validation.json` |
+| S10-LIMIT-RUN | 当前缺失 6 项门禁：S07 P0、S08 tokenized trace、第二 accelerator、verified placement/data path、exact collective backend、frozen model/workload pair；无 message-size/scaling/overlap/straggler/fault 结论 | blocked/planned | `docs/stage_experiments/S10/campaign_summary.json`、`S10_阶段执行摘要.md` |

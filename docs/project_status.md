@@ -1,6 +1,6 @@
 # HQSB 项目现状总览
 
-本页更新于 2026-09-20，基于源码、Jetson 软件回归与本机原始实验档案。审查起点为 `de9b117b5385bed2152214ed27279e95764fd705`，工作树已有未提交的 E05 适配器/实验脚本修改；本次审查未提交 Git，也未修改历史 raw/verdict。
+本页更新于 2026-09-21，基于源码、Jetson 软件回归与本机原始实验档案。审查起点为 `de9b117b5385bed2152214ed27279e95764fd705`，工作树已有未提交修改；S09 的 2026-09-21 preflight 新增不可覆盖归档，未把阻塞状态改写成通过。
 
 **项目尚未全部完成。** 当前最可靠的定位是“带真实 CUDA、Qwen 基线和量化实验的推理优化研究平台”；后期大量代码实现的是契约、策略模型、审计和实验编排，不能据此声称拥有完整的生产推理引擎、集群系统或已验收的跨硬件优化。
 
@@ -20,12 +20,12 @@
 | S06 图集成 | schema/meta、图 IR、rewrite/guard/cache/lowering、差分工具 | 大量对象是契约/图模型；没有设计要求的真实 Qwen 两算子+fusion 验收 |
 | S07 Runtime | 请求/身份、KV/调度策略、dummy、C4 reference bridge | 本次修复 C4 对接；未提供完整 vLLM/SGLang/edge 执行 adapter，真实策略 A/B 待实验 |
 | S08 Serving | 可执行 stdlib HTTP/SSE、网关、dummy 后端、路由/取消/背压工具 | ServingBackend 与 RuntimeAdapter 是不同接口；缺真实模型服务桥，不能直接当生产服务启动 |
-| S09 Ascend | C++ 算子源码、Python capability/tiling/模拟、runbook | 部分交付；缺阶段 driver/config/test 闭环，无本次 NPU 硬件验证 |
-| S10 分布式 | 拓扑/collective/并行计划/trace/overlap 模型与 gate | 多设备真实 TP/EP、通信与扩展收益未验收 |
+| S09 Ascend | capability/manifest/probe、tiling/oracle/test-vector/模拟、10 项/280 步 campaign、逐项报告、前端 evidence 索引 | Jetson 实测无 Ascend device/CANN/compiler/msprof/torch_npu；E09-01～05/07～10 BLOCKED，E09-06 N/A_BY_ADR；内核仍为占位，数据面未完成 |
+| S10 分布式 | 拓扑/collective/并行计划/trace/overlap 模型与 gate；Jetson 单设备 topology/capability preflight；10 项/300 步逐项证据与报告；前端索引 10/10 | Jetson 仅 1×Orin；E10-01～06/08～10 BLOCKED、E10-07 N/A_BY_ADR；无多 rank collective/TP/scaling/overlap/MoE-L2/fault 科学样本 |
 | S11 编译器 | IR、rewrite、target/lowering、缓存/调优/成本模型 | 本次补 C6 导出；真实 Qwen capture→自定义 kernel 与 TVM/MLIR 链未验收 |
 | S12 评估 | 可比性、重复性、能耗/成本、Pareto/lineage | 本次补真实 C6/C7 导出；多硬件统一 campaign 尚缺证据 |
-| S13 生产化 | 策略对象、Helm/Docker/观测/runbook 模板 | 模板含实际不可构建/启动项，未在集群验证；见审查报告 |
-| S14 前沿 | 训练/转换/rollout/MoE/长上下文等契约与审计模型 | 没有完整真实训练/前沿测量闭环；实验层 BLOCKED |
+| S13 生产化 | 策略对象、Helm/Docker/观测/runbook 模板；Jetson 受限 campaign 已为 E13-01～11 生成 raw/报告/418 步状态，并完成制品原子切换、受限显存探测、直接遥测与隔离进程故障 | 正式 11 项均 BLOCKED：S08/S12 未通过，且无隔离集群、registry、扫描器和遥测后端；单机组件证据不能升级为生产能力 |
+| S14 前沿 | 12/12 项 Jetson 受限 campaign、逐项 raw/verdict/report；tiny 训练→checkpoint→严格转换→SFT 版本链与 Agent trace 有组件实测；F3 复用 S02 的 24 行真实 Qwen full-prefill 基线；前端索引 12/12 | 阶段仍 `BLOCKED`：E14-01 缺 6 个发布 extras；仅 1 个 CUDA device；F3 本轮 Qwen chunked 尝试在权重加载后使远端会话以 255 中断，且缺任务质量/service 门；不能声称长上下文、分布式或生产能力 |
 | S15 发布 | claim、证据、复现、供应链与讲述工具 | 正式 release、外部复现、上游协作与读者研究未完成 |
 
 上表的 E03/E04 状态来自 `docs/stage_experiments/S03|S04/<实验>/raw/verdict.json`，并与对应实验报告核对。历史 `docs/reports/S03_阶段验收报告.md`、S04 汇总的“完成”措辞不能覆盖这些更具体的失败记录。
@@ -36,6 +36,9 @@
 - PyTorch 后端：按完整 artifact identity 判断复用，避免同名不同 revision 静默命中；执行约定的 warmup 次数，校验请求形状/语义；接通严格 manifest 校验的显式元数据例外与 CPU staging。
 - Benchmark：分开 decode-tail TPS 和 output TPS；补 context gate、损坏样本检查、C6/C7 trace 关联。
 - S07/S11/S12：partial 不再映射成质量 PASS；将域字段包进冻结的 C6/C7 扩展点。
+- S10：新增远端受限 campaign，封存单设备 topology/capability、必采集缺口、PASS 标准对照、300 步状态和前端 evidence；240 项组件测试通过，但不改变多卡资源门禁。
+- S13：新增 `run_s13_experiments.py` 远端受限 campaign；196 项 infra/属性测试、11 个模块 smoke、418/418 接口和 181 个证据文件 hash 复验通过，EvidenceCatalog 发现 11/11 项；正式 verdict 仍全部 BLOCKED。
+- S14：新增 `run_s14_experiments.py`，在 Jetson 发布 12/12 项证据和逐项报告；tiny 训练/恢复、训推严格加载、SFT lineage 与受控 Agent trace 组件通过，选择 F3 并复用 S02 Qwen 基线；104 项专项测试通过，EvidenceCatalog 12/12 可读；正式阶段保持 `BLOCKED`，未把单卡、资源中断或缺质量集写成 PASS。
 - CUDA bridge：缺省 stream 使用 PyTorch 当前流；旧库缺 `_ex` 明确拒绝；检查输出设备/别名并登记 allocator stream lifetime。
 - 量化：CPU 权重准备不再提前要求 Triton/CUDA；真正 fused 执行仍要求相应能力。
 - 八阶段实验存储去重，保留各阶段 verdict 规则，拒绝路径逃逸。
