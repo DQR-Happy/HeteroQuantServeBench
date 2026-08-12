@@ -35,10 +35,17 @@ DEVICE_INFO=$(npu-smi info -t device -i 0 2>/dev/null || echo '{"error":"device_
 # Firmware/driver
 FIRMWARE_INFO=$(npu-smi info -t product -i 0 2>/dev/null || echo '{"error":"product_query_failed"}')
 
-# CANN components (if available)
+# CANN components (if available).  CANN 9.x ships no `version.cfg` and exposes its
+# install root through ASCEND_HOME_PATH / ASCEND_TOOLKIT_HOME (older docs say
+# ASCEND_TOOLKIT_ROOT); all three are honoured so this does not report "unknown"
+# on a correctly sourced board.
+CANN_ROOT="${ASCEND_HOME_PATH:-${ASCEND_TOOLKIT_HOME:-${ASCEND_TOOLKIT_ROOT:-}}}"
+
 CANN_VERSION=""
-if [[ -f "${ASCEND_TOOLKIT_ROOT}/version.cfg" ]]; then
-    CANN_VERSION=$(cat "${ASCEND_TOOLKIT_ROOT}/version.cfg" | head -5)
+if [[ -n "${CANN_ROOT}" && -f "${CANN_ROOT}/compiler/version.info" ]]; then
+    CANN_VERSION=$(head -5 "${CANN_ROOT}/compiler/version.info")
+elif [[ -n "${CANN_ROOT}" && -f "${CANN_ROOT}/version.cfg" ]]; then
+    CANN_VERSION=$(head -5 "${CANN_ROOT}/version.cfg")
 elif command -v ccec &> /dev/null; then
     CANN_VERSION=$(ccec --version 2>&1 | head -1)
 else
@@ -60,7 +67,7 @@ cat <<EOF
   },
   "ascend_stack": {
     "cann_version": "${CANN_VERSION}",
-    "toolkit_root": "${ASCEND_TOOLKIT_ROOT:-unknown}"
+    "toolkit_root": "${CANN_ROOT:-unknown}"
   },
   "framework": {
     "python_version": "${PYTHON_VERSION}",
