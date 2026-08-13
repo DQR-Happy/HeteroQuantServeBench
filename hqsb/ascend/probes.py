@@ -278,13 +278,31 @@ def _parse_npu_smi(text: str) -> Dict[str, Any]:
 
 
 def _parse_version_lines(text: str) -> Dict[str, Any]:
+    """Parse ``key=value`` and ``key : value`` lines into a flat mapping.
+
+    ``npu-smi`` prints aligned ``key : value`` tables while CANN's ``*.info``
+    files use ``key=value``; both are accepted, otherwise the probe silently
+    reports ``version_count: 0`` on a correctly installed board.  A ``:`` line
+    whose key contains digits is skipped so timestamp/id noise cannot pollute
+    the mapping, and lines without a value (a bare ``Usage:`` heading) are
+    dropped rather than recorded as empty facts.
+    """
     versions: Dict[str, str] = {}
     for line in text.splitlines():
-        if "=" in line:
-            key, _, value = line.partition("=")
-            key = key.strip()
-            if key:
-                versions[key] = value.strip()
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if "=" in stripped:
+            key, _, value = stripped.partition("=")
+        elif ":" in stripped:
+            key, _, value = stripped.partition(":")
+            if any(character.isdigit() for character in key):
+                continue
+        else:
+            continue
+        key, value = key.strip(), value.strip()
+        if key and value:
+            versions[key] = value
     return {"versions": versions, "version_count": len(versions)}
 
 
@@ -316,6 +334,29 @@ def _parse_ldd(text: str) -> Dict[str, Any]:
         "conflict_count": len(conflicts),
         "install_roots_seen": roots,
         "multi_root_pollution": len(roots) > 1 or bool(conflicts),
+    }
+
+
+def _parse_msprof_help(text: str) -> Dict[str, Any]:
+    """Read msprof's own help text.
+
+    ``msprof --version`` is not a supported option on CANN 9.x (it exits 255),
+    while ``--help`` exits 0, so the probe uses ``--help``.  The metric groups
+    the tool advertises are recorded instead of a version string it never
+    prints; a missing metric group stays an absence of evidence.
+    """
+    metric_sets: List[str] = []
+    for line in text.splitlines():
+        if "--aic-metrics" in line and "include" in line:
+            _, _, payload = line.partition("include")
+            metric_sets = [
+                item.strip().rstrip(".") for item in payload.split(",") if item.strip()
+            ]
+            break
+    return {
+        "help_line_count": len(text.splitlines()),
+        "mentions_aic_metrics": "--aic-metrics" in text,
+        "metric_sets": metric_sets,
     }
 
 
@@ -376,28 +417,36 @@ STACK_PROBES: Tuple[ProbeSpec, ...] = (
     ProbeSpec(
         probe_id="profiler_version",
         layer="profiler",
-        purpose="msprof presence, version and declared metric set (step 18 prerequisite)",
-        argv=("msprof", "--version"),
+        purpose="msprof presence and declared metric set (step 18 prerequisite)",
+        argv=("msprof", "--help"),
         requires=("msprof",),
-        parser=_parse_version_lines,
+        parser=_parse_msprof_help,
         capability_key="profiler.msprof_available",
     ),
 )
 
 
 def cann_component_commands(cann_root: str) -> Tuple[Tuple[str, ...], ...]:
-    """The concrete argv list for the CANN component probe.
+    """Candidate argv list for the CANN component probe, in priority order.
 
     Paths come from configuration, never from a hard-coded default: writing this
     host's absolute path into a tracked file is forbidden (AGENTS.md §6).
+
+    CANN 9.x ships no ``version.cfg``; its component versions live in
+    ``<root>/{opp,compiler}/version.info``.  The caller tries each candidate in
+    turn and treats "this release does not ship that file" as an absence of
+    evidence rather than a capability failure.
     """
     if not cann_root:
         raise ValueError("cann_root must be provided by the locked environment config")
     return (
         ("cat", os.path.join(cann_root, "version.cfg")),
+        ("cat", os.path.join(cann_root, "version.info")),
+        ("cat", os.path.join(cann_root, "compiler", "version.info")),
+        ("cat", os.path.join(cann_root, "opp", "version.info")),
         ("cat", os.path.join(cann_root, "aarch64-linux", "ascend_toolkit_install.info")),
         ("cat", os.path.join(cann_root, "latest", "ascend_toolkit_install.info")),
-        ("ls", os.path.join(cann_root, "latest", "opp", "built-in", "op_impl")),
+        ("ls", os.path.join(cann_root, "opp", "built-in", "op_impl")),
     )
 
 
@@ -1152,8 +1201,25 @@ def run_stack_probes(
                     )
                 )
                 continue
-            argv = cann_component_commands(cann_root)[0]
-            summary.add(run_probe_spec(spec, executor, argv=argv))
+            # Try each candidate location.  Every CANN release ships a different
+            # subset of version files, so "this release has no version.cfg" is an
+            # absence of evidence, not a capability failure — returning FAIL for
+            # it would misreport a healthy board.
+            resolved: Optional[ProbeResult] = None
+            for argv in cann_component_commands(cann_root):
+                candidate = run_probe_spec(spec, executor, argv=argv)
+                if candidate.status == PASS:
+                    resolved = candidate
+                    break
+            if resolved is None:
+                resolved = _unavailable(
+                    spec.probe_id,
+                    spec.layer,
+                    spec.purpose,
+                    "none of the configured CANN version files could be read; "
+                    "an absent file is not a capability failure",
+                )
+            summary.add(resolved)
             continue
         summary.add(run_probe_spec(spec, executor))
     if library_targets:

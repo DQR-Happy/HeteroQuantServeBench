@@ -294,6 +294,64 @@ def _read_text(path: Path) -> str:
         return ""
 
 
+def _detect_cann_root() -> str:
+    """Locate the CANN install root without hard-coding a single layout.
+
+    CANN 9.x installs under ``/usr/local/Ascend/<release>`` and advertises that
+    root through ``ASCEND_HOME_PATH`` / ``ASCEND_TOOLKIT_HOME`` (older docs say
+    ``ASCEND_TOOLKIT_ROOT``; all three are honoured).  Returns ``""`` when no
+    CANN install is present, which is the signal that this is not an Ascend host.
+    """
+    candidates: list[str] = []
+    for variable in ("ASCEND_HOME_PATH", "ASCEND_TOOLKIT_HOME", "ASCEND_TOOLKIT_ROOT"):
+        value = os.environ.get(variable, "").strip()
+        if value:
+            candidates.append(value)
+    candidates.append("/usr/local/Ascend/ascend-toolkit/latest")
+    base = Path("/usr/local/Ascend")
+    if base.is_dir():
+        # Versioned releases first (newest name wins), then the bare root.
+        candidates.extend(sorted((str(path) for path in base.iterdir() if path.is_dir()), reverse=True))
+        candidates.append(str(base))
+    for candidate in candidates:
+        if (Path(candidate) / "bin").is_dir():
+            return candidate
+    return ""
+
+
+def _parse_npu_smi_chips(text: str) -> list[str]:
+    """Extract chip names (e.g. ``310B1``) from the ``npu-smi info`` table.
+
+    The vendor table is not a stable API: an unparsable line is skipped, and an
+    empty result is reported as UNAVAILABLE rather than a fabricated SKU.  A
+    chip row reads ``<index> <chip-name>``; the device row below it reads
+    ``<index> <index>`` and the header reads ``<NPU> <Name>``.
+    """
+    chips: list[str] = []
+    for line in text.splitlines():
+        if "|" not in line:
+            continue
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) < 2:
+            continue
+        tokens = cells[1].split()
+        if len(tokens) == 2 and tokens[0].isdigit() and not tokens[1].isdigit():
+            chips.append(tokens[1])
+    return chips
+
+
+def _ascend_env_source() -> str:
+    """Name the environment variable that resolved the CANN root.
+
+    The manifest records which variable was actually set, so a later reader can
+    tell whether ``set_env.sh`` had been sourced.  UNAVAILABLE means none was.
+    """
+    for variable in ("ASCEND_HOME_PATH", "ASCEND_TOOLKIT_HOME", "ASCEND_TOOLKIT_ROOT"):
+        if os.environ.get(variable, "").strip():
+            return variable
+    return UNAVAILABLE
+
+
 @dataclass(frozen=True)
 class CapabilitySnapshot:
     collected_at: str
@@ -349,14 +407,21 @@ def collect_capability_snapshot(root: str | Path) -> CapabilitySnapshot:
         for argv in (
             ("uname", "-a"),
             ("npu-smi", "info"),
+            ("npu-smi", "info", "-t", "product", "-i", "0"),
+            ("npu-smi", "info", "-t", "board", "-i", "0"),
             ("ccec", "--version"),
             ("bisheng", "--version"),
-            ("msprof", "--version"),
+            # msprof has no --version on CANN 9.x (it exits 255); --help works.
+            ("msprof", "--help"),
         )
     )
+    # CANN 9.x ships no /usr/local/Ascend/version.cfg and advertises its root via
+    # ASCEND_HOME_PATH / ASCEND_TOOLKIT_HOME, so the root is detected rather than
+    # assumed.  "" means "not an Ascend host", not "audited the wrong tree".
+    cann_root = _detect_cann_root()
     stack = run_stack_probes(
         SubprocessExecutor(),
-        cann_root="/usr/local/Ascend" if Path("/usr/local/Ascend").is_dir() else "",
+        cann_root=cann_root,
     ).as_dict()
     git = git_state(repo)
     model = _read_text(Path("/proc/device-tree/model")) or UNAVAILABLE
@@ -374,7 +439,7 @@ def collect_capability_snapshot(root: str | Path) -> CapabilitySnapshot:
     blockers = []
     if tools["npu-smi"] == UNAVAILABLE or absent_device:
         blockers.append("ASCEND_DEVICE_NOT_PRESENT")
-    if not Path("/usr/local/Ascend").is_dir():
+    if not cann_root:
         blockers.append("CANN_ROOT_NOT_PRESENT")
     if not compiler_available:
         blockers.append("ASCEND_COMPILER_NOT_PRESENT")
@@ -383,14 +448,34 @@ def collect_capability_snapshot(root: str | Path) -> CapabilitySnapshot:
     if not modules["torch_npu"]:
         blockers.append("TORCH_NPU_NOT_PRESENT")
 
-    unavailable_reason = "target is not an Ascend/CANN host: " + ", ".join(blockers)
+    # Real hardware identity, read from npu-smi instead of assumed.  A field the
+    # vendor toolkit does not state stays UNAVAILABLE rather than being guessed.
+    device_query = next(
+        (row for row in commands if row["argv"] == ["npu-smi", "info"]),
+        None,
+    )
+    chips = _parse_npu_smi_chips(device_query["stdout"]) if device_query else []
+    firmware_fields = (
+        stack.get("results", {}).get("firmware_driver", {}).get("parsed", {}).get("versions", {})
+    )
+    chip_sku = str(firmware_fields.get("Product Type", "")).strip() or UNAVAILABLE
+    chip_count_text = str(firmware_fields.get("Chip Count", "")).strip()
+    device_count = int(chip_count_text) if chip_count_text.isdigit() else len(chips)
+    profiler_fields = stack.get("results", {}).get("profiler_version", {}).get("parsed", {})
+    msprof_metric_sets = [str(item) for item in profiler_fields.get("metric_sets", [])]
+
+    unavailable_reason = (
+        "target is not an Ascend/CANN host: " + ", ".join(blockers)
+        if blockers
+        else "Ascend/CANN stack detected; read-only probes executed"
+    )
     manifest = CompatibilityManifest(
         hardware={
             "host_id": platform.node() or UNAVAILABLE,
             "board_id": model,
-            "chip_sku": UNAVAILABLE,
-            "soc_version": UNAVAILABLE,
-            "device_count": 0,
+            "chip_sku": chip_sku,
+            "soc_version": chips[0] if chips else UNAVAILABLE,
+            "device_count": device_count,
             "logical_to_physical": {},
             "visible_device_policy": UNAVAILABLE,
             "cpu_arch": platform.machine() or UNAVAILABLE,
@@ -411,12 +496,12 @@ def collect_capability_snapshot(root: str | Path) -> CapabilitySnapshot:
             "cann_compiler_version": UNAVAILABLE,
             "cann_ops_package_version": UNAVAILABLE,
             "cann_kernel_package_version": UNAVAILABLE,
-            "set_env_source": UNAVAILABLE,
+            "set_env_source": _ascend_env_source(),
             "library_resolution": {},
             "compiler_path": tools["ccec"] if tools["ccec"] != UNAVAILABLE else tools["bisheng"],
             "msprof_version": UNAVAILABLE,
-            "msprof_metric_sets": [],
-            "install_roots": [],
+            "msprof_metric_sets": msprof_metric_sets,
+            "install_roots": [cann_root] if cann_root else [],
         },
         framework={
             "python_version": platform.python_version(),
