@@ -31,8 +31,9 @@ def _value(owner: Any, name: str) -> Any:
 
 
 class _Inventory:
-    def __init__(self, scope: str):
+    def __init__(self, scope: str, *, include_addresses=False):
         self.scope = scope
+        self.include_addresses = include_addresses
         self.entries: list[dict] = []
         self.storages: dict[str, int] = {}
         self.unobserved: list[dict] = []
@@ -62,6 +63,8 @@ class _Inventory:
                 "name": str(name)[:1000],
                 "kind": kind,
                 "shape": shape,
+                "stride": list(tensor.stride()) if hasattr(tensor, "stride") else None,
+                "contiguous": bool(tensor.is_contiguous()) if hasattr(tensor, "is_contiguous") else None,
                 "dtype": str(tensor.dtype),
                 "device": device,
                 "logical_bytes": logical_bytes,
@@ -95,6 +98,9 @@ class _Inventory:
                 _PROCESS_SALT + f"{device}:{pointer}".encode()
             ).hexdigest()[:32]
             entry.update(storage_key=identity, storage_bytes=storage_bytes)
+            if self.include_addresses:
+                entry["storage_address"] = hex(pointer)
+                entry["address_space"] = device
             previous = self.storages.get(identity)
             if previous is not None and previous != storage_bytes:
                 self.unknown(
@@ -145,16 +151,18 @@ class _Inventory:
             + [
                 "logical_total_bytes 按已列出的名称求和，别名可重复；unique_storage_bytes 按已观察底层 storage 去重。",
                 "view 保留完整 storage；storage 字节可能包含视图未使用区域，不能与 logical 字节相加。",
-                "storage_key 仅在此进程内可关联；不暴露裸指针，不是物理地址或跨进程分配身份。",
+                ("私有证据包含 storage 虚拟地址；仅用于同一进程快照关联，不是物理地址或跨进程分配身份。"
+                 if self.include_addresses else
+                 "storage_key 仅在此进程内可关联；不暴露裸指针，不是物理地址或跨进程分配身份。"),
                 "未采集 tensor 值；不覆盖激活、临时 workspace、allocator 余量、驱动或其他进程内存。",
                 "partial 时总量只覆盖已观察条目，不能当作完整模型或设备内存。",
             ],
         }
 
 
-def parameter_inventory(model: Any) -> dict:
+def parameter_inventory(model: Any, *, include_addresses=False) -> dict:
     """Inventory named parameters and buffers, retaining tied-name aliases."""
-    inventory = _Inventory("model_parameters_and_buffers")
+    inventory = _Inventory("model_parameters_and_buffers", include_addresses=include_addresses)
     for accessor, kind in (
         ("named_parameters", "parameter"),
         ("named_buffers", "buffer"),
@@ -184,9 +192,9 @@ def parameter_inventory(model: Any) -> dict:
     return inventory.result(layout="named_parameters_and_buffers")
 
 
-def cache_inventory(past_key_values: Any) -> dict:
+def cache_inventory(past_key_values: Any, *, include_addresses=False) -> dict:
     """Inspect supported HF/legacy cache containers without mutation or copies."""
-    inventory = _Inventory("retained_kv_cache")
+    inventory = _Inventory("retained_kv_cache", include_addresses=include_addresses)
     inventory.limitations.append(
         "这是请求结束时保留的 KV storage 快照，不推断分页、物理地址、历史分配峰值或缓存复用命中。"
     )

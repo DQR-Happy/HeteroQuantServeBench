@@ -41,10 +41,11 @@ def _device_milliseconds(event, field):
 class ObservationRecorder:
     """An append-only, per-request record bounded by the output-token limit."""
 
-    def __init__(self, mode="basic", *, start=None, clock=None, execution=None):
-        if mode not in {"off", "basic", "operators"}:
+    def __init__(self, mode="basic", *, start=None, clock=None, execution=None, sink=None):
+        if mode not in {"off", "basic", "operators", "memory", "pages"}:
             raise ValueError("Unknown observation mode")
         self.mode = mode
+        self.sink = sink
         self.clock = clock or time.monotonic
         self.start = self.clock() if start is None else start
         self.data = {
@@ -83,10 +84,14 @@ class ObservationRecorder:
                     "source": "host_monotonic",
                 }
             )
+            if self.sink:
+                self.sink("host_phase", self.data["phases"][-1])
 
     def token(self, **fields):
         if self.mode != "off":
             self.data["tokens"].append({**fields, "source": "host_monotonic"})
+            if self.sink:
+                self.sink("token", self.data["tokens"][-1])
 
     def snapshot(self, label, allocator):
         if self.mode == "off":
@@ -113,6 +118,8 @@ class ObservationRecorder:
                 ),
             }
         )
+        if self.sink:
+            self.sink("memory_sample", self.data["memory_snapshots"][-1])
 
 
 class OperatorCapture:
@@ -215,12 +222,14 @@ class OperatorCapture:
             return self.torch.profiler.record_function(name)
         return nullcontext()
 
-    def attach_modules(self, model):
-        """Annotate the first decoder layer only; never mutate its computation."""
+    def attach_modules(self, model, *, scope="first"):
+        """Annotate selected decoder roots; hooks never retain tensor values."""
         if not self.active:
             return
         modules = list(model.named_modules())
-        roots = [name for name, _ in modules if name.endswith("layers.0")]
+        roots = [name for name, _ in modules if
+                 (name.endswith("layers.0") if scope == "first" else
+                  ".layers." in name and name.rsplit(".", 1)[-1].isdigit())]
         if not roots:
             self._problem("Decoder layers.0 not found; module ranges are unavailable.")
             return
@@ -228,10 +237,11 @@ class OperatorCapture:
         selected = [
             (name, module)
             for name, module in modules
-            if name == root or name.startswith(root + ".")
+            if (name in roots if scope == "all" else name == root or name.startswith(root + "."))
         ]
         self._thread_id = threading.get_ident()
-        self.summary["coverage"]["module_scope"] = "first_decoder_layer_only"
+        self.summary["coverage"]["module_scope"] = "all_decoder_layers" if scope == "all" else "first_decoder_layer_only"
+        self.summary["coverage"]["module_depth"] = "decoder_root_only" if scope == "all" else "subtree"
         self.summary["coverage"]["module_names"] = [name for name, _ in selected]
         for name, module in selected:
 
@@ -375,6 +385,9 @@ class OperatorCapture:
                     f"Trace exceeds retained artifact limit ({self.MAX_TRACE_BYTES} bytes)."
                 )
             else:
+                from hqsb.observation.storage import sha256
+
+                self.summary["trace_sha256"] = sha256(trace)
                 self.summary["trace_available"] = True
         except Exception as exc:
             trace.unlink(missing_ok=True)
