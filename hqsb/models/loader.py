@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 import torch
 from modelscope import AutoModelForCausalLM, AutoTokenizer
@@ -24,6 +24,7 @@ from hqsb.benchmark.memory import (
     memory_budget_bytes,
     model_weight_bytes,
 )
+from hqsb.hardware import device as device_api
 from hqsb.models.manifest import verify_or_raise
 
 logger = logging.getLogger(__name__)
@@ -65,8 +66,8 @@ def _validate_model_directory(model_path: str) -> None:
         )
 
 
-def _consolidate_to_device(model: Any, *, force: bool = False) -> bool:
-    """Move every parameter of ``model`` onto CUDA, but only if it provably fits.
+def _consolidate_to_device(model: Any, *, target: Any, force: bool = False) -> bool:
+    """Move every parameter of ``model`` onto ``target``, but only if it provably fits.
 
     ``device_map="auto"`` may leave part of the model on CPU or on disk, which
     silently degrades inference: every forward pass pays host<->device copies
@@ -94,18 +95,22 @@ def _consolidate_to_device(model: Any, *, force: bool = False) -> bool:
         str(param.device)
         for param in list(model.parameters()) + list(model.buffers())
     }
-    if devices and all(device.startswith("cuda") for device in devices):
+    target_kind = device_api.accelerator_kind(target)
+    if devices and all(device_api.accelerator_kind(item) == target_kind for item in devices):
         return True
 
     weight_bytes = model_weight_bytes(model)
-    free_bytes, _total = torch.cuda.mem_get_info()
-    budget_bytes = memory_budget_bytes(free_bytes)
+    memory_info = device_api.mem_get_info(target)
+    budget_bytes: Optional[int] = None
+    if memory_info is not None:
+        free_bytes, _total = memory_info
+        budget_bytes = memory_budget_bytes(free_bytes)
 
-    if not force and weight_bytes > budget_bytes:
+    if not force and budget_bytes is not None and weight_bytes > budget_bytes:
         logger.warning(
-            "Weights (%.2f GiB) exceed the safe GPU budget (%.2f GiB, from "
+            "Weights (%.2f GiB) exceed the safe device budget (%.2f GiB, from "
             "%.2f GiB free); keeping the device_map='auto' split. "
-            "Free system memory to load the model entirely on GPU.",
+            "Free system memory to load the model entirely on the device.",
             weight_bytes / (1024**3),
             budget_bytes / (1024**3),
             free_bytes / (1024**3),
@@ -113,24 +118,24 @@ def _consolidate_to_device(model: Any, *, force: bool = False) -> bool:
         return False
 
     try:
-        model.to("cuda")
-    except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
+        model.to(target)
+    except (device_api.out_of_memory_error(target), RuntimeError) as exc:
         # Only reachable if the estimate was off (e.g. allocator
         # fragmentation). The model stays split; callers must not assume it
-        # is fully on GPU -- check the return value.
+        # is fully on the device -- check the return value.
         logger.warning(
-            "GPU consolidation failed despite a sufficient budget (%s); "
+            "Device consolidation failed despite a sufficient budget (%s); "
             "keeping the device_map='auto' split",
             exc,
         )
-        torch.cuda.empty_cache()
+        device_api.empty_cache(target)
         return False
 
     logger.info(
-        "Consolidated %.2f GiB of weights onto CUDA (budget %.2f GiB%s)",
+        "Consolidated %.2f GiB of weights onto %s (budget %s)",
         weight_bytes / (1024**3),
-        budget_bytes / (1024**3),
-        ", forced" if force else "",
+        target,
+        f"{budget_bytes / (1024**3):.2f} GiB" if budget_bytes is not None else "unknown",
     )
     if force:
         # Host staging frees the CPU weight copies inside ``Model.to``; return
@@ -158,6 +163,7 @@ def load_qwen3(
     strict_extra: bool = True,
     allow_extra: tuple = (),
     cpu_staging: bool = False,
+    device: str | None = None,
 ) -> Tuple:
     """Load a Qwen3-family model and tokenizer from a local ModelScope directory.
 
@@ -200,6 +206,9 @@ def load_qwen3(
             ``model_path`` but not declared by the manifest fails the gate.
         allow_extra: Relative paths or ``fnmatch`` globs permitted to exist
             without being declared by the manifest.
+        device: Accelerator to load onto (``"cuda"`` / ``"npu"`` / ``"cpu"``).
+            ``None`` honours ``HQSB_DEVICE`` and otherwise prefers CUDA, then
+            Ascend NPU, then CPU -- see :mod:`hqsb.hardware.device`.
 
     Returns:
         A tuple of ``(tokenizer, model, load_time_s)`` where:
@@ -240,19 +249,30 @@ def load_qwen3(
     # therefore derived from measured free memory instead of hardcoded values,
     # which otherwise overshoot the real headroom (e.g. a literal "6GB" on a
     # 7.6 GiB device whose free memory is ~4 GiB).
-    gpu_budget_bytes = gpu_memory_budget_bytes() if torch.cuda.is_available() else 0
+    target = device_api.resolve_device(device or "")
+    target_kind = device_api.accelerator_kind(target)
+    target_is_accelerator = device_api.is_accelerator(target)
+
+    # Ascend has no accelerate device_map integration here, so it always stages
+    # through host memory and is consolidated afterwards -- the same path the
+    # Jetson CPU-staging mode uses, and the reason the two accelerate-based
+    # branches below are CUDA-only.
+    if target_kind == device_api.NPU:
+        cpu_staging = True
+
+    gpu_budget_bytes = gpu_memory_budget_bytes() if target_is_accelerator else 0
     cpu_budget_bytes = host_memory_budget_bytes()
 
     if device_map is None:
-        if cpu_staging and torch.cuda.is_available():
+        if cpu_staging and target_is_accelerator:
             # Host staging: load all weights as ordinary (swappable) CPU
-            # tensors, then let ``_consolidate_to_device`` move them to CUDA.
-            # ``device_map="auto"`` stages through pinned host memory, whose
-            # peak (~2x the weight bytes, non-swappable) can OOM the 8 GiB
-            # unified-memory device even though the final 3.2 GiB fits.
+            # tensors, then let ``_consolidate_to_device`` move them to the
+            # accelerator. ``device_map="auto"`` stages through pinned host
+            # memory, whose peak (~2x the weight bytes, non-swappable) can OOM
+            # an 8 GiB unified-memory device even though the final 3.2 GiB fits.
             device_map = "cpu"
         else:
-            device_map = "auto" if torch.cuda.is_available() else "cpu"
+            device_map = "auto" if target_is_accelerator else "cpu"
 
     if offload_folder is None:
         offload_folder = "/tmp/hqsb_offload"
@@ -296,7 +316,7 @@ def load_qwen3(
             offload_folder=offload_folder,
             max_memory=max_memory,
         )
-    except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
+    except (device_api.out_of_memory_error(target), RuntimeError) as e:
         if "out of memory" in str(e).lower() and device_map != "auto":
             logger.warning(
                 "Direct GPU load OOM, retrying with device_map='auto' + offloading"
@@ -324,12 +344,10 @@ def load_qwen3(
     # model keeps whatever split ``device_map="auto"`` chose, and every forward
     # pass pays host<->device copies for the offloaded layers — slower than a
     # pure-GPU model while saving no device memory in practice.
-    if torch.cuda.is_available():
-        _consolidate_to_device(model, force=cpu_staging)
-
-    # Ensure all CUDA operations from loading are complete
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
+    if target_is_accelerator:
+        _consolidate_to_device(model, target=target, force=cpu_staging)
+        # Ensure every queued load/copy is complete before the caller times it.
+        device_api.synchronize(target)
 
     load_time_s = time.perf_counter() - start
 
@@ -341,14 +359,16 @@ def load_qwen3(
         param_count * dtype.itemsize / (1024**3),
     )
 
-    # Report memory usage
-    if torch.cuda.is_available():
-        allocated_gb = torch.cuda.memory_allocated() / (1024**3)
-        reserved_gb = torch.cuda.memory_reserved() / (1024**3)
+    # Report memory usage. `reserved` is CUDA-specific; on Ascend it is reported
+    # as UNAVAILABLE instead of being filled with the allocated number.
+    if target_is_accelerator:
+        allocated = device_api.memory_allocated(target)
+        reserved = device_api.max_memory_reserved(target)
         logger.info(
-            "CUDA memory: allocated=%.2f GB, reserved=%.2f GB",
-            allocated_gb,
-            reserved_gb,
+            "%s memory: allocated=%s, reserved=%s",
+            target_kind.upper(),
+            f"{allocated / (1024**3):.2f} GB" if allocated is not None else "UNAVAILABLE",
+            f"{reserved / (1024**3):.2f} GB" if reserved is not None else "UNAVAILABLE",
         )
 
     return tokenizer, model, load_time_s

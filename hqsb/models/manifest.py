@@ -92,7 +92,14 @@ _DEFAULT_CHUNK_BYTES = 1 << 20
 # ``VerificationResult.ignored_client_metadata``) instead of being silently
 # dropped -- an exclusion that is invisible to the report would be worse than
 # the failure it hides.
-CLIENT_CACHE_METADATA = (".msc",)
+#: ``.msc`` and ``.mv`` are both written by the ModelScope client, and which of
+#: them appears depends on the client version (1.29.0 emits both; a newer client
+#: may emit neither).  Both are excluded from the digest comparison on every host
+#: so one snapshot stays verifiable regardless of which client fetched it --
+#: otherwise fetching the same model with a newer client reports a spurious
+#: "missing .mv" instead of a content mismatch, which is a provenance artefact,
+#: not an artifact fault.
+CLIENT_CACHE_METADATA = (".msc", ".mv")
 
 # ── Reason codes (stable, machine-readable) ─────────────────────────────
 # The path_* codes above are owned by ``hqsb.core.artifact_path`` (single
