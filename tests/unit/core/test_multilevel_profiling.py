@@ -22,6 +22,32 @@ import pytest
 from hqsb.benchmark import multilevel_profiling as mp
 
 
+def test_ncu_per_launch_preserves_same_named_invocations_and_missing_counters():
+    raw = ('"ID","Process ID","Context","Stream","Kernel Name","Metric Name","Metric Unit","Metric Value"\n'
+           '"0","44","1","7","same_gemm","L2 Hit Rate","%","10"\n'
+           '"1","44","1","7","same_gemm","L2 Hit Rate","%","90"\n'
+           '"1","44","1","7","same_gemm","DRAM Throughput","byte/s","n/a"\n')
+    result = mp.parse_ncu_csv(raw, per_launch=True)
+    assert len(result["kernels"]) == 2
+    assert [k["launch_id"] for k in result["kernels"]] == ["0", "1"]
+    assert [k["panel"]["l2_hit_rate_pct"] for k in result["kernels"]] == [10, 90]
+    assert result["kernels"][1]["metrics"]["DRAM Throughput"]["value"] is None
+    assert len(mp.parse_ncu_csv(raw)["kernels"]) == 1  # historical aggregation contract
+
+
+def test_native_raw_wide_csv_preserves_units_launches_zero_and_unavailable():
+    raw = ('"ID","Process ID","Kernel Name","lts__t_sector_hit_rate.pct","l1tex__t_sector_hit_rate.pct","dram__bytes.sum"\n'
+           '"","","","%","%","byte"\n'
+           '"0","12","kernel","92.5","0.000000","n/a"\n'
+           '"1","12","kernel","41.5","2.000000","n/a"\n')
+    kernels = mp.parse_ncu_csv(raw, per_launch=True)["kernels"]
+    assert len(kernels) == 2
+    assert kernels[0]["panel"]["l2_hit_rate_pct"] == 92.5
+    assert kernels[0]["panel"]["l1tex_hit_rate_pct"] == 0
+    assert kernels[0]["panel"]["dram_bytes"] is None
+    assert kernels[0]["metrics"]["lts__t_sector_hit_rate.pct"]["unit"] == "%"
+
+
 # ───────────────────────────── synthetic trace ───────────────────────────
 
 

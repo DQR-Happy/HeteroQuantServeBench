@@ -1119,7 +1119,20 @@ NCU_DIAGNOSTIC_RULES = (
 )
 
 
-def parse_ncu_csv(text: str) -> Dict[str, Any]:
+def _wide_ncu_rows(reader):
+    """Native --page raw CSV uses one units row and one column per counter."""
+    units = {}
+    for row in reader:
+        if not row.get("ID") and not row.get("Kernel Name"):
+            units = row
+            continue
+        for name, value in row.items():
+            if name and "__" in name and not name.startswith("device__"):
+                yield {**row, "Metric Name": name, "Metric Value": value,
+                       "Metric Unit": units.get(name, ""), "Section Name": "native_raw"}
+
+
+def parse_ncu_csv(text: str, *, per_launch: bool = False) -> Dict[str, Any]:
     """Parse an ``ncu --csv`` export into kernel rows with a metric panel.
 
     Two column layouts are accepted: the section layout (``Metric Value``)
@@ -1131,25 +1144,28 @@ def parse_ncu_csv(text: str) -> Dict[str, Any]:
     lines = text.splitlines()
     header_index = None
     for index, line in enumerate(lines):
-        if "Kernel Name" in line and "Metric Name" in line:
+        if "Kernel Name" in line and ("Metric Name" in line or '"ID"' in line):
             header_index = index
             break
     if header_index is None:
         return {"kernels": [], "error": "no NCU CSV header found"}
 
     reader = csv.DictReader(io.StringIO("\n".join(lines[header_index:])))
+    rows = reader if "Metric Name" in (reader.fieldnames or []) else _wide_ncu_rows(reader)
     kernels: Dict[str, Dict[str, Any]] = {}
     unavailable: Dict[str, int] = {}
     rules: List[Dict[str, Any]] = []
 
-    for row in reader:
+    for row in rows:
         name = (row.get("Kernel Name") or "").strip()
         metric = (row.get("Metric Name") or "").strip()
         section = (row.get("Section Name") or "").strip()
         if not name or not metric:
             continue
+        launch_id = (row.get("ID") or "").strip()
+        key = json.dumps([row.get("Process ID"), row.get("Context"), row.get("Stream"), launch_id, name]) if per_launch else name
         entry = kernels.setdefault(
-            name,
+            key,
             {
                 "name": name,
                 "grid": (row.get("Grid Size") or "").strip(),
@@ -1161,6 +1177,9 @@ def parse_ncu_csv(text: str) -> Dict[str, Any]:
                 "sections": [],
             },
         )
+        if per_launch:
+            entry.update(launch_id=launch_id or None, process_id=row.get("Process ID"),
+                         identity_status="tool_launch_id" if launch_id else "unavailable")
         if section and section not in entry["sections"]:
             entry["sections"].append(section)
         if metric in entry["metrics"]:
@@ -1222,6 +1241,13 @@ def ncu_metric_panel(metrics: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]
     for metric_name, field in NCU_PANEL_METRICS.items():
         entry = metrics.get(metric_name)
         panel[field] = None if entry is None else entry.get("value")
+    for metric_name, field in (("lts__t_sector_hit_rate.pct", "l2_hit_rate_pct"),
+                               ("l1tex__t_sector_hit_rate.pct", "l1tex_hit_rate_pct"),
+                               ("lts__t_bytes.sum", "l2_bytes"),
+                               ("dram__bytes.sum", "dram_bytes")):
+        if panel.get(field) is None:
+            entry = metrics.get(metric_name)
+            panel[field] = entry.get("value") if entry else None
     duration_ns = panel.get("duration_ns")
     if duration_ns is not None:
         # Convenience derived field; the raw nanosecond value is kept too.
