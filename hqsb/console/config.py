@@ -25,6 +25,7 @@ class DeploymentConfig(BaseModel):
     max_output_tokens: int = Field(512, ge=1, le=4096)
     manifest: str | None = None
     manifest_allow_extra: list[str] = Field(default_factory=list)
+    device_lock_path: str | None = None
     base_url: str | None = None
     api_key_env: str | None = None
 
@@ -48,6 +49,7 @@ class DeploymentConfig(BaseModel):
                 "manifest_allow_extra",
                 "base_url",
                 "api_key_env",
+                "device_lock_path",
             }
         )
 
@@ -88,6 +90,9 @@ def load_settings(path: Path | None = None) -> Settings:
     raw.setdefault(
         "deployments", [{"id": "qwen-reference", "name": "Qwen3 · FP16 Reference"}]
     )
+    for deployment in raw["deployments"]:
+        if deployment.get("provider", "pytorch") == "pytorch":
+            deployment.setdefault("device_lock_path", str(Path.home() / ".cache/hqsb/device0.lock"))
     raw["data_dir"] = (
         Path(os.environ.get("HQSB_CONSOLE_DATA", str(root / ".console")))
         .expanduser()

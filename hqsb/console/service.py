@@ -101,9 +101,9 @@ class ConsoleService:
 
     def _preflight(self, kind, cfg, payload):
         mode = payload.get("observation_mode", "basic")
-        if mode not in {"off", "basic", "operators"}:
+        if mode not in {"off", "basic", "operators", "memory", "pages"}:
             raise ServiceError("INVALID_OBSERVATION", "Unknown observation mode", 422)
-        if kind == "quantize" or mode == "operators":
+        if kind == "quantize" or mode in {"operators", "memory", "pages"} or (mode == "basic" and cfg.provider == "pytorch"):
             if cfg.provider != "pytorch":
                 raise ServiceError(
                     "UNSUPPORTED_PROVIDER",
@@ -113,7 +113,7 @@ class ConsoleService:
             minimum = (
                 self.settings.artifact_min_available_bytes
                 if kind == "quantize"
-                else self.settings.profile_min_available_bytes
+                else 128 * 1024**2 if mode == "basic" else self.settings.profile_min_available_bytes
             )
             available = host_memory().get("available_bytes")
             if available is not None and available < minimum:
@@ -288,6 +288,7 @@ class ConsoleService:
         actor = self.actors[deployment_id]
         state = self.states[deployment_id]
         started, first_content = time.monotonic(), None
+        directory = None
         resource_before = host_memory("before_" + kind)
         try:
             with self.lock:
@@ -380,7 +381,7 @@ class ConsoleService:
                 directory = safe_directory(self.settings.data_dir / "artifacts", run_id)
                 directory.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 worker_payload.update(artifact_dir=str(directory), artifact_id=run_id)
-            elif kind == "generate" and payload.get("observation_mode") == "operators":
+            elif kind == "generate" and self.configs[deployment_id].provider == "pytorch" and payload.get("observation_mode", "basic") != "off":
                 directory = safe_directory(self.settings.data_dir / "captures", run_id)
                 directory.mkdir(parents=True, exist_ok=False, mode=0o700)
                 worker_payload.update(capture_dir=str(directory), capture_id=run_id)
@@ -392,6 +393,16 @@ class ConsoleService:
                 or self.store.get(run_id)["state"] == "cancel_requested",
                 max(1, remaining / 1000) if kind in {"generate", "quantize"} else 300,
             )
+            if kind == "generate" and result.get("metrics", {}).get("observation_bundle"):
+                from hqsb.observation.storage import publish
+
+                try:
+                    manifest = publish(directory, expected_run_id=run_id)
+                    result["metrics"]["observation_bundle"].update(
+                        publication=manifest["publication"], capture_status=manifest["capture_status"])
+                except (OSError, ValueError) as exc:
+                    result["metrics"]["observation_bundle"].update(
+                        publication="failed", capture_status="partial", error=str(exc)[:400])
             stopped = result.get("finish_reason") in {"cancelled", "timed_out"}
             if kind == "load" and not stopped:
                 with self.lock:
@@ -473,12 +484,25 @@ class ConsoleService:
                     load_run_id=None,
                     last_error=error,
                 )
+            failure_metrics = self.store.get(run_id)["metrics"]
+            if kind == "generate" and directory is not None:
+                bundle = {"capture_status": "partial", "publication": "unsealed_interrupted"}
+                if cleanup != "unknown":
+                    try:
+                        from hqsb.observation.storage import publish
+
+                        manifest = publish(directory, expected_run_id=run_id, supervisor_failure=error)
+                        bundle.update(publication=manifest["publication"], counts=manifest["counts"])
+                    except (OSError, ValueError) as capture_error:
+                        bundle["error"] = str(capture_error)[:400]
+                failure_metrics = {**failure_metrics, "observation_bundle": bundle}
             self.store.update(
                 run_id,
                 {
                     "state": "failed",
                     "cleanup": cleanup,
                     "error": error,
+                    "metrics": failure_metrics,
                 },
                 "error",
             )

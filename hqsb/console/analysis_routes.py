@@ -19,6 +19,9 @@ from hqsb.console.research import ResearchCatalog
 from hqsb.console.resources import observation_capabilities, resource_snapshot
 from hqsb.console.schemas import RunRecord
 from hqsb.console.store import TERMINAL
+from hqsb.observation.storage import EvidenceReader
+from hqsb.observation.correlation import trace_links
+from hqsb.observation.analysis import analyze as analyze_observations, compare as compare_observations
 
 
 class QuantizationRequest(BaseModel):
@@ -38,6 +41,12 @@ class QuantizationRequest(BaseModel):
         elif self.group_size is not None:
             raise ValueError("W8 is per-channel; group_size must be null")
         return self
+
+
+class ObservationComparisonRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    run_ids: list[str] = Field(min_length=2, max_length=2)
+    intervention: Literal["attention_requested", "cleanup_policy"] = "attention_requested"
 
 
 def _download(body: bytes | str, filename: str, media_type="application/json"):
@@ -62,6 +71,96 @@ def analysis_router(settings, service) -> APIRouter:
     @router.get("/resources")
     def resources():
         return resource_snapshot(service)
+
+    def observation_directory(run_id):
+        finished(run_id)
+        return safe_directory(settings.data_dir / "captures", run_id)
+
+    @router.get("/runs/{run_id}/observations")
+    def observations(run_id: str):
+        directory = observation_directory(run_id)
+        try:
+            result = analyze_observations(directory)
+            lifetimes = result.get("allocation_lifetimes")
+            if lifetimes:
+                lifetimes["total_items"] = len(lifetimes["items"])
+                lifetimes["items"] = lifetimes["items"][:500]
+                lifetimes["projection_limit"] = 500
+            return result
+        except FileNotFoundError as exc:
+            if exc.filename == str(directory / "observations/manifest.json"):
+                return {"availability": "not_collected", "metrics": [], "notice": "No sealed observation bundle; legacy/off/interrupted captures cannot be reconstructed."}
+            raise HTTPException(409, "A sealed observation artifact is missing") from exc
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, f"Observation integrity check failed: {exc}") from exc
+
+    @router.get("/runs/{run_id}/observations/records")
+    def observation_records(run_id: str, kind: str | None = Query(None, max_length=80),
+                            after: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=1000)):
+        try:
+            rows, size, more = [], 0, False
+            for row in EvidenceReader(observation_directory(run_id)).records():
+                if row["seq"] > after and (kind is None or row["kind"] == kind):
+                    if len(json.dumps(row)) > 256 * 1024:
+                        row = {**row, "payload": None, "projection": "raw_record_exceeds_response_budget",
+                               "raw_available_in_verified_artifact": True}
+                    encoded_size = len(json.dumps(row).encode())
+                    if len(rows) >= limit or size + encoded_size > 4 * 1024 * 1024:
+                        more = True
+                        break
+                    rows.append(row)
+                    size += encoded_size
+            return {"items": rows, "next_after": rows[-1]["seq"] if more else None,
+                    "response_budget_bytes": 4 * 1024 * 1024}
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, f"Observation evidence unavailable: {exc}") from exc
+
+    @router.post("/observation-comparisons")
+    def observation_comparison(payload: ObservationComparisonRequest):
+        ids = payload.run_ids
+        try:
+            return compare_observations(*(analyze_observations(observation_directory(key)) for key in ids),
+                                        intervention=payload.intervention)
+        except (ValueError, OSError, KeyError) as exc:
+            raise HTTPException(409, f"Comparison evidence unavailable: {exc}") from exc
+
+    @router.get("/runs/{run_id}/observations/manifest")
+    def observation_manifest(run_id: str):
+        try:
+            return EvidenceReader(observation_directory(run_id)).manifest()
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, f"Observation manifest unavailable: {exc}") from exc
+
+    @router.get("/runs/{run_id}/observations/artifacts/{index}")
+    def observation_artifact(run_id: str, index: int):
+        try:
+            directory = observation_directory(run_id)
+            reader = EvidenceReader(directory)
+            artifacts = reader.manifest()["artifacts"]
+            if not 0 <= index < len(artifacts):
+                raise HTTPException(404, "Unknown evidence artifact")
+            # Validate paths and content before exposing a raw stream.
+            for _ in reader.records():
+                pass
+            artifact = artifacts[index]
+            return FileResponse(directory / artifact["path"], media_type="application/x-ndjson",
+                                filename=f"{run_id}-{index}.jsonl",
+                                headers={"X-Content-SHA256": artifact["sha256"]})
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, f"Observation artifact unavailable: {exc}") from exc
+
+    @router.get("/runs/{run_id}/observations/links")
+    def observation_links(run_id: str):
+        finished(run_id)
+        directory = observation_directory(run_id)
+        try:
+            analyze_observations(directory)
+        except FileNotFoundError as exc:
+            if exc.filename != str(directory / "observations/manifest.json"):
+                raise HTTPException(409, "A sealed observation artifact is missing") from exc
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, f"Observation integrity check failed: {exc}") from exc
+        return captures.project(run_id, lambda events, summary: {"trace": summary, **trace_links(events)})
 
     @router.get("/capabilities")
     def capabilities():

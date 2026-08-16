@@ -29,6 +29,10 @@ ARG_KEYS = (
     "Input Dims",
     "Input type",
     "Concrete Inputs",
+    "Addr",
+    "Bytes",
+    "Total Allocated",
+    "Total Reserved",
     "Ev Idx",
 )
 
@@ -215,12 +219,14 @@ def _normalize_events(entries) -> tuple[list[dict], dict]:
     events = []
     dropped = 0
     for ordinal, entry in enumerate(entries):
-        if not isinstance(entry, dict) or entry.get("ph") != "X":
+        if not isinstance(entry, dict) or entry.get("ph") not in {"X", "i", "I", "s", "t", "f", "C"}:
             continue
+        phase = entry["ph"]
+        duration = entry.get("dur", 0) if phase != "X" else entry.get("dur")
         if (
             not _finite(entry.get("ts"))
-            or not _finite(entry.get("dur"))
-            or entry["dur"] < 0
+            or not _finite(duration)
+            or duration < 0
         ):
             dropped += 1
             continue
@@ -237,8 +243,11 @@ def _normalize_events(entries) -> tuple[list[dict], dict]:
                 "category": str(entry.get("cat", "unknown"))[:80],
                 "pid": str(entry.get("pid", "")),
                 "tid": str(entry.get("tid", "")),
+                "phase": phase,
+                "raw_ts_us": entry["ts"],
+                "flow_id": str(entry["id"]) if "id" in entry else None,
                 "start_ms": entry["ts"] / 1000,
-                "duration_ms": entry["dur"] / 1000,
+                "duration_ms": duration / 1000,
                 "args": {
                     key: _safe_arg(args[key])
                     for key in ARG_KEYS

@@ -41,7 +41,7 @@ class InferenceRequest(BaseModel):
     max_output_tokens: int = Field(128, ge=1, le=4096)
     deadline_ms: int = Field(120000, ge=1000, le=600000)
     save_input: bool = False
-    observation_mode: Literal["off", "basic", "operators"] = "basic"
+    observation_mode: Literal["off", "basic", "operators", "memory", "pages"] = "basic"
 
 
 class Login(BaseModel):

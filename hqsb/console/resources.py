@@ -104,6 +104,18 @@ def observation_capabilities(service) -> dict:
     )
     definitions = [
         (
+            "allocator_history",
+            "分配器快照与地址复用",
+            local,
+            "memory 模式；PyTorch 原生事件序列，缺少逐事件校准时间，驱动分配不在此口径。",
+        ),
+        (
+            "cpu_pages",
+            "CPU VMA 与页状态样本",
+            local,
+            "pages 模式；只读有界 pagemap 样本，不读取 PFN，不代表 GPU 页表。",
+        ),
+        (
             "request_phases",
             "请求阶段与逐 token 观测",
             local,
@@ -143,7 +155,7 @@ def observation_capabilities(service) -> dict:
             "ncu_live",
             "Nsight Compute 实时计数器",
             False,
-            "工具可发现；当前支持历史证据，实时任务尚未接入。"
+            "工具可发现；支持管理员 CLI 独立诊断采集，浏览器不启动计数器任务。"
             if ncu
             else "工具未发现。",
         ),

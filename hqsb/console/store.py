@@ -17,6 +17,7 @@ LIST_DETAIL_PATHS = (
     "$.result",
     "$.config.messages",
     "$.config.actual_runtime.parameter_inventory",
+    "$.config.actual_runtime.source_environment.source_files",
     "$.metrics.observation",
     "$.metrics.kv_inventory",
     "$.metrics.generated_token_ids",
