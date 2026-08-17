@@ -50,11 +50,12 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 GATE_NAME = "import_dependency_gate"
-RULES_VERSION = "1.10.0"
+RULES_VERSION = "1.11.0"
 
 #: Architectural regions. A module belongs to the first region whose dotted
 #: prefix matches it. Order matters (most specific first).
 REGION_PREFIXES: List[Tuple[str, str]] = [
+    ("observation", "hqsb.observation"),
     ("core", "hqsb.core"),
     ("benchmark", "hqsb.benchmark"),
     ("backends", "hqsb.backends"),
@@ -77,6 +78,10 @@ REGION_PREFIXES: List[Tuple[str, str]] = [
 #: Ownership rules (hard gates). ``source_regions`` must not import
 #: ``forbidden_target_regions``.
 RULES: List[Dict[str, Any]] = [
+    {"id": "R21", "name": "observation_no_concrete_dependency",
+     "description": "Observation contracts/OS/storage remain device-independent; composition belongs to backends/evaluation/console.",
+     "source_regions": ["observation"],
+     "forbidden_target_regions": ["backends", "models", "benchmark", "hardware", "quant", "ops", "console", "evaluation", "runtime", "serving", "integration", "compiler", "distributed", "infra", "experimental", "release"]},
     {
         "id": "R1",
         "name": "core_no_concrete_dependency",

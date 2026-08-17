@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """Smoke test for Qwen3-1.7B model loading and generation.
 
-Performs a minimal end-to-end test: loads the model from local
-files, runs a short generation, and validates that the model
-produces coherent output without OOM or CUDA errors.
+Performs a minimal end-to-end test: loads the model from local files, runs a
+short generation, and validates that the model produces coherent output without
+OOM or device errors.
 
-This is the first checkpoint in Phase 2 and must pass before
-running any benchmarks.
+This is the first checkpoint in Phase 2 and must pass before running any
+benchmarks.  It runs on whichever accelerator is present (CUDA or Ascend NPU)
+and reports the backend it actually used, so the result can never be filed
+under a device label the run did not touch.
 
 Usage:
     export PYTHONPATH="$PWD:${PYTHONPATH:-}"
-    python scripts/models/smoke_qwen3.py
+    python scripts/models/smoke_qwen3.py [--device cuda|npu|cpu]
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 import sys
@@ -22,11 +25,28 @@ import time
 
 import torch
 
+from hqsb.hardware import device as device_api
 from hqsb.models.loader import load_qwen3
 
 logger = logging.getLogger(__name__)
 
 MODEL_PATH = "~/models/hqsb/Qwen3-1.7B"
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Qwen3-1.7B loading smoke test")
+    parser.add_argument(
+        "--device",
+        default="",
+        help="Accelerator to use (cuda/npu/cpu). Empty = auto-detect "
+        "(HQSB_DEVICE overrides).",
+    )
+    parser.add_argument(
+        "--model-path",
+        default=os.path.expanduser(MODEL_PATH),
+        help=f"Local model directory (default: {MODEL_PATH})",
+    )
+    return parser
 
 
 def main() -> None:
@@ -36,20 +56,26 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    args = _build_parser().parse_args()
+    model_path = os.path.expanduser(args.model_path)
 
-    model_path = os.path.expanduser(MODEL_PATH)
-
-    # ── Check CUDA ──────────────────────────────────────────────────
-    if not torch.cuda.is_available():
-        print("FATAL: CUDA is not available. Smoke test requires GPU.", file=sys.stderr)
+    # ── Resolve the device actually available ───────────────────────────
+    target = device_api.resolve_device(args.device)
+    if not device_api.is_accelerator(target):
+        print(
+            f"FATAL: no accelerator available (resolved device={target}). "
+            "The smoke test needs a GPU or an Ascend NPU.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    print(f"Device: {torch.cuda.get_device_name(0)}")
-    print(f"CUDA:   {torch.version.cuda}")
-    print(f"Torch:  {torch.__version__}")
+    described = device_api.describe(target)
+    print(f"Backend: {described['kind']} ({described['device']})")
+    print(f"Device:  {described['name'] or 'name UNAVAILABLE'}")
+    print(f"Torch:   {torch.__version__}")
     print()
 
-    # ── Load Model ──────────────────────────────────────────────────
+    # ── Load Model ──────────────────────────────────────────────────────
     logger.info("Loading model...")
     try:
         tokenizer, model, load_time = load_qwen3(
@@ -68,19 +94,20 @@ def main() -> None:
 
     logger.info("Model loaded in %.2f s", load_time)
 
-    # ── Memory Check ────────────────────────────────────────────────
-    allocated_gb = torch.cuda.memory_allocated() / (1024**3)
-    reserved_gb = torch.cuda.memory_reserved() / (1024**3)
+    # ── Memory Check ────────────────────────────────────────────────────
+    # `reserved` is a CUDA-only concept; on Ascend it is reported as
+    # UNAVAILABLE rather than being silently filled with the allocated number.
+    allocated = device_api.memory_allocated(target)
+    reserved = device_api.max_memory_reserved(target)
     logger.info(
-        "CUDA memory: allocated=%.2f GB, reserved=%.2f GB",
-        allocated_gb,
-        reserved_gb,
+        "%s memory: allocated=%s, reserved=%s",
+        described["kind"].upper(),
+        f"{allocated / (1024**3):.2f} GB" if allocated is not None else "UNAVAILABLE",
+        f"{reserved / (1024**3):.2f} GB" if reserved is not None else "UNAVAILABLE",
     )
 
-    # ── Generate ────────────────────────────────────────────────────
-    messages = [
-        {"role": "user", "content": "Briefly explain what CUDA is."}
-    ]
+    # ── Generate ────────────────────────────────────────────────────────
+    messages = [{"role": "user", "content": "Briefly explain what an AI accelerator is."}]
 
     text = tokenizer.apply_chat_template(
         messages,
@@ -89,9 +116,9 @@ def main() -> None:
         enable_thinking=False,
     )
 
-    inputs = tokenizer(text, return_tensors="pt").to("cuda")
+    inputs = tokenizer(text, return_tensors="pt").to(target)
 
-    torch.cuda.synchronize()
+    device_api.synchronize(target)
     start = time.perf_counter()
 
     with torch.inference_mode():
@@ -101,12 +128,12 @@ def main() -> None:
             do_sample=False,
         )
 
-    torch.cuda.synchronize()
+    device_api.synchronize(target)
     elapsed = time.perf_counter() - start
 
     generated = output[0, inputs["input_ids"].shape[1]:]
 
-    # ── Results ─────────────────────────────────────────────────────
+    # ── Results ─────────────────────────────────────────────────────────
     input_count = inputs["input_ids"].shape[1]
     output_count = generated.numel()
 
@@ -122,13 +149,13 @@ def main() -> None:
     print(f"Tokens/second  : {output_count / elapsed:.1f}" if elapsed > 0 else "")
     print("=" * 60)
 
-    # ── Validation ──────────────────────────────────────────────────
+    # ── Validation ──────────────────────────────────────────────────────
     checks = [
         ("Model loaded", True),
-        ("GPU visible", torch.cuda.is_available()),
+        (f"{described['kind'].upper()} visible", device_api.is_accelerator(target)),
         ("No OOM", True),  # If we got here, no OOM
         ("Text generated", output_count > 0),
-        ("CUDA no errors", True),  # If we got here, no CUDA errors
+        ("Device no errors", True),  # If we got here, no device errors
     ]
 
     print()
@@ -141,7 +168,7 @@ def main() -> None:
 
     print()
     if all_pass:
-        print("SMOKE TEST PASSED - Ready for benchmarks.")
+        print(f"SMOKE TEST PASSED ({described['kind']}) - Ready for benchmarks.")
     else:
         print("SMOKE TEST FAILED - Fix issues before proceeding.", file=sys.stderr)
         sys.exit(1)
