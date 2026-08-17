@@ -219,6 +219,55 @@ def test_resources_and_capabilities_use_no_torch_import(api, monkeypatch):
     assert items["ncu_live"]["status"] == "unavailable"
 
 
+def test_observation_bundle_integrity_pagination_and_missing(api):
+    from hqsb.observation.storage import EvidenceWriter, publish
+
+    old = recorded_run(api)
+    assert api.client.get(PREFIX + f"/runs/{old['id']}/observations").json()["availability"] == "not_collected"
+    run = recorded_run(api)
+    directory = api.settings.data_dir / "captures" / run["id"]
+    writer = EvidenceWriter(directory, {"run_id": run["id"]})
+    for index in range(5):
+        writer.offer("token", {"index": index})
+    report = writer.close(execution_status="completed", cleanup_status="succeeded")
+    publish(directory, expected_run_id=run["id"])
+    first = api.client.get(PREFIX + f"/runs/{run['id']}/observations/records?limit=2").json()
+    second = api.client.get(PREFIX + f"/runs/{run['id']}/observations/records?limit=2&after={first['next_after']}").json()
+    assert [r["seq"] for r in first["items"] + second["items"]] == [1, 2, 3, 4]
+    summary = api.client.get(PREFIX + f"/runs/{run['id']}/observations")
+    assert summary.status_code == 200
+    assert summary.json()["record_counts"]["token"] == 5
+    manifest = api.client.get(PREFIX + f"/runs/{run['id']}/observations/manifest")
+    assert manifest.status_code == 200
+    download = api.client.get(PREFIX + f"/runs/{run['id']}/observations/artifacts/0")
+    assert download.status_code == 200
+    assert hashlib.sha256(download.content).hexdigest() == manifest.json()["artifacts"][0]["sha256"]
+    assert api.client.get(PREFIX + f"/runs/{run['id']}/observations/artifacts/-1").status_code == 404
+    artifact = directory / report["artifacts"][0]["path"]
+    artifact.write_text(artifact.read_text() + " ")
+    assert api.client.get(PREFIX + f"/runs/{run['id']}/observations").status_code == 409
+    assert api.client.get(PREFIX + f"/runs/{run['id']}/observations/artifacts/0").status_code == 409
+    artifact.unlink()
+    assert api.client.get(PREFIX + f"/runs/{run['id']}/observations").status_code == 409
+
+
+def test_observation_comparison_rejects_unbounded_or_extra_input(api):
+    for body in ({"run_ids": []}, {"run_ids": ["x", "y", "z"]},
+                 {"run_ids": ["x", "y"], "command": "forbidden"}):
+        assert api.client.post(PREFIX + "/observation-comparisons", json=body).status_code == 422
+
+
+def test_instant_memory_and_flow_events_are_retained_without_fake_duration(api):
+    run = recorded_run(api)
+    put_trace(api, run, [{"ph": "i", "ts": 10, "cat": "cpu_instant_event", "name": "[memory]", "args": {"Bytes": -16}},
+                         {"ph": "s", "ts": 11, "id": 7, "cat": "flow", "name": "launch"}])
+    page = api.client.get(PREFIX + f"/runs/{run['id']}/trace/events").json()
+    assert [row["phase"] for row in page["items"]] == ["i", "s"]
+    assert page["items"][0]["duration_ms"] == 0
+    assert page["items"][0]["args"]["Bytes"] == -16
+    assert page["items"][1]["flow_id"] == "7"
+
+
 def test_old_request_has_no_fabricated_capture_and_running_is_pending(api):
     old = recorded_run(api)
     response = api.client.get(PREFIX + f"/runs/{old['id']}/analysis")
