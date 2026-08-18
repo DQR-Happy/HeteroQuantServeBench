@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { api, fmt } from '../api/client';
 import type { Run, RunPage } from '../api/types';
 import { Chart, PageHead, Panel, QueryState } from '../components';
+import MechanismComparison from '../features/observability/MechanismComparison';
 
 type Comparison = { items: Run[]; comparable: boolean; reasons: string[]; notice: string };
 export default function Compare() {
@@ -70,6 +71,9 @@ export default function Compare() {
       </Panel>
       {result && (
         <>
+          <Panel title="机制证据差异">
+            <MechanismComparison ids={result.items.map((r) => r.id)} />
+          </Panel>
           <Alert
             className="section-gap"
             showIcon

@@ -6,6 +6,7 @@ import PhaseTimeline from './PhaseTimeline';
 import OperatorTable from './OperatorTable';
 import TraceExplorer from './TraceExplorer';
 import OptimizationFindings from './OptimizationFindings';
+import MechanismPanel from './MechanismPanel';
 import type { Observation } from './types';
 
 export default function ObservationPanel({
@@ -23,7 +24,13 @@ export default function ObservationPanel({
     <>
       <div className="toolbar observation-toolbar">
         <Space wrap>
-          <Tag color="green">{observation.mode === 'operators' ? '算子诊断' : '基础观测'}</Tag>
+          <Tag color="green">
+            {
+              { operators: '算子诊断', memory: '内存诊断', pages: '页诊断', basic: '基础观测' }[
+                observation.mode
+              ]
+            }
+          </Tag>
           <span className="small muted">{observation.clock_domain}</span>
         </Space>
         <Space wrap>
@@ -54,7 +61,13 @@ export default function ObservationPanel({
         }
       />
       <Tabs
+        defaultActiveKey="phases"
         items={[
+          {
+            key: 'mechanisms',
+            label: '布局与系统机制',
+            children: <MechanismPanel runId={runId} />,
+          },
           {
             key: 'phases',
             label: '阶段与逐 token',

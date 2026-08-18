@@ -1,4 +1,4 @@
-export type ObservationMode = 'off' | 'basic' | 'operators';
+export type ObservationMode = 'off' | 'basic' | 'operators' | 'memory' | 'pages';
 export type PhaseSpan = { name: string; start_ms: number; duration_ms: number; source: string };
 export type TokenSpan = {
   index: number;
