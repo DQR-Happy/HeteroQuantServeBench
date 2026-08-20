@@ -33,10 +33,8 @@ export default function MemoryFlow() {
     (run) =>
       run.kind === 'generate' &&
       run.state === 'completed' &&
-      (run.config.observation_mode === 'operators' ||
-        run.config.observation_mode === 'basic' ||
-        run.metrics.observation?.mode === 'operators' ||
-        run.metrics.observation?.mode === 'basic'),
+      !!(run.config.observation_mode ?? run.metrics.observation?.mode) &&
+      (run.config.observation_mode ?? run.metrics.observation?.mode) !== 'off',
   );
   const fallback =
     candidates.find(
@@ -86,7 +84,7 @@ export default function MemoryFlow() {
     weights?.sampled_at ?? (loadId ? load.data?.updated_at : inventory.data?.sampled_at);
   const options = candidates.map((entry) => ({
     value: entry.id,
-    label: `${date(entry.created_at)} · ${entry.config.observation_mode === 'operators' ? '算子详录' : '基础观测'} · ${entry.id.slice(0, 14)}`,
+    label: `${date(entry.created_at)} · ${{ operators: '算子详录', basic: '基础观测', memory: '内存诊断', pages: '页诊断', off: '关闭详录' }[entry.config.observation_mode ?? entry.metrics.observation?.mode ?? 'off'] ?? '未标注'} · ${entry.id.slice(0, 14)}`,
   }));
   if (run && !options.some((entry) => entry.value === run.id))
     options.unshift({ value: run.id, label: `${date(run.created_at)} · ${run.id.slice(0, 14)}` });
@@ -132,6 +130,7 @@ export default function MemoryFlow() {
                   {historical ? '历史部署版本' : '当前部署版本的请求'}
                 </Tag>
                 <Link to={`/runs/${run.id}`}>查看完整运行 →</Link>
+                <Link to={`/observations?run=${run.id}`}>机制证据 →</Link>
                 <Button
                   href={`${base}/runs/${run.id}/trace?format=chrome`}
                   disabled={!run.metrics.observation?.profile?.trace_available}

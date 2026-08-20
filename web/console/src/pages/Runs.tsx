@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { App, Button, Input, Select, Space, Table, Tabs, Tag, Alert } from 'antd';
 import { DownloadOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { api, base, date, fmt, gib, terminal } from '../api/client';
 import type { Run, RunPage } from '../api/types';
@@ -96,6 +96,18 @@ export function Runs() {
             },
             { title: '类型', dataIndex: 'kind', render: runKindLabel },
             { title: '部署', render: (_, r) => r.config.deployment.name },
+            {
+              title: '观测',
+              render: (_, r) =>
+                (r.config.observation_mode ?? r.metrics.observation?.mode) &&
+                (r.config.observation_mode ?? r.metrics.observation?.mode) !== 'off' ? (
+                  <Link to={`/observations?run=${r.id}`}>
+                    {r.config.observation_mode ?? r.metrics.observation?.mode}
+                  </Link>
+                ) : (
+                  <span className="muted">未采集</span>
+                ),
+            },
             { title: '状态', dataIndex: 'state', render: (s: string) => <Status state={s} /> },
             { title: '首内容 / ms', render: (_, r) => fmt(r.metrics.console_first_content_ms) },
             { title: '输出 token', render: (_, r) => fmt(r.metrics.output_tokens, 0) },
@@ -109,6 +121,7 @@ export function Runs() {
 
 export function RunDetail() {
   const { id } = useParams();
+  const [params, setParams] = useSearchParams();
   const query = useRun(id);
   const r = query.data;
   const { message } = App.useApp();
@@ -122,6 +135,11 @@ export function RunDetail() {
         extra={
           <Space>
             {r && <Status state={r.state} />}
+            {r?.kind === 'generate' && (
+              <Link to={`/observations?run=${r.id}`}>
+                <Button>机制观测</Button>
+              </Link>
+            )}
             {r?.kind === 'generate' && (
               <Link to={`/memory-flow?run=${encodeURIComponent(r.id)}`}>
                 <Button>内存结构与数据流</Button>
@@ -170,6 +188,23 @@ export function RunDetail() {
           </div>
           <Panel>
             <Tabs
+              activeKey={
+                ['observation', 'config', 'metrics', 'identity', 'output'].includes(
+                  params.get('tab') ?? '',
+                )
+                  ? params.get('tab')!
+                  : 'output'
+              }
+              onChange={(tab) =>
+                setParams(
+                  (prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set('tab', tab);
+                    return next;
+                  },
+                  { replace: true },
+                )
+              }
               items={[
                 {
                   key: 'output',

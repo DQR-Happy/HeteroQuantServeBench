@@ -326,6 +326,9 @@ export default function Playground() {
             {submitted && (
               <div className="output-footer">
                 <span>清理状态：{run.data?.cleanup ?? 'pending'} · 质量未评估</span>
+                {run.data && terminal(run.data.state) && (
+                  <Link to={`/observations?run=${submitted.id}`}>检查机制证据 →</Link>
+                )}
                 <Link to={`/runs/${submitted.id}`}>
                   查看完整运行 <ArrowRightOutlined />
                 </Link>

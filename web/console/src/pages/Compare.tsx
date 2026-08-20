@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Select, Space, Table, Tag } from 'antd';
-import { Link } from 'react-router-dom';
+import { Alert, App, Button, Select, Table, Tag } from 'antd';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, fmt } from '../api/client';
 import type { Run, RunPage } from '../api/types';
 import { Chart, PageHead, Panel, QueryState } from '../components';
@@ -10,8 +10,21 @@ import MechanismComparison from '../features/observability/MechanismComparison';
 type Comparison = { items: Run[]; comparable: boolean; reasons: string[]; notice: string };
 export default function Compare() {
   const { message } = App.useApp();
-  const [ids, setIds] = useState<string[]>([]);
-  const [result, setResult] = useState<Comparison>();
+  const [params, setParams] = useSearchParams();
+  const left = params.get('left') ?? undefined;
+  const right = params.get('right') ?? undefined;
+  const ids = [left, right].filter((id): id is string => !!id);
+  const setCandidate = (side: string, value: string) => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set(side, value);
+      return next;
+    });
+    setStored(undefined);
+  };
+  const selectionKey = ids.join(':');
+  const [stored, setStored] = useState<{ key: string; body: Comparison }>();
+  const result = stored?.key === selectionKey ? stored.body : undefined;
   const [busy, setBusy] = useState(false);
   const query = useQuery({
     queryKey: ['comparison-candidates'],
@@ -19,9 +32,13 @@ export default function Compare() {
     refetchInterval: 10000,
   });
   const compare = async () => {
+    setStored(undefined);
     setBusy(true);
     try {
-      setResult(await api<Comparison>('/comparisons', { run_ids: ids }));
+      setStored({
+        key: selectionKey,
+        body: await api<Comparison>('/comparisons', { run_ids: ids }),
+      });
     } catch (e) {
       void message.error((e as Error).message);
     } finally {
@@ -33,47 +50,57 @@ export default function Compare() {
       <PageHead
         kicker="COMPARE WITH CONTEXT"
         title="运行对比"
-        description="先检查输入与测量口径，再阅读数字。单次交互结果用于定位问题，不能自动形成加速结论。"
+        description="固定基线 A 与候选 B，先检查控制变量，再阅读机制变化和请求指标。"
       />
-      <Panel
-        title="选择 2–6 次已完成的推理"
-        subtitle="候选来自最近 100 条任务。部署加载与失败请求不参与对比。"
-      >
+      <Panel title="对照对象" subtitle="候选来自最近 100 条任务。部署加载与失败请求不参与对比。">
         <QueryState error={query.error} />
-        <Space.Compact block>
-          <Select
-            aria-label="选择对比运行"
-            mode="multiple"
-            maxCount={6}
-            value={ids}
-            onChange={(value) => {
-              setIds(value);
-              setResult(undefined);
-            }}
-            placeholder="选择运行 ID"
-            style={{ width: '100%' }}
-            options={query.data?.items
-              .filter((r) => r.kind === 'generate' && r.state === 'completed')
-              .map((r) => ({
-                value: r.id,
-                label: `${r.id.slice(0, 16)} · ${r.config.deployment.name} · ${r.metrics.output_tokens ?? '?'} tokens`,
-              }))}
-          />
-          <Button
-            type="primary"
-            loading={busy}
-            disabled={ids.length < 2}
-            onClick={() => void compare()}
-          >
-            验证并对比
-          </Button>
-        </Space.Compact>
+        <div className="comparison-pickers">
+          {(['left', 'right'] as const).map((side) => (
+            <div key={side}>
+              <label htmlFor={`compare-${side}`}>{side === 'left' ? '基线 A' : '候选 B'}</label>
+              <Select
+                id={`compare-${side}`}
+                aria-label={side === 'left' ? '基线 A' : '候选 B'}
+                showSearch
+                optionFilterProp="label"
+                value={side === 'left' ? left : right}
+                onChange={(value) => setCandidate(side, value)}
+                placeholder="选择运行 ID"
+                style={{ width: '100%' }}
+                options={query.data?.items
+                  .filter((r) => r.kind === 'generate' && r.state === 'completed')
+                  .map((r) => ({
+                    value: r.id,
+                    disabled: r.id === (side === 'left' ? right : left),
+                    label: `${r.id.slice(0, 16)} · ${r.config.deployment.name} · ${r.metrics.output_tokens ?? '?'} tokens`,
+                  }))}
+              />
+              {(side === 'left' ? left : right) && (
+                <div className="help-text">
+                  <Link className="mono" to={`/observations?run=${side === 'left' ? left : right}`}>
+                    打开当前运行的观测包 →
+                  </Link>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <MechanismComparison ids={ids} />
+      </Panel>
+      <Panel
+        title="请求指标对照"
+        subtitle="用于延迟诊断，机制对照在上方独立检查；单次运行不能替代重复实验。"
+      >
+        <Button
+          loading={busy}
+          disabled={ids.length !== 2 || left === right}
+          onClick={() => void compare()}
+        >
+          验证请求口径并显示指标
+        </Button>
       </Panel>
       {result && (
         <>
-          <Panel title="机制证据差异">
-            <MechanismComparison ids={result.items.map((r) => r.id)} />
-          </Panel>
           <Alert
             className="section-gap"
             showIcon
