@@ -74,6 +74,7 @@ export type Run = {
     messages?: Message[];
     max_output_tokens?: number;
     deadline_ms?: number;
+    observation_mode?: ObservationMode;
   };
   output: string;
   metrics: Metrics;
