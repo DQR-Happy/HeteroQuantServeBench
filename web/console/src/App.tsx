@@ -1,6 +1,17 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App as AntApp, Button, Input, Layout, Menu, Spin, Tag, Tooltip } from 'antd';
+import {
+  Alert,
+  App as AntApp,
+  Button,
+  Drawer,
+  Input,
+  Layout,
+  Menu,
+  Spin,
+  Tag,
+  Tooltip,
+} from 'antd';
 import {
   DashboardOutlined,
   ThunderboltOutlined,
@@ -22,6 +33,7 @@ import { api } from './api/client';
 import type { Session } from './api/types';
 import { QueryState } from './components';
 const Overview = lazy(() => import('./pages/Overview'));
+const Observations = lazy(() => import('./pages/Observations'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Devices = lazy(() => import('./pages/Devices'));
 const MemoryFlow = lazy(() => import('./pages/MemoryFlow'));
@@ -62,23 +74,19 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
           </strong>
         </Link>
         <div>
-          <div className="eyebrow">HETEROGENEOUS INFERENCE LAB</div>
-          <h1>
-            让优化，
-            <br />
-            有迹可循。
-          </h1>
+          <div className="eyebrow">推理优化 · 观测与证据</div>
+          <h1>HQSB 观测工作台</h1>
           <p>
-            从真实请求到实验证据，
+            检查一次优化改变了什么。
             <br />
-            连接模型、算子与异构算力。
+            从真实模型、内存布局到操作系统页。
           </p>
         </div>
         <span className="small muted">OBSERVE · COMPARE · EXPLAIN</span>
       </div>
       <main className="login-form">
-        <Tag color="green">私有工作台</Tag>
-        <h2>连接你的推理实验室</h2>
+        <Tag>私有会话</Tag>
+        <h2>连接工作台</h2>
         <p className="muted">
           输入服务启动时生成的访问令牌。令牌保存在远端私有数据目录，不会写入浏览器存储。
         </p>
@@ -127,7 +135,17 @@ export default function App() {
   const location = useLocation();
   const { message } = AntApp.useApp();
   const [signedOut, setSignedOut] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => window.matchMedia('(max-width: 991px)').matches);
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 620px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 620px)');
+    const update = () => {
+      setMobile(media.matches);
+      if (media.matches) setCollapsed(true);
+    };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const session = useQuery({
     queryKey: ['session'],
     queryFn: () => api<Session>('/session'),
@@ -159,23 +177,41 @@ export default function App() {
       </div>
     );
   const items = [
-    { key: '/', icon: <DashboardOutlined />, label: '总览' },
-    { key: '/playground', icon: <ThunderboltOutlined />, label: '推理工作台' },
-    { key: '/devices', icon: <DeploymentUnitOutlined />, label: '设备与部署' },
-    { key: '/memory-flow', icon: <SwapOutlined />, label: '内存与数据流' },
-    { key: '/runs', icon: <UnorderedListOutlined />, label: '运行记录' },
-    { key: '/research', icon: <FileSearchOutlined />, label: '深度分析' },
-    { type: 'divider' as const },
-    { key: '/compare', icon: <SwapOutlined />, label: '运行对比' },
-    { key: '/quantization', icon: <ExperimentOutlined />, label: '量化与质量' },
-    { key: '/kernels', icon: <CodeOutlined />, label: '算子与配置' },
-    { key: '/efficiency', icon: <BarChartOutlined />, label: '性能与能效' },
-    { key: '/evidence', icon: <FileSearchOutlined />, label: '证据中心' },
-    { key: '/experiments', icon: <ExperimentOutlined />, label: '实验地图' },
-    { type: 'divider' as const },
-    { key: '/showcase', icon: <PlayCircleOutlined />, label: '技术展示' },
-    { key: '/settings', icon: <SettingOutlined />, label: '设置与帮助' },
+    {
+      type: 'group' as const,
+      label: '观测闭环',
+      children: [
+        { key: '/', icon: <DashboardOutlined />, label: '工作空间' },
+        { key: '/playground', icon: <ThunderboltOutlined />, label: '推理工作台' },
+        { key: '/runs', icon: <UnorderedListOutlined />, label: '运行记录' },
+        { key: '/observations', icon: <DeploymentUnitOutlined />, label: '机制观测' },
+        { key: '/memory-flow', icon: <SwapOutlined />, label: '内存与数据流' },
+        { key: '/compare', icon: <SwapOutlined />, label: '运行对比' },
+      ],
+    },
+    {
+      type: 'group' as const,
+      label: '实验与证据',
+      children: [
+        { key: '/research', icon: <FileSearchOutlined />, label: '深度分析' },
+        { key: '/quantization', icon: <ExperimentOutlined />, label: '量化与质量' },
+        { key: '/kernels', icon: <CodeOutlined />, label: '算子与配置' },
+        { key: '/efficiency', icon: <BarChartOutlined />, label: '性能与能效' },
+        { key: '/evidence', icon: <FileSearchOutlined />, label: '证据中心' },
+        { key: '/experiments', icon: <ExperimentOutlined />, label: '实验地图' },
+      ],
+    },
+    {
+      type: 'group' as const,
+      label: '环境与指引',
+      children: [
+        { key: '/devices', icon: <DeploymentUnitOutlined />, label: '设备与部署' },
+        { key: '/showcase', icon: <PlayCircleOutlined />, label: '技术展示' },
+        { key: '/settings', icon: <SettingOutlined />, label: '设置与帮助' },
+      ],
+    },
   ];
+  const navigation = items.flatMap((group) => group.children);
   const current = location.pathname.startsWith('/runs/') ? '/runs' : location.pathname;
   const logout = async () => {
     try {
@@ -186,63 +222,88 @@ export default function App() {
       void message.error((e as Error).message);
     }
   };
+  const navContent = (compact: boolean) => (
+    <>
+      <Link
+        className="brand"
+        to="/"
+        onClick={() => {
+          if (mobile) setCollapsed(true);
+        }}
+      >
+        <span className="brand-symbol">H</span>
+        {!compact && (
+          <strong>
+            HQSB<small>推理观测工作台</small>
+          </strong>
+        )}
+      </Link>
+      <Menu
+        theme="light"
+        mode="inline"
+        selectedKeys={[current]}
+        items={items}
+        onClick={(e) => {
+          navigate(e.key);
+          if (mobile) setCollapsed(true);
+        }}
+      />
+      <div className="sidebar-foot">
+        <span className="live-dot" />
+        {!compact && (
+          <span>
+            已连接私有会话<small>服务 v{session.data?.version}</small>
+          </span>
+        )}
+      </div>
+    </>
+  );
   return (
     <Layout className="app-layout">
       <a className="skip-link" href="#main-content">
         跳到主内容
       </a>
-      <Layout.Sider
-        className="sidebar"
-        width={232}
-        collapsedWidth={76}
-        collapsed={collapsed}
-        breakpoint="lg"
-        onBreakpoint={setCollapsed}
-      >
-        <Link className="brand" to="/">
-          <span className="brand-symbol">H</span>
-          {!collapsed && (
-            <strong>
-              HQSB<small>INFERENCE CONSOLE</small>
-            </strong>
-          )}
-        </Link>
-        {!collapsed && <div className="sidebar-label">WORKSPACE</div>}
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[current]}
-          items={items}
-          onClick={(e) => navigate(e.key)}
-        />
-        <div className="sidebar-foot">
-          <span className="live-dot" />
-          {!collapsed && (
-            <span>
-              真实执行 · 证据可追溯<small>CONSOLE v{session.data?.version}</small>
-            </span>
-          )}
-        </div>
-      </Layout.Sider>
-      <Layout className="main-layout" style={{ marginLeft: collapsed ? 76 : 232 }}>
+      {mobile ? (
+        <Drawer
+          title="工作空间导航"
+          placement="left"
+          width={268}
+          open={!collapsed}
+          onClose={() => setCollapsed(true)}
+          className="mobile-navigation"
+          styles={{ body: { padding: 0, background: 'var(--surface-sidebar)' } }}
+        >
+          {navContent(false)}
+        </Drawer>
+      ) : (
+        <Layout.Sider
+          className="sidebar"
+          width={232}
+          collapsedWidth={56}
+          collapsed={collapsed}
+          breakpoint="lg"
+          onBreakpoint={setCollapsed}
+        >
+          {navContent(collapsed)}
+        </Layout.Sider>
+      )}
+      <Layout className="main-layout" style={{ marginLeft: mobile ? 0 : collapsed ? 56 : 232 }}>
         <header className="topbar">
           <div>
             <Button
               type="text"
-              aria-label="折叠菜单"
+              aria-label={mobile ? '打开导航' : '折叠菜单'}
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed((v) => !v)}
             />
             <span className="breadcrumb">
-              HQSB / <strong>{items.find((i) => i.key === current)?.label ?? '运行详情'}</strong>
+              HQSB /{' '}
+              <strong>{navigation.find((i) => i.key === current)?.label ?? '运行详情'}</strong>
             </span>
           </div>
           <div className="topbar-right">
-            <span className="small muted">HeteroQuantServeBench</span>
-            <Tag className="version-tag">UI v0.2.1</Tag>
-            <Tag className="live-tag">
-              <span className="live-dot" /> LIVE
-            </Tag>
+            <span className="small muted">单机真实模型 · 证据工作空间</span>
+            <Tag className="version-tag">UI v0.3</Tag>
             <Tooltip title="退出会话；正在执行的请求不会自动取消">
               <Button
                 type="text"
@@ -262,6 +323,7 @@ export default function App() {
               <Route path="/memory-flow" element={<MemoryFlow />} />
               <Route path="/runs" element={<Runs />} />
               <Route path="/runs/:id" element={<RunDetail />} />
+              <Route path="/observations" element={<Observations />} />
               <Route path="/research" element={<Research />} />
               <Route path="/compare" element={<Compare />} />
               <Route path="/quantization" element={<Evidence mode="quantization" />} />
@@ -276,7 +338,7 @@ export default function App() {
           </Suspense>
         </main>
         <footer className="app-footer">
-          HQSB · Every optimization needs evidence.<span>交互诊断 ≠ 正式性能认证</span>
+          HQSB · 观测 / 对照 / 追溯<span>诊断采集有开销 · 质量与正式性能需独立验证</span>
         </footer>
       </Layout>
     </Layout>
