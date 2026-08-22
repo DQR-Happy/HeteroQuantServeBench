@@ -104,3 +104,6 @@ node_modules/
 *.tsbuildinfo
 playwright-report/
 test-results/
+
+# Generated, self-contained gallery of private validation screenshots.
+/web/console/public/preview.html
