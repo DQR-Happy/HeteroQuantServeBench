@@ -26,18 +26,21 @@ test('real sealed memory evidence is visible and downloadable after model unload
   await page.goto('/');
   await page.getByLabel('访问令牌', { exact: true }).fill(token);
   await page.getByRole('button', { name: '进入工作台' }).click();
-  await expect(page.getByRole('heading', { name: /从一个 token/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '工作空间', exact: true })).toBeVisible();
   await page.goto(`/runs/${report.selected_runs.memory}`);
   await page.getByRole('tab', { name: '全链路观测', exact: true }).click();
   await expect(page.getByText('内存诊断', { exact: true })).toBeVisible();
   await page.getByRole('tab', { name: '布局与系统机制', exact: true }).click();
   await expect(page.getByText('采集 complete · supervisor_acknowledged')).toBeVisible();
+  await page.getByLabel('搜索观测指标').fill('cpu_minor_fault');
   await expect(
     page.getByRole('cell', { name: 'cpu_minor_fault_delta', exact: true }),
   ).toBeVisible();
   await page.getByRole('tab', { name: '申请与回收', exact: true }).click();
   await page.getByRole('tab', { name: 'Tensor 关联', exact: true }).click();
-  await expect(page.locator('.json-view').filter({ hasText: 'snapshot_correlated' })).toBeVisible();
+  await expect(
+    page.getByRole('cell', { name: 'snapshot_correlated', exact: true }).first(),
+  ).toBeVisible();
   await page.getByRole('tab', { name: '原始证据', exact: true }).click();
   const manifestReady = page.waitForEvent('download');
   await page.getByRole('link', { name: '下载 manifest（含源码哈希）', exact: true }).click();

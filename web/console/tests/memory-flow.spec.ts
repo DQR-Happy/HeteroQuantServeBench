@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('访问令牌', { exact: true }).fill(token);
   await page.getByRole('button', { name: '进入工作台' }).click();
-  await expect(page.getByRole('heading', { name: /从一个 token/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '工作空间', exact: true })).toBeVisible();
 });
 
 async function savedRuns(page: Page) {
@@ -79,10 +79,18 @@ test('copy paths match the real authenticated API and filter saved events', asyn
   const response = await page.request.get(`${api}/runs/${run!.id}/dataflow`);
   expect(response.ok()).toBe(true);
   const flow = (await response.json()) as Dataflow;
-  expect(flow.status).toBe('available');
+  expect(['available', 'partial']).toContain(flow.status);
+  if (flow.status === 'partial') {
+    // A bounded capture or unknown copy byte count must stay partial; its
+    // projected events are still valid evidence for this interaction test.
+    expect(
+      flow.coverage.trace_status !== 'available' || flow.coverage.bytes_complete !== true,
+    ).toBe(true);
+  }
   expect(flow.totals.kernel_events).toBeGreaterThan(0);
   expect(flow.coverage.trace_sha256).toMatch(/^[a-f0-9]{64}$/);
   await page.goto(`/memory-flow?run=${run!.id}`);
+  await expect(page.locator('.mf-trace-heading .ant-tag')).toHaveText(flow.status);
   const summary = page.getByTestId('transfer-summary');
   await expect(summary).toContainText(flow.totals.copy_events.toLocaleString('zh-CN'));
   await expect(summary).toContainText(flow.totals.kernel_events.toLocaleString('zh-CN'));

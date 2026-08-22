@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('访问令牌', { exact: true }).fill(token);
   await page.getByRole('button', { name: '进入工作台' }).click();
-  await expect(page.getByRole('heading', { name: /从一个 token/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '工作空间', exact: true })).toBeVisible();
 });
 
 test('every route renders real API data without browser errors', async ({ page }) => {
