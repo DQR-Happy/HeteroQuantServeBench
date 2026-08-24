@@ -134,7 +134,10 @@ class OperatorCapture:
     MAX_OPERATORS = 300
     MAX_TRACE_BYTES = 128 * 1024 * 1024
 
-    def __init__(self, torch, *, enabled=False, capture_dir=None, capture_id=None):
+    def __init__(self, torch, *, enabled=False, capture_dir=None, capture_id=None, max_decode_steps=8):
+        if type(max_decode_steps) is not int or not 0 <= max_decode_steps <= 32:
+            raise ValueError("PROFILER_DECODE_BOUND_INVALID")
+        self.MAX_DECODE_STEPS = max_decode_steps
         self.torch = torch
         self.enabled = enabled
         self.profiler = None

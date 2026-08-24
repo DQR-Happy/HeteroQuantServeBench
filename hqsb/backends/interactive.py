@@ -28,6 +28,7 @@ class InteractivePyTorch:
         self.load_inventory = None
         self.source_environment = None
         self.device_lease = None
+        self.tokenizer_identity = None
 
     def load(self) -> dict:
         try:
@@ -102,6 +103,9 @@ class InteractivePyTorch:
         from hqsb.observation.identity import environment
 
         self.source_environment = environment(Path(__file__).resolve().parents[2])
+        from hqsb.core.optimization import fingerprint
+
+        self.tokenizer_identity = fingerprint({key: value for key, value in identity.items() if key.startswith("tokenizer")})
         self.load_inventory = parameter_inventory(self.model)
         return {
             "load_seconds": seconds,
@@ -136,7 +140,18 @@ class InteractivePyTorch:
         }
 
     def generate(self, request: dict, cancel):
+        if request.get("experiment_role") == "quality":
+            from hqsb.backends.quality_evaluation import evaluate
+
+            yield from evaluate(self, request, cancel)
+            return
         import torch
+
+        from hqsb.backends.optimization_receipt import resolve_request, receipt
+        from hqsb.observation.contracts import resolve_observation, digest
+
+        request, optimization = resolve_request(self.config, request)
+        plan = resolve_observation(request.get("observation_plan"), request.get("observation_mode", "basic"))
 
         if self.model is None:
             raise RuntimeError("Model is not loaded")
@@ -160,7 +175,9 @@ class InteractivePyTorch:
                     "model_identity": self.source_identity,
                     "attention_requested": self.config["attention"],
                     "dtype": "float16", "cleanup_policy": request.get("cleanup_policy", "empty_cache"),
-                }, mode)
+                    "optimization_plan": optimization,
+                    "experiment_links": request.get("experiment_links", {}),
+                }, mode, request.get("observation_plan"))
                 session.start(self.model, self.load_inventory)
             except (OSError, ValueError, RuntimeError) as exc:
                 capture_errors.append(f"capture_start:{type(exc).__name__}:{exc}"[:400])
@@ -186,9 +203,10 @@ class InteractivePyTorch:
         )
         capture = OperatorCapture(
             torch,
-            enabled=observation.mode == "operators",
+            enabled=plan.collects("operators"),
             capture_dir=request.get("capture_dir"),
             capture_id=request.get("capture_id"),
+            max_decode_steps=plan.max_decode_steps,
         )
         observation.data["profile"] = capture.summary
         ids, times, text = [], [], ""
@@ -207,6 +225,12 @@ class InteractivePyTorch:
                     enable_thinking=False,
                 )
             with observation.phase("tokenize"):
+                if "experiment_input_tokens" in request:
+                    count = request["experiment_input_tokens"]
+                    if type(count) is not int or not 2 <= count <= 512:
+                        raise ValueError("EXPERIMENT_INPUT_TOKEN_BOUND")
+                    pattern = self.tokenizer.encode("请解释模型推理和内存缓存。", add_special_tokens=False)
+                    request = {**request, "input_token_ids": (pattern * (count // len(pattern) + 1))[:count]}
                 if "input_token_ids" in request:
                     supplied = request["input_token_ids"]
                     if not supplied or not all(type(x) is int and 0 <= x < self.model.config.vocab_size for x in supplied):
@@ -234,6 +258,7 @@ class InteractivePyTorch:
                 raise ValueError(
                     f"Context limit exceeded: {input_count}+{limit}>{self.config['context_limit']}"
                 )
+            input_token_sha256 = digest(inputs["input_ids"].tolist()[0])
             with observation.phase("input_transfer"):
                 inputs = {key: value.to("cuda") for key, value in inputs.items()}
             current = inputs["input_ids"]
@@ -295,7 +320,7 @@ class InteractivePyTorch:
                         capture.step_completed()
                     if index == 0:
                         observation.snapshot("after_prefill", self.memory)
-                    if session and (index == 0 or (mode in {"memory", "pages"} and index <= 8)):
+                    if session and (index == 0 or ((plan.collects("allocator") or plan.collects("pages")) and index <= plan.max_decode_steps)):
                         session.boundary("after_prefill" if index == 0 else "decode_step",
                                          cache=cache, step=index, detailed=index == 0)
                     stream_start = observation.now_ms()
@@ -353,6 +378,7 @@ class InteractivePyTorch:
                     else None,
                     "token_itl_ms": [b - a for a, b in zip(times, times[1:])],
                     "generated_token_ids": ids,
+                    "input_token_sha256": input_token_sha256,
                     "memory": memory,
                     "measurement_profile": "interactive-greedy-host-monotonic-v1",
                     "quality": "not_evaluated",
@@ -364,7 +390,7 @@ class InteractivePyTorch:
             with observation.phase("profiler_finalize"):
                 capture.finish(total_tokens=len(ids))
                 capture.save_summary()
-                if session and mode == "operators":
+                if session and plan.collects("operators"):
                     session.emit("framework_profile", capture.summary)
                     if capture.summary["status"] != "complete":
                         session.problems.append("FRAMEWORK_PROFILE_PARTIAL_OR_UNAVAILABLE")
@@ -377,9 +403,21 @@ class InteractivePyTorch:
                     cleanup_status = "succeeded"
             finally:
                 observation.snapshot("after_cleanup", self.memory)
+                execution_receipt = receipt(self, request, optimization,
+                    role="diagnostic" if mode != "off" else "performance",
+                    output_hash=digest(ids), status=execution_status, cleanup=cleanup_status,
+                    proof={"generated_tokens": len(ids), "requested_token_limit": limit,
+                           "output_tokens": len(ids),
+                           "input_token_sha256": input_token_sha256 if result is not None else None,
+                           "runtime_e2e_ms": result["metrics"]["runtime_e2e_ms"] if result is not None else None,
+                           "cleanup_call": "torch.cuda.empty_cache" if request["cleanup_policy"] == "empty_cache" else "empty_cache_not_called",
+                           "after_cleanup_allocator": self.memory()})
+                if result is not None:
+                    result["metrics"]["optimization_receipt"] = execution_receipt
                 if session:
                     try:
                         session.boundary("after_cleanup", detailed=True)
+                        session.emit("optimization_receipt", execution_receipt)
                         report = session.finish(execution_status, cleanup_status)
                         if result is not None:
                             result["metrics"]["observation_bundle"] = {

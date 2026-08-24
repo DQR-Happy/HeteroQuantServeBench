@@ -4,7 +4,7 @@ import threading
 import time
 
 from hqsb.backends.tensor_memory import cache_inventory, parameter_inventory
-from hqsb.observation.contracts import ObservationPlan
+from hqsb.observation.contracts import resolve_observation
 from hqsb.observation.procfs import (
     page_sample,
     process_key,
@@ -15,8 +15,9 @@ from hqsb.observation.storage import EvidenceWriter
 
 
 class CaptureSession:
-    def __init__(self, torch, directory, context, mode):
-        self.torch, self.plan = torch, ObservationPlan(mode=mode)
+    def __init__(self, torch, directory, context, mode, plan=None):
+        self.torch, self.plan = torch, resolve_observation(plan, mode)
+        self.links = context.get("experiment_links", {})
         self.key = process_key()
         context = {**context, "process": self.key, "plan": self.plan.as_dict()}
         self.writer = EvidenceWriter(
@@ -33,6 +34,8 @@ class CaptureSession:
         )
 
     def emit(self, kind, payload):
+        if self.links:
+            payload = {**payload, "experiment_links": self.links}
         receipt = self.writer.offer(kind, payload)
         if receipt != "accepted" and receipt not in self.problems:
             self.problems.append(receipt)
@@ -48,11 +51,11 @@ class CaptureSession:
     def start(self, model, inventory=None):
         ledger = (
             parameter_inventory(model, include_addresses=True)
-            if self.plan.mode == "memory"
+            if self.plan.collects("allocator")
             else inventory or parameter_inventory(model)
         )
         self.emit("tensor_inventory", {"label": "model_loaded", "inventory": ledger})
-        if self.plan.mode == "memory":
+        if self.plan.collects("allocator"):
             try:
                 # Version-sensitive API verified against the vendor wheel on target.
                 self.torch.cuda.memory._record_memory_history(
@@ -85,10 +88,10 @@ class CaptureSession:
         )
         try:
             self.emit("os_sample", {"label": label, **sample_process(self.key)})
-            if detailed and self.plan.mode in {"memory", "pages"}:
+            if detailed and (self.plan.collects("allocator") or self.plan.collects("pages")):
                 vmas = vma_snapshot(self.key)
                 self.emit("vma_snapshot", {"label": label, **vmas})
-                if self.plan.mode == "pages":
+                if self.plan.collects("pages"):
                     self.emit(
                         "page_sample",
                         {
@@ -107,7 +110,7 @@ class CaptureSession:
                     "label": label,
                     "step": step,
                     "inventory": cache_inventory(
-                        cache, include_addresses=self.plan.mode == "memory"
+                        cache, include_addresses=self.plan.collects("allocator")
                     ),
                 },
             )
