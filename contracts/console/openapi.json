@@ -1594,6 +1594,294 @@
         }
       }
     },
+    "/api/console/v1/optimization-catalog": {
+      "get": {
+        "tags": [
+          "experiments"
+        ],
+        "summary": "Optimization Catalog",
+        "operationId": "optimization_catalog_api_console_v1_optimization_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/experiments/plans": {
+      "post": {
+        "tags": [
+          "experiments"
+        ],
+        "summary": "Create Plan",
+        "operationId": "create_plan_api_console_v1_experiments_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/experiments/{experiment_id}/plan": {
+      "get": {
+        "tags": [
+          "experiments"
+        ],
+        "summary": "Get Plan",
+        "operationId": "get_plan_api_console_v1_experiments__experiment_id__plan_get",
+        "parameters": [
+          {
+            "name": "experiment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Experiment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/experiments/{experiment_id}/jobs": {
+      "post": {
+        "tags": [
+          "experiments"
+        ],
+        "summary": "Job",
+        "operationId": "job_api_console_v1_experiments__experiment_id__jobs_post",
+        "parameters": [
+          {
+            "name": "experiment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Experiment Id"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/experiment": {
+      "get": {
+        "tags": [
+          "experiments"
+        ],
+        "summary": "Run Experiment",
+        "operationId": "run_experiment_api_console_v1_runs__run_id__experiment_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/experiment/artifacts/{index}": {
+      "get": {
+        "tags": [
+          "experiments"
+        ],
+        "summary": "Artifact",
+        "operationId": "artifact_api_console_v1_runs__run_id__experiment_artifacts__index__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/experiments/{experiment_id}/report": {
+      "get": {
+        "tags": [
+          "experiments"
+        ],
+        "summary": "Report",
+        "operationId": "report_api_console_v1_experiments__experiment_id__report_get",
+        "parameters": [
+          {
+            "name": "experiment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Experiment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{path}": {
       "get": {
         "summary": "Frontend",
@@ -1714,6 +2002,30 @@
             ],
             "title": "Observation Mode",
             "default": "basic"
+          },
+          "optimization": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization"
+          },
+          "observation_plan": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Plan"
           }
         },
         "additionalProperties": false,
@@ -1724,6 +2036,51 @@
           "messages"
         ],
         "title": "InferenceRequest"
+      },
+      "JobRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          },
+          "arm": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "candidate"
+            ],
+            "title": "Arm"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "performance",
+              "diagnostic",
+              "quality"
+            ],
+            "title": "Role"
+          },
+          "pair": {
+            "type": "integer",
+            "maximum": 19.0,
+            "minimum": 0.0,
+            "title": "Pair",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "expected_epoch",
+          "arm",
+          "role"
+        ],
+        "title": "JobRequest"
       },
       "Login": {
         "properties": {
@@ -1888,6 +2245,21 @@
           "run_ids"
         ],
         "title": "ObservationComparisonRequest"
+      },
+      "PlanRequest": {
+        "properties": {
+          "spec": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Spec"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "spec"
+        ],
+        "title": "PlanRequest"
       },
       "QuantizationRequest": {
         "properties": {
