@@ -103,7 +103,7 @@ class ConsoleService:
         mode = payload.get("observation_mode", "basic")
         if mode not in {"off", "basic", "operators", "memory", "pages"}:
             raise ServiceError("INVALID_OBSERVATION", "Unknown observation mode", 422)
-        if kind == "quantize" or mode in {"operators", "memory", "pages"} or (mode == "basic" and cfg.provider == "pytorch"):
+        if kind == "quantize" or payload.get("experiment_role") == "quality" or mode in {"operators", "memory", "pages"} or (mode == "basic" and cfg.provider == "pytorch"):
             if cfg.provider != "pytorch":
                 raise ServiceError(
                     "UNSUPPORTED_PROVIDER",
@@ -149,7 +149,7 @@ class ConsoleService:
                 )
             used = sum(
                 p.stat().st_size
-                for name in ("captures", "artifacts")
+                for name in ("captures", "artifacts", "experiments")
                 for p in (self.settings.data_dir / name).rglob("*")
                 if p.is_file() and not p.is_symlink()
             )
@@ -180,6 +180,23 @@ class ConsoleService:
                 return self.store.get(old[1])
             self._reserve()
             state, cfg = self.states[deployment_id], self.configs[deployment_id]
+            if kind == "generate":
+                from hqsb.core.optimization import resolve_plan, validate_quality_plan
+                from hqsb.observation.contracts import resolve_observation
+
+                try:
+                    resolved = resolve_plan(payload.get("optimization"), {
+                        "cleanup_policy": payload.get("cleanup_policy", "empty_cache"),
+                        "attention_backend": cfg.attention, "output_budget": payload["max_output_tokens"]},
+                        provider=cfg.provider, deployment_attention=cfg.attention)
+                    resolve_observation(payload.get("observation_plan"), payload.get("observation_mode", "basic"))
+                    if payload.get("experiment_role") == "quality":
+                        validate_quality_plan(payload.get("quality_plan"))
+                        if resolved["resolved"]["output_budget"] > 32:
+                            raise ValueError("QUALITY_GENERATION_LIMIT")
+                    payload = {**payload, "max_output_tokens": resolved["resolved"]["output_budget"]}
+                except (ValueError, KeyError) as exc:
+                    raise ServiceError("INVALID_EXPERIMENT_PLAN", str(exc), 422) from exc
             if kind in {"generate", "quantize"}:
                 if state["state"] != "ready":
                     raise ServiceError(
@@ -236,6 +253,12 @@ class ConsoleService:
                     "UNSUPPORTED_JOB", "This job kind is not implemented", 422
                 )
             safe_payload = dict(payload)
+            if "quality_plan" in safe_payload:
+                quality_plan = safe_payload["quality_plan"]
+                safe_payload["quality_plan"] = {**quality_plan, "samples": [
+                    {"id": sample.get("id", str(index)), "text_sha256": hashlib.sha256(sample["text"].encode()).hexdigest(),
+                     "expected_present": "expected" in sample, "slice": sample.get("slice", "all")}
+                    for index, sample in enumerate(quality_plan["samples"])]}
             if "messages" in safe_payload:
                 messages = safe_payload.pop("messages")
                 safe_payload["input_sha256"] = hashlib.sha256(
@@ -381,7 +404,7 @@ class ConsoleService:
                 directory = safe_directory(self.settings.data_dir / "artifacts", run_id)
                 directory.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 worker_payload.update(artifact_dir=str(directory), artifact_id=run_id)
-            elif kind == "generate" and self.configs[deployment_id].provider == "pytorch" and payload.get("observation_mode", "basic") != "off":
+            elif kind == "generate" and self.configs[deployment_id].provider == "pytorch" and (payload.get("observation_mode", "basic") != "off" or payload.get("optimization") is not None or payload.get("experiment_role") is not None):
                 directory = safe_directory(self.settings.data_dir / "captures", run_id)
                 directory.mkdir(parents=True, exist_ok=False, mode=0o700)
                 worker_payload.update(capture_dir=str(directory), capture_id=run_id)
@@ -393,6 +416,11 @@ class ConsoleService:
                 or self.store.get(run_id)["state"] == "cancel_requested",
                 max(1, remaining / 1000) if kind in {"generate", "quantize"} else 300,
             )
+            if kind == "generate" and directory is not None and (directory / "execution-receipt.json").exists():
+                from hqsb.experiments.artifacts import seal
+
+                result.setdefault("metrics", {})["experiment_bundle"] = seal(
+                    directory, run_id=run_id, status="complete" if result.get("finish_reason") not in {"cancelled", "timed_out"} else "partial")
             if kind == "generate" and result.get("metrics", {}).get("observation_bundle"):
                 from hqsb.observation.storage import publish
 
@@ -486,6 +514,13 @@ class ConsoleService:
                 )
             failure_metrics = self.store.get(run_id)["metrics"]
             if kind == "generate" and directory is not None:
+                if cleanup != "unknown":
+                    from hqsb.experiments.artifacts import seal
+
+                    try:
+                        seal(directory, run_id=run_id, status="partial", error=error)
+                    except (ValueError, OSError):
+                        pass  # The original failure remains authoritative; no complete bundle is published.
                 bundle = {"capture_status": "partial", "publication": "unsealed_interrupted"}
                 if cleanup != "unknown":
                     try:

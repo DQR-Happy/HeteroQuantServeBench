@@ -14,6 +14,7 @@ TERMINAL = frozenset({"completed", "failed", "cancelled", "timed_out", "interrup
 # Project away detailed payloads in SQLite, before allocating Python objects.
 # Full inputs, tensors, operator rows and manifests remain available via get().
 LIST_DETAIL_PATHS = (
+    "$.metrics.experiment_bundle.artifacts",
     "$.result",
     "$.config.messages",
     "$.config.actual_runtime.parameter_inventory",

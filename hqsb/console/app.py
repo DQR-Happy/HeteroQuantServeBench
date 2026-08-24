@@ -23,6 +23,7 @@ from hqsb.console.schemas import RunPage, RunRecord
 from hqsb.console.store import TERMINAL
 from hqsb.console.telemetry import Telemetry
 from hqsb.console.analysis_routes import analysis_router
+from hqsb.console.experiment_routes import experiment_router
 
 PREFIX = "/api/console/v1"
 
@@ -42,6 +43,8 @@ class InferenceRequest(BaseModel):
     deadline_ms: int = Field(120000, ge=1000, le=600000)
     save_input: bool = False
     observation_mode: Literal["off", "basic", "operators", "memory", "pages"] = "basic"
+    optimization: dict | None = None
+    observation_plan: dict | None = None
 
 
 class Login(BaseModel):
@@ -482,6 +485,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
         }
 
     app.include_router(analysis_router(settings, svc), prefix=PREFIX)
+    app.include_router(experiment_router(settings, svc), prefix=PREFIX)
 
     @app.get("/{path:path}")
     def frontend(path: str):
