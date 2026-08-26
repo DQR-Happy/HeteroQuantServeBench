@@ -41,7 +41,18 @@ def main():
     )
     parser.add_argument("--output-root", default="experiment_results/OBS/OBS-01")
     parser.add_argument("--run-id")
+    parser.add_argument("--optimization-json")
+    parser.add_argument("--observation-plan-json")
+    parser.add_argument("--experiment-role", choices=["performance", "diagnostic", "quality"])
+    parser.add_argument("--experiment-links-json")
+    parser.add_argument("--quality-plan")
     args = parser.parse_args()
+    optimization = json.loads(args.optimization_json) if args.optimization_json else None
+    from hqsb.core.optimization import resolve_plan
+
+    resolved = resolve_plan(optimization, {"attention_backend": args.attention,
+                           "cleanup_policy": args.cleanup_policy, "output_budget": args.osl})
+    args.attention = resolved["resolved"]["attention_backend"]
     if (
         not 1 <= args.isl <= 2048
         or not 1 <= args.osl <= 512
@@ -55,6 +66,9 @@ def main():
         parser.error("Invalid run ID")
     path = Path(args.output_root).expanduser().resolve() / run_id
     path.mkdir(parents=True, exist_ok=False)
+    atomic_json(path / "execution-receipt.json", {**resolved, "run_id": run_id,
+                "status": "resolved_not_applied", "measurement_role": args.experiment_role or ("performance" if args.mode == "off" else "diagnostic"),
+                "proof_scope": "load_attempt_only", "execution_status": "not_started"})
     provider = InteractivePyTorch(
         {
             "model_path": str(Path(args.model_path).expanduser()),
@@ -83,6 +97,14 @@ def main():
         }
         request["tool_ranges"] = args.nvtx
         request["cleanup_policy"] = args.cleanup_policy
+        request.update(optimization=optimization,
+                       observation_plan=json.loads(args.observation_plan_json) if args.observation_plan_json else None,
+                       experiment_role=args.experiment_role,
+                       experiment_links=json.loads(args.experiment_links_json) if args.experiment_links_json else {})
+        if args.experiment_role == "quality":
+            if not args.quality_plan:
+                raise ValueError("QUALITY_PLAN_REQUIRED")
+            request["quality_plan"] = json.loads(Path(args.quality_plan).read_text())
         atomic_json(
             path / "recipe.json",
             {
@@ -105,6 +127,11 @@ def main():
                 capture_status=manifest["capture_status"],
             )
             atomic_json(path / "analysis.json", analyze(path))
+        from hqsb.experiments.artifacts import seal
+
+        if (path / "execution-receipt.json").exists():
+            result["metrics"]["experiment_bundle"] = seal(path, run_id=run_id,
+                status="complete" if result["finish_reason"] not in {"cancelled", "timed_out"} else "partial")
         atomic_json(path / "result.json", result)
         print(
             json.dumps(
@@ -112,8 +139,8 @@ def main():
                     "run_id": run_id,
                     "path": str(path),
                     "finish_reason": result["finish_reason"],
-                    "output_tokens": result["metrics"]["output_tokens"],
-                    "runtime_e2e_ms": result["metrics"]["runtime_e2e_ms"],
+                    "output_tokens": result["metrics"].get("output_tokens"),
+                    "runtime_e2e_ms": result["metrics"].get("runtime_e2e_ms"),
                     "capture": result["metrics"].get("observation_bundle"),
                 },
                 ensure_ascii=False,
@@ -121,6 +148,12 @@ def main():
         )
     except Exception as exc:
         failure = {"error": f"{type(exc).__name__}: {exc}", "run_id": run_id}
+        from hqsb.experiments.artifacts import seal
+
+        try:
+            seal(path, run_id=run_id, status="partial", error=failure["error"])
+        except (OSError, ValueError) as seal_error:
+            failure["experiment_publication_error"] = str(seal_error)[:400]
         if (path / "observations/capture-manifest.json").exists():
             try:
                 sealed = publish(
