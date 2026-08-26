@@ -1,0 +1,23 @@
+{
+  "baseline": {"changes": {}},
+  "candidate": {"changes": {"cleanup_policy": "preserve_allocator"}},
+  "declared_changes": ["cleanup_policy"],
+  "performance_pairs": 10,
+  "input_tokens": 32,
+  "output_tokens": 8,
+  "max_relative_e2e": 0.0,
+  "quality_plan": {
+    "samples": [{"id": "arithmetic-fixture", "text": "1 + 1 =", "expected": "2", "slice": "fixture"}],
+    "max_tokens": 16,
+    "generation_tokens": 4
+  },
+  "observation_plan": {
+    "mode": "basic",
+    "sources": ["allocator", "pages"],
+    "max_pages": 16,
+    "max_decode_steps": 2
+  },
+  "mechanism_expectations": [
+    {"metric_id": "reserved_bytes", "label": "after_cleanup", "direction": "increase", "minimum_delta": 0}
+  ]
+}
