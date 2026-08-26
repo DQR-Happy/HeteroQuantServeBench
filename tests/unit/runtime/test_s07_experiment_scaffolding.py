@@ -63,7 +63,12 @@ class TestPrerequisites:
 
     def test_negative_probe_does_not_create_a_verified_selection(self):
         """A completed negative probe is evidence, but it cannot select an engine."""
-        status = E.check_prerequisites(_REPO_ROOT)
+        # Test the negative-probe contract without requiring private historical
+        # artifacts to be present in every clean checkout.
+        with tempfile.TemporaryDirectory(prefix="hqsb-s07-negative-") as root:
+            _write_json(os.path.join(root, E.S07_EVIDENCE_DIR, E.CAPABILITY_PROBE_NAME),
+                        {"probe_complete": True, "verified_usable_engines": []})
+            status = E.check_prerequisites(root)
         checks = {check.name: check for check in status.checks}
         assert checks["runtime_capability_probe"].satisfied
         assert not checks["main_runtime_selection"].satisfied
