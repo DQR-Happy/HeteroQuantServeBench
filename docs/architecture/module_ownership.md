@@ -7,7 +7,8 @@
 > S13 追加 `infra` 区域与规则 R13/R14；
 > S14 追加 `experimental` 区域与规则 R15/R16；
 > S15 追加 `release` 区域与规则 R17/R18；Console 追加展示与交互层及 R19/R20
-> 版本：1.10.0
+> 单机观测追加 `observation` 区域与 R21；优化实验追加 `experiments` 区域与 R22
+> 版本：1.12.0
 
 本文定义 HQSB 各 Python 模块的职责边界、所有权和依赖方向，是后续所有阶段
 开发与 Code Review 的约束依据。任何违反依赖方向的导入都会在
@@ -18,7 +19,9 @@
 `tests/unit/compiler/test_compiler_import_boundaries.py`
 与 `tests/unit/experimental/test_experimental_import_boundaries.py`、
 `tests/unit/release/test_release_import_boundaries.py`
-以及 `scripts/audit/import_dependency_gate.py`（规则 R1–R20）中被 CI 拦截。
+以及 `scripts/audit/import_dependency_gate.py`（规则 R1–R22）中被 CI 拦截。
+
+G01–G08 增量（2026-10-14）：`core.optimization` 只定义措施目录、解析计划和有界质量输入，不探测设备。`backends.optimization_receipt` 与 `quality_evaluation` 由 worker 拥有，负责实际控制流凭据和独立质量执行。`observation` 保持设备无关的归档、OS 读取和证据投影，不依赖具体 backend、评价或 Console（R21）。`experiments` 组合封存凭据、质量原件、机制事实及纯评价策略；执行层和评价层不能反向依赖这个归档组合区域（R22）。`console.experiment_routes` 负责认证后的计划、任务和查询；`evaluation.optimization_comparison` 只接收数值事实。源码改动、模型身份、dtype、kernel 的声明只放宽被精确登记的控制维度，不自动提供这些优化的执行器。
 
 Console 增量（2026-09-20）：`hqsb.console` 是顶层应用组合层，负责认证、HTTP/SSE、部署协调、SQLite 任务存储和只读证据索引。允许使用 backend Provider、基础配置与纯 Python 遥测解析器；不得 import `ops`（R20），不得在 API 进程模块级导入 torch/triton/transformers。其他区域不得反向 import `hqsb.console`（R19）。`hqsb.backends.interactive` 通过进程内惰性导入运行真实模型，不修改 C4/C6/C7 和既有 ServingBackend 语义。`web/console` 只通过版本化 HTTP 契约访问应用。
 

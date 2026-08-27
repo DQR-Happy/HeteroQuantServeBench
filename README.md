@@ -105,3 +105,23 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-observation-20261014
 原始 JSONL、SHA-256 和冻结 manifest 存在 `experiment_results/OBS/` 或 Console 私有 `captures/<run_id>/observations/`；高频数据不写入 SQLite 或 SSE。采集失败、工具缺失、权限不足和记录丢失均保留状态。Tegra 的计数器权限使用既有管理员运行方式，不修改系统全局权限。
 
 内存口径不能相加；CPU 页样本不是 GPU 页表；allocator 虚拟地址不是物理地址。Nsight 计数器属于单独诊断运行的选定 kernel。当前机制比较始终保留质量 `not_evaluated` 与采用决策 `hold`，模型优化是否更好还需要质量门和独立性能实验。模块接口、已执行验收和剩余边界见 [实现与验收记录](docs/architecture/HQSB_观测闭环实现与验收_20261014.md)。
+
+## 优化实验：计划、生效凭据与质量对照（G01–G08）
+
+新增实验组合层复用现有模型 worker 和观测归档，不改变 C4/C6/C7 或原 `/observation-comparisons` 的语义。目前可执行措施为 `cleanup_policy`、`output_budget`，以及在加载配置中指定的 `attention_backend`；其他十层措施有能力目录，但未接入的措施会被拒绝。SDPA 在现有 vendor wheel 上仍需实际兼容验证，不自动回退。
+
+`POST /api/console/v1/experiments/plans` 冻结 baseline/candidate、声明变更、工作量、质量合同和机制预期；`POST /experiments/{id}/jobs` 通过现有串行 worker 执行 performance/diagnostic/quality 角色。质量任务在既有 generate 操作内显式委派，`config.experiment_role=quality`，不增加旧任务枚举，也不提供推理性能样本。`GET /experiments/{id}/report` 汇总生效凭据、质量、性能、机制差异、缺失/失败配对及判定。所有接口继续使用已有认证和 epoch/取消协议。
+
+```bash
+# 在 Mac 项目根目录输入，执行仍在隔离 Jetson checkout
+export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-g01-g08-20261014
+./scripts/remote_run.sh python3 scripts/observation/run_experiment.py \
+  --spec configs/experiments/g01_cleanup.json \
+  --manifest docs/benchmark/model_sha256_manifest.txt
+```
+
+CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存注册计划、每次尝试、命令、日志/结果哈希及失败记录。参考配置是软件/机制闭环 fixture，不是任务质量基准。质量采用逐位置完整词表 float32 logits、teacher-forced NLL/PPL、greedy 自由生成和可选 exact-match；超 token/字节预算明确失败，不截断后标为完整。API 同 worker 重复样本不满足独立进程性能门。完整数值相等也不能自动证明模型任务准确率足够。
+
+`ObservationPlan.sources` 可以组合 allocator/pages/operators；保留旧五种模式默认行为。详细数据走有界文件，SQLite/SSE 只保留任务和摘要。优化凭据与质量原件通过监督者封存、fsync 和 SHA-256 核验后提供认证下载；取消/错误保留 partial。来源缺失不是零，生成上下文分叉后的机制仅作描述。源码补丁、模型身份、dtype/kernel 的比较必须精确预先声明；它们的比较支持不表示对应优化执行器已接入。
+
+接口和边界详见 [G01–G08 实施与验证记录](docs/architecture/HQSB_G01_G08_实施与验证_20261014.md)。
