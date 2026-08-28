@@ -36,3 +36,6 @@ add_subdirectory(ops/cuda/device_query)
 add_subdirectory(ops/cuda/rmsnorm)
 add_subdirectory(ops/cuda/fused_residual_rmsnorm)
 add_subdirectory(ops/cuda/cutlass_gemm)
+
+# Model-facing L2 library uses a separate, versioned ABI; legacy kernels unchanged.
+add_subdirectory(ops/cuda/model_kernels)
