@@ -29,8 +29,16 @@ class InteractivePyTorch:
         self.source_environment = None
         self.device_lease = None
         self.tokenizer_identity = None
+        self.kernel_session = None
 
-    def load(self) -> dict:
+    def load(self, *, kernel_profile=None) -> dict:
+        if self.model is not None:
+            raise RuntimeError("KERNEL_PROFILE_REQUIRES_UNLOAD")
+        if kernel_profile is not None:
+            from hqsb.core.kernel_profiles import profile
+
+            profile(kernel_profile)
+            self.config = {**self.config, "kernel_profile": kernel_profile}
         try:
             return self._load()
         except Exception as error:
@@ -94,6 +102,9 @@ class InteractivePyTorch:
                 "scope": "metadata_only_unverified_weights",
                 "revision": "local_weights_not_manifest_verified",
             }
+        from hqsb.backends.kernel_session import KernelSession
+
+        self.kernel_session = KernelSession(self.model, self.config)
         with torch.inference_mode(), observation.phase("warmup"):
             x = self.tokenizer("Warmup", return_tensors="pt").to("cuda")
             out = self.model(**x, use_cache=False)
@@ -125,6 +136,8 @@ class InteractivePyTorch:
             "observation": observation.data,
             "parameter_inventory": self.load_inventory,
             "source_environment": self.source_environment,
+            "kernel_plan": self.kernel_session.plan,
+            "kernel_bindings": self.kernel_session.binding,
         }
 
     def memory(self) -> dict:
@@ -151,6 +164,8 @@ class InteractivePyTorch:
         from hqsb.observation.contracts import resolve_observation, digest
 
         request, optimization = resolve_request(self.config, request)
+        if self.kernel_session:
+            self.kernel_session.reset()
         plan = resolve_observation(request.get("observation_plan"), request.get("observation_mode", "basic"))
 
         if self.model is None:
@@ -194,7 +209,10 @@ class InteractivePyTorch:
                 "device": "cuda:0",
                 "dtype": "float16",
                 "quant_execution_path": "fp16_reference",
-                "attention_backend": self.config["attention"],
+                "attention_backend": self.kernel_session.profile["operators"].get("attention", self.config["attention"])
+                if self.kernel_session else self.config["attention"],
+                "attention_config": self.config["attention"],
+                "kernel_profile": self.kernel_session.profile["profile_id"] if self.kernel_session else "framework-native",
                 "decoding": "greedy",
                 "use_cache": True,
                 "gpu_duration_source": "profiler_only",
@@ -279,6 +297,8 @@ class InteractivePyTorch:
                             capture.start()
                             capture.attach_modules(self.model, scope="all")
                     phase = "prefill" if index == 0 else "decode"
+                    if self.kernel_session:
+                        self.kernel_session.set_phase(phase)
                     token_start = observation.now_ms()
                     with (
                         observation.phase(phase),
@@ -452,6 +472,13 @@ class InteractivePyTorch:
                 torch.cuda.empty_cache()
 
     def close(self):
+        import torch
+
+        if self.kernel_session:
+            if torch.cuda.is_initialized():
+                torch.cuda.synchronize()
+            self.kernel_session.close()
+            self.kernel_session = None
         self.model = None
         self.tokenizer = None
         self.source_identity = None
