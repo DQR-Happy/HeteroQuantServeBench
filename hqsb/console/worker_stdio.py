@@ -234,7 +234,8 @@ def serve(provider, source, writer, roots, *, owner=None, disconnected=None):
             try:
                 kind = command["kind"]
                 if kind == "load":
-                    result = provider.load()
+                    selection = command.get("payload", {}).get("kernel_profile")
+                    result = provider.load(**({"kernel_profile": selection} if selection is not None else {}))
                 elif kind == "unload":
                     provider.close()
                 else:

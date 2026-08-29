@@ -31,7 +31,8 @@ def worker_main(connection, cancel, config):
             command = connection.recv()
             try:
                 if command["kind"] == "load":
-                    result = provider.load()
+                    selection = command.get("payload", {}).get("kernel_profile")
+                    result = provider.load(**({"kernel_profile": selection} if selection is not None else {}))
                 elif command["kind"] in {"generate", "quantize"}:
                     result = {}
                     operation = getattr(provider, command["kind"])

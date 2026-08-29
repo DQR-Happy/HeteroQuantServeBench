@@ -42,7 +42,7 @@ class PrivilegedActor:
             raise ValueError(
                 "Privileged worker only supports local PyTorch deployments"
             )
-        for key in ("model_path", "manifest"):
+        for key in ("model_path", "manifest", "kernel_manifest"):
             if self.config.get(key):
                 self.config[key] = str(
                     Path(os.path.expandvars(self.config[key])).expanduser().resolve()
