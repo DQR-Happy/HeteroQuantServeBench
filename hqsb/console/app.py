@@ -1,4 +1,4 @@
-"""Authenticated Console API and same-origin static web application."""
+"""Console API and same-origin web app, with optional access-token login."""
 
 from __future__ import annotations
 
@@ -51,14 +51,26 @@ class Login(BaseModel):
     token: str = Field(min_length=1, max_length=512)
 
 
+class KernelSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kernel_profile: str | None = None
+
+
 class ComparisonRequest(BaseModel):
     run_ids: list[str] = Field(min_length=2, max_length=6)
 
 
-def create_app(settings: Settings, access_token: str, *, service=None, monitor=True):
+def create_app(settings: Settings, access_token: str | None = None, *, service=None, monitor=True):
+    if settings.auth_required and not access_token:
+        raise ValueError("Authentication requires a configured access token")
+    access_token = access_token or ""
     svc = service or ConsoleService(settings)
     evidence = EvidenceCatalog(settings.evidence_root)
     telemetry = Telemetry()
+    from hqsb.console.benchmark_campaigns import BenchmarkCampaigns
+    from hqsb.console.benchmark_routes import benchmark_router
+
+    benchmarks = BenchmarkCampaigns(settings, svc)
     login_attempts: dict[str, list[float]] = {}
 
     @asynccontextmanager
@@ -67,6 +79,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
             telemetry.start()
         yield
         telemetry.close()
+        await asyncio.to_thread(benchmarks.close)
         await asyncio.to_thread(svc.close)
 
     app = FastAPI(
@@ -78,6 +91,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
         openapi_url=PREFIX + "/openapi.json",
     )
     app.state.service = svc
+    app.state.benchmarks = benchmarks
 
     def valid_session(cookie):
         try:
@@ -144,7 +158,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
                         },
                         403,
                     )
-            if path != PREFIX + "/session/login":
+            if settings.auth_required and path != PREFIX + "/session/login":
                 bearer = request.headers.get("authorization", "")
                 authorized = (
                     hmac.compare_digest(bearer, "Bearer " + access_token)
@@ -191,6 +205,8 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
 
     @app.post(PREFIX + "/session/login")
     def login(body: Login, request: Request):
+        if not settings.auth_required:
+            return {"role": "operator", "auth_required": False}
         host = request.client.host if request.client else "unknown"
         now = time.time()
         recent = [t for t in login_attempts.get(host, []) if now - t < 60]
@@ -219,6 +235,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
         return {
             "api_version": "1",
             "role": "operator",
+            "auth_required": settings.auth_required,
             "version": __version__,
             "mode": "live",
             "features": [
@@ -268,6 +285,19 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
     def deployments():
         return {"items": svc.deployments()}
 
+    @app.get(PREFIX + "/kernels/profiles")
+    def kernel_profiles(deployment_id: str | None = None):
+        from hqsb.core.kernel_profiles import catalogue
+
+        if deployment_id is not None:
+            from hqsb.console.kernel_inventory import deployment_catalogue
+
+            config = next((item for item in settings.deployments if item.id == deployment_id), None)
+            if config is None:
+                raise HTTPException(404, "Unknown deployment")
+            return deployment_catalogue(config)
+        return catalogue()
+
     @app.post(
         PREFIX + "/deployments/{deployment_id}/{action}",
         status_code=202,
@@ -276,9 +306,12 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
     def deployment_action(
         deployment_id: str,
         action: Literal["load", "unload"],
+        body: KernelSelection | None = None,
         idempotency_key: str = Header(min_length=1, max_length=128),
     ):
-        return svc.submit(action, deployment_id, {}, idempotency_key)
+        if body is not None and body.kernel_profile is not None and action != "load":
+            raise HTTPException(422, "Kernel selection is only valid on load")
+        return svc.submit(action, deployment_id, body.model_dump(exclude_none=True) if body else {}, idempotency_key)
 
     @app.post(PREFIX + "/requests", status_code=202, response_model=RunRecord)
     def inference(
@@ -486,6 +519,7 @@ def create_app(settings: Settings, access_token: str, *, service=None, monitor=T
 
     app.include_router(analysis_router(settings, svc), prefix=PREFIX)
     app.include_router(experiment_router(settings, svc), prefix=PREFIX)
+    app.include_router(benchmark_router(benchmarks), prefix=PREFIX)
 
     @app.get("/{path:path}")
     def frontend(path: str):

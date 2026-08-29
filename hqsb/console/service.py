@@ -30,6 +30,7 @@ class ConsoleService:
         self.lock = threading.RLock()
         self.pending = 0
         self.closed = False
+        self.benchmark_owner = None
         self.configs = {x.id: x for x in settings.deployments}
         self.states = {
             x.id: {
@@ -160,7 +161,23 @@ class ConsoleService:
                     409,
                 )
 
-    def submit(self, kind, deployment_id, payload, key):
+    def claim_benchmark(self, owner, deployment_id):
+        with self.lock:
+            self._reserve()
+            if self.benchmark_owner or self.pending:
+                raise ServiceError("BENCHMARK_BUSY", "请等待当前任务或性能对照结束后再开始。")
+            if deployment_id not in self.configs or self.configs[deployment_id].provider != "pytorch":
+                raise ServiceError("BENCHMARK_PROVIDER", "固定输入对照目前需要本地 PyTorch 部署。", 422)
+            if any(row["provider"] == "pytorch" and row["id"] != deployment_id and row["state"] not in {"unloaded", "failed"} for row in self.states.values()):
+                raise ServiceError("DEVICE_BUSY", "其他部署正占用本地模型设备。")
+            self.benchmark_owner = owner
+
+    def release_benchmark(self, owner):
+        with self.lock:
+            if self.benchmark_owner == owner:
+                self.benchmark_owner = None
+
+    def submit(self, kind, deployment_id, payload, key, *, benchmark_owner=None):
         with self.lock:
             if deployment_id not in self.configs:
                 raise ServiceError("NOT_FOUND", "Deployment is not configured", 404)
@@ -178,6 +195,8 @@ class ConsoleService:
                         "IDEMPOTENCY_CONFLICT", "Key already used for another payload"
                     )
                 return self.store.get(old[1])
+            if self.benchmark_owner and self.benchmark_owner != benchmark_owner:
+                raise ServiceError("BENCHMARK_BUSY", "性能对照正在独占执行设备，请在性能与质量对照页等待或取消。")
             self._reserve()
             state, cfg = self.states[deployment_id], self.configs[deployment_id]
             if kind == "generate":
@@ -188,7 +207,8 @@ class ConsoleService:
                     resolved = resolve_plan(payload.get("optimization"), {
                         "cleanup_policy": payload.get("cleanup_policy", "empty_cache"),
                         "attention_backend": cfg.attention, "output_budget": payload["max_output_tokens"]},
-                        provider=cfg.provider, deployment_attention=cfg.attention)
+                        provider=cfg.provider, deployment_attention=cfg.attention,
+                        deployment_kernel_profile=state.get("kernel_profile", "framework-native"))
                     resolve_observation(payload.get("observation_plan"), payload.get("observation_mode", "basic"))
                     if payload.get("experiment_role") == "quality":
                         validate_quality_plan(payload.get("quality_plan"))
@@ -230,6 +250,25 @@ class ConsoleService:
                     )
                 self._preflight(kind, cfg, payload)
             elif kind == "load":
+                from hqsb.core.kernel_profiles import profile, requires_native
+
+                try:
+                    selected = payload.get("kernel_profile", cfg.kernel_profile)
+                    profile(selected)
+                    if set(payload) - {"kernel_profile"} or (cfg.provider != "pytorch" and payload):
+                        raise ValueError("KERNEL_PROFILE_LOAD_INVALID")
+                    if requires_native(selected):
+                        from hqsb.console.kernel_inventory import native_inventory
+
+                        inventory = native_inventory(cfg)
+                        if inventory["status"] != "files_verified":
+                            raise ValueError(inventory["reason"])
+                except ValueError as exc:
+                    raise ServiceError("INVALID_KERNEL_PROFILE", str(exc), 422) from exc
+                if cfg.provider == "pytorch":
+                    # A failed live worker may retain its last attempted profile.
+                    # Always send the resolved selection, including the default.
+                    payload = {**payload, "kernel_profile": selected}
                 if state["state"] not in {"unloaded", "failed"}:
                     raise ServiceError(
                         "DEPLOYMENT_BUSY", "Unload this deployment before loading again"
@@ -253,6 +292,10 @@ class ConsoleService:
                     "UNSUPPORTED_JOB", "This job kind is not implemented", 422
                 )
             safe_payload = dict(payload)
+            if benchmark_owner is not None:
+                # Accepted lifecycle jobs remain traceable even if the manager
+                # exits between SQLite acceptance and its journal update.
+                safe_payload["benchmark_id"] = benchmark_owner
             if "quality_plan" in safe_payload:
                 quality_plan = safe_payload["quality_plan"]
                 safe_payload["quality_plan"] = {**quality_plan, "samples": [
@@ -441,6 +484,7 @@ class ConsoleService:
                         last_error=None,
                         load_run_id=run_id,
                         loaded_at=time.time(),
+                        kernel_profile=payload.get("kernel_profile", self.configs[deployment_id].kernel_profile),
                     )
             elif kind == "unload" or result.get("worker_terminated"):
                 with self.lock:

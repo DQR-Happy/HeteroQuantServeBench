@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
@@ -81,6 +81,33 @@ def experiment_router(settings, service):
             raise HTTPException(404, "Unknown experiment") from exc
         except (ValueError, KeyError) as exc:
             raise HTTPException(409, "Experiment plan integrity failed") from exc
+
+    @router.get("/experiments")
+    def list_plans(offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=50)):
+        with lock:
+            if root.is_symlink():
+                raise HTTPException(409, "Invalid experiment directory")
+            paths = sorted((p for p in root.glob("exp_*") if EXPERIMENT_ID.fullmatch(p.name)),
+                           key=lambda p: p.stat().st_mtime, reverse=True)
+            items = []
+            for path in paths[offset:offset + limit]:
+                plan = get_plan(path.name)
+                items.append({key: plan[key] for key in
+                              ("experiment_id", "registered_at", "spec_sha256", "spec", "evaluation_scope")})
+            return {"items": items, "total": len(paths),
+                    "next_offset": offset + limit if offset + limit < len(paths) else None}
+
+    @router.get("/experiments/{experiment_id}/jobs")
+    def list_jobs(experiment_id: str):
+        with lock:
+            get_plan(experiment_id)
+            ledger = read_json(directory(experiment_id) / "ledger.json")
+            items = []
+            for entry in ledger["jobs"]:
+                run = service.store.get(entry["run_id"])
+                items.append({**{key: entry[key] for key in ("run_id", "arm", "role", "pair")},
+                              **{key: run.get(key) for key in ("state", "error", "cleanup", "created_at")}})
+            return {"items": items}
 
     @router.post("/experiments/{experiment_id}/jobs", status_code=202)
     def job(experiment_id: str, body: JobRequest, idempotency_key: str = Header(min_length=1, max_length=128)):

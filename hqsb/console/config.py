@@ -21,6 +21,8 @@ class DeploymentConfig(BaseModel):
     attention: Literal["eager", "sdpa"] = "eager"
     precision: str = "float16"
     kernel: str = "framework-native"
+    kernel_profile: str = "framework-native"
+    kernel_manifest: str | None = None
     context_limit: int = Field(2048, ge=32, le=131072)
     max_output_tokens: int = Field(512, ge=1, le=4096)
     manifest: str | None = None
@@ -31,6 +33,11 @@ class DeploymentConfig(BaseModel):
 
     @model_validator(mode="after")
     def valid_provider(self):
+        from hqsb.core.kernel_profiles import profile
+
+        profile(self.kernel_profile)
+        if self.provider != "pytorch" and self.kernel_profile != "framework-native":
+            raise ValueError("kernel profiles require a local PyTorch worker")
         if self.provider == "pytorch" and (
             self.precision != "float16" or self.kernel != "framework-native"
         ):
@@ -50,6 +57,7 @@ class DeploymentConfig(BaseModel):
                 "base_url",
                 "api_key_env",
                 "device_lock_path",
+                "kernel_manifest",
             }
         )
 
@@ -64,6 +72,8 @@ class Settings(BaseModel):
     request_deadline_ms: int = Field(120000, ge=1000, le=600000)
     max_body_bytes: int = Field(262144, ge=4096, le=1048576)
     secure_cookie: bool = False
+    # Test workspaces open directly; authentication is an explicit opt-in.
+    auth_required: bool = False
     # Explicit operator opt-in for Tegra CUPTI; the network API stays unprivileged.
     privileged_worker: bool = False
     profile_min_available_bytes: int = Field(768 * 1024 * 1024, ge=0)

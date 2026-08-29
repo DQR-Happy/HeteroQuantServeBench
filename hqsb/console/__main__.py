@@ -9,11 +9,28 @@ import secrets
 from pathlib import Path
 
 
+def access_token(settings):
+    """Only auth-enabled services need a token file; test mode ignores old ones."""
+    if not settings.auth_required:
+        return None
+    token_file = settings.data_dir / "access-token"
+    if not token_file.exists():
+        fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as stream:
+            stream.write(secrets.token_urlsafe(32))
+    token = token_file.read_text().strip()
+    os.chmod(token_file, 0o600)
+    if len(token) < 24:
+        raise ValueError("Console access token must contain at least 24 characters")
+    return token
+
+
 def main():
     parser = argparse.ArgumentParser(description="HQSB Console")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8765, type=int)
     parser.add_argument("--config", type=Path)
+    parser.add_argument("--require-auth", action="store_true", help="Require access-token login (test mode defaults to no login)")
     parser.add_argument(
         "--privileged-worker",
         action="store_true",
@@ -25,6 +42,8 @@ def main():
     import uvicorn
 
     settings = load_settings(args.config)
+    if args.require_auth:
+        settings.auth_required = True
     if args.privileged_worker:
         settings.privileged_worker = True
     settings.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -35,17 +54,10 @@ def main():
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError as exc:
         raise RuntimeError("Another Console process owns this data directory") from exc
-    token_file = settings.data_dir / "access-token"
-    if not token_file.exists():
-        fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w") as stream:
-            stream.write(secrets.token_urlsafe(32))
-    token = token_file.read_text().strip()
-    os.chmod(token_file, 0o600)
-    if len(token) < 24:
-        raise ValueError("Console access token must contain at least 24 characters")
+    token = access_token(settings)
     print(
-        f"HQSB Console: http://{args.host}:{args.port}; access token file: {token_file}",
+        f"HQSB Console: http://{args.host}:{args.port}; "
+        + (f"access token file: {settings.data_dir / 'access-token'}" if settings.auth_required else "test workspace · no login required"),
         flush=True,
     )
     uvicorn.run(create_app(settings, token), host=args.host, port=args.port, workers=1)
