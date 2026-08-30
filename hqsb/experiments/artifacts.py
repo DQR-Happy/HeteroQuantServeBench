@@ -20,7 +20,8 @@ def seal(directory, *, run_id, status="complete", error=None):
         return read_manifest(directory)
     files = []
     for path in sorted(directory.iterdir()):
-        if path.name in {"execution-receipt.json", "quality-result.json", "quality-pending.json", "trace.json"} or path.name.startswith("quality-logits-"):
+        if path.name in {"execution-receipt.json", "quality-result.json", "quality-pending.json", "trace.json",
+                         "kernel-plan.json", "kernel-bindings.json", "kernel-summary.json"} or path.name.startswith("quality-logits-"):
             if path.is_symlink() or not path.is_file():
                 raise ValueError("EXPERIMENT_ARTIFACT_PATH_INVALID")
             with path.open("rb") as stream:

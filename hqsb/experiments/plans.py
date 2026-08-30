@@ -40,9 +40,15 @@ def validate_spec(raw):
         if type(spec[name]) is not int or not low <= spec[name] <= high:
             raise ValueError("EXPERIMENT_BOUND_INVALID:" + name)
     changes = spec["declared_changes"]
-    if not isinstance(changes, list) or not all(isinstance(item, str) for item in changes) or len(set(changes)) != len(changes) or set(changes) - {"cleanup_policy", "attention_backend", "output_budget"}:
+    if not isinstance(changes, list) or not all(isinstance(item, str) for item in changes) or len(set(changes)) != len(changes) or set(changes) - {"cleanup_policy", "attention_backend", "output_budget", "kernel_profile"}:
         raise ValueError("EXPERIMENT_DECLARED_CHANGES_INVALID")
+    if "kernel_profile" in changes:
+        for arm in ("baseline", "candidate"):
+            entry = spec[arm]
+            spec[arm] = {**entry, "changes": {"kernel_profile": "framework-native", **entry.get("changes", {})}}
     defaults = {"cleanup_policy": "empty_cache", "attention_backend": "eager", "output_budget": spec["output_tokens"]}
+    if any("kernel_profile" in spec[arm].get("changes", {}) for arm in ("baseline", "candidate")):
+        defaults["kernel_profile"] = "framework-native"
     a, b = (resolve_plan(spec[arm], defaults)["resolved"] for arm in ("baseline", "candidate"))
     actual = {key for key in a if a[key] != b[key]}
     if actual != set(changes):

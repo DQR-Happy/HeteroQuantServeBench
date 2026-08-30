@@ -8,10 +8,25 @@ import statistics
 
 from hqsb.core.optimization import fingerprint, resolve_plan
 from hqsb.evaluation.optimization_comparison import performance_gate
-from hqsb.experiments.artifacts import load_bundle
+from hqsb.experiments.artifacts import load_bundle, read_json
 from hqsb.observation.analysis import analyze
 from hqsb.observation.storage import sha256
 from hqsb.quant.quality import position_metrics
+
+
+def _kernel_metrics(document):
+    """Project explicit worker facts; host dispatch never becomes GPU timing."""
+    summary = document.get("kernel_receipt")
+    if not summary or summary.get("status") not in {"invoked", "reference"}:
+        return []
+    values = [("kernel.logical_site_calls", phase, sum(
+        site["calls"].get(phase, 0) for site in summary["sites"])) for phase in ("prefill", "decode")]
+    values += [("kernel." + name, "request", summary[name]) for name in (
+        "gqa_repeat_peak_logical_bytes", "workspace_bytes", "weight_packing_bytes")]
+    return [{"metric_id":name,"label":label,"value":value,"status":"measured",
+             "scope":"request_worker_kernel_evidence","unit":"count" if name.endswith("calls") else "bytes",
+             "evidence_scope":"worker_dispatch_or_tensor_shape_not_hardware_counter"}
+            for name,label,value in values]
 
 
 def _quality(left_dir, right_dir, left, right, limits, *, allow_generation_budget_change=False):
@@ -123,6 +138,33 @@ def compare_campaign(plan, pairs):
                 reasons.append("CONTROL_MISMATCH:" + key)
         for key in ("dtype", "kernel"):
             av, bv = a.get("runtime", {}).get(key), b.get("runtime", {}).get(key)
+            if key == "kernel" and "kernel_profile" in spec["declared_changes"]:
+                if key in controls and (av != controls[key]["baseline"] or bv != controls[key]["candidate"]):
+                    reasons.append("DECLARED_CONTROL_NOT_MATCHED:" + key)
+                for arm, document in (("baseline", a), ("candidate", b)):
+                    expected = spec[arm]["changes"]["kernel_profile"]
+                    evidence = document.get("kernel_receipt") or {}
+                    if document.get("runtime", {}).get("kernel") != expected or evidence.get("profile_id") != expected or evidence.get("status") not in {"reference", "invoked"}:
+                        reasons.append("KERNEL_EXECUTION_PROOF_MISMATCH:" + arm)
+                    directory = left_dir if arm == "baseline" else right_dir
+                    try:
+                        bundle = left if arm == "baseline" else right
+                        if not {"kernel-summary.json", "kernel-bindings.json", "kernel-plan.json"}.issubset(
+                            {item["path"] for item in bundle["manifest"]["artifacts"]}
+                        ):
+                            raise ValueError("kernel artifacts not sealed")
+                        summary = read_json(directory / "kernel-summary.json")
+                        binding = read_json(directory / "kernel-bindings.json")
+                        kernel_plan = read_json(directory / "kernel-plan.json")
+                        if (summary != evidence or fingerprint(binding) != summary["binding_manifest_sha256"]
+                                or fingerprint(kernel_plan) != summary["kernel_plan_sha256"]
+                                or kernel_plan["profile_id"] != expected):
+                            raise ValueError("kernel evidence identity")
+                        if expected != "framework-native" and (summary["not_exercised"] or not summary["sites"]):
+                            raise ValueError("kernel sites not exercised")
+                    except (OSError, ValueError, KeyError):
+                        reasons.append("KERNEL_ARTIFACT_PROOF_MISMATCH:" + arm)
+                continue
             if key in controls:
                 if av != controls[key]["baseline"] or bv != controls[key]["candidate"]:
                     reasons.append("DECLARED_CONTROL_NOT_MATCHED:" + key)
@@ -141,8 +183,8 @@ def compare_campaign(plan, pairs):
             context_equal = a["output_token_hash"] == b["output_token_hash"]
             if x["context"].get("workload_hash") != y["context"].get("workload_hash"):
                 reasons.append("WORKLOAD_MISMATCH")
-            lm = {(m["metric_id"], m.get("label")): m for m in x["metrics"]}
-            rm = {(m["metric_id"], m.get("label")): m for m in y["metrics"]}
+            lm = {(m["metric_id"], m.get("label")): m for m in x["metrics"] + _kernel_metrics(a)}
+            rm = {(m["metric_id"], m.get("label")): m for m in y["metrics"] + _kernel_metrics(b)}
             diffs = []
             for key in sorted(lm.keys() & rm.keys(), key=str):
                 p, q = lm[key], rm[key]
