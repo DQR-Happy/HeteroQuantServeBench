@@ -1,0 +1,19 @@
+# Administrator-owned paths. Build first through remote_run.sh; then start a
+# separate Console data directory/port, or add kernel_manifest to your config.
+# Legacy default.yaml deliberately retains framework-native.
+deployments:
+  - id: qwen-reference
+    name: Qwen3 · L2 research
+    provider: pytorch
+    model_path: /home/jetson/models/hqsb/Qwen3-1.7B
+    manifest: /home/jetson/work/HQSB-l2-20261015/model_sha256_manifest.txt
+    device_lock_path: /home/jetson/.cache/hqsb/device0.lock
+    attention: eager
+    precision: float16
+    kernel_profile: framework-native
+    kernel_manifest: /home/jetson/work/HQSB-l2-20261015/build/l2/model-kernels.json
+    context_limit: 2048
+    max_output_tokens: 512
+privileged_worker: false
+auth_required: false
+request_deadline_ms: 120000

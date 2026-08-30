@@ -1,0 +1,20 @@
+{
+  "baseline": {"changes": {"kernel_profile": "framework-native"}},
+  "candidate": {"changes": {"kernel_profile": "qwen3-norm-vector-v2"}},
+  "declared_changes": ["kernel_profile"],
+  "performance_pairs": 10,
+  "input_tokens": 128,
+  "output_tokens": 8,
+  "quality_plan": {
+    "samples": [{"id": "en", "text": "The GPU reads model weights from memory."}],
+    "forward_mode": "full_prefill",
+    "generation_tokens": 4
+  },
+  "observation_plan": {"mode": "memory"},
+  "quality_limits": {
+    "max_logit_abs_error": 0.0,
+    "max_kl": 0.0,
+    "max_nll_increase": 0.0,
+    "max_accuracy_drop": 0.0
+  }
+}

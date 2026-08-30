@@ -1,0 +1,18 @@
+# Server-owned, verified reference deployment for optimization experiments.
+# Launch on the target through scripts/remote_run.sh with a private data directory.
+deployments:
+  - id: qwen-reference
+    name: Qwen3 · FP16 Reference
+    provider: pytorch
+    platform: CUDA / Jetson
+    model: Qwen/Qwen3-1.7B
+    model_path: ~/models/hqsb/Qwen3-1.7B
+    attention: eager
+    precision: float16
+    context_limit: 2048
+    max_output_tokens: 512
+    manifest: docs/benchmark/model_sha256_manifest.txt
+max_pending: 8
+request_deadline_ms: 120000
+secure_cookie: false
+auth_required: false

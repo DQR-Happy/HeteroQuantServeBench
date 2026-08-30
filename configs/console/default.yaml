@@ -13,3 +13,4 @@ deployments:
 max_pending: 8
 request_deadline_ms: 120000
 secure_cookie: false
+auth_required: false
