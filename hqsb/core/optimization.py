@@ -7,6 +7,8 @@ installed package. Executors own application and supply the effective receipt.
 import hashlib
 import json
 
+from hqsb.core.kernel_profiles import PROFILES
+
 VERSION = "1.0.0"
 LAYERS = {
     1: "hardware_system", 2: "kernel", 3: "compiler_runtime", 4: "quantization",
@@ -17,6 +19,7 @@ IMPLEMENTED = {
     "cleanup_policy": {"layers": [6], "scope": "request", "values": ["empty_cache", "preserve_allocator"]},
     "attention_backend": {"layers": [2, 3], "scope": "deployment", "values": ["eager", "sdpa"]},
     "output_budget": {"layers": [7, 10], "scope": "request", "minimum": 1, "maximum": 512},
+    "kernel_profile": {"layers": [2], "scope": "deployment", "values": list(PROFILES)},
 }
 PENDING = {
     "power_frequency": [1], "placement": [1, 9], "custom_kernel": [2],
@@ -46,7 +49,7 @@ def catalogue(provider="pytorch"):
     return {"schema_version": VERSION, "layers": LAYERS, "items": items}
 
 
-def resolve_plan(raw, defaults, *, provider="pytorch", deployment_attention=None):
+def resolve_plan(raw, defaults, *, provider="pytorch", deployment_attention=None, deployment_kernel_profile=None):
     raw = {} if raw is None else raw
     if not isinstance(raw, dict) or set(raw) - {"schema_version", "changes"}:
         raise ValueError("OPTIMIZATION_PLAN_INVALID")
@@ -68,6 +71,8 @@ def resolve_plan(raw, defaults, *, provider="pytorch", deployment_attention=None
             raise ValueError("OPTIMIZATION_VALUE_INVALID:output_budget")
         if name == "attention_backend" and deployment_attention is not None and value != deployment_attention:
             raise ValueError("OPTIMIZATION_REQUIRES_RELOAD:attention_backend")
+        if name == "kernel_profile" and deployment_kernel_profile is not None and value != deployment_kernel_profile:
+            raise ValueError("OPTIMIZATION_REQUIRES_RELOAD:kernel_profile")
         effective[name] = value
     return {"schema_version": VERSION, "requested": changes, "resolved": effective,
             "plan_sha256": fingerprint({"schema_version": VERSION, "changes": changes}),
@@ -76,8 +81,10 @@ def resolve_plan(raw, defaults, *, provider="pytorch", deployment_attention=None
 
 def validate_quality_plan(raw):
     """Bound both device work and full-vocabulary CPU output; no silent truncation."""
-    if not isinstance(raw, dict) or set(raw) - {"samples", "max_tokens", "generation_tokens", "max_bytes", "top_k"}:
+    if not isinstance(raw, dict) or set(raw) - {"samples", "max_tokens", "generation_tokens", "max_bytes", "top_k", "forward_mode"}:
         raise ValueError("QUALITY_PLAN_INVALID")
+    if raw.get("forward_mode", "incremental_decode") not in ("incremental_decode", "full_prefill"):
+        raise ValueError("QUALITY_FORWARD_MODE_INVALID")
     samples = raw.get("samples")
     if not isinstance(samples, list) or not 1 <= len(samples) <= 4:
         raise ValueError("QUALITY_SAMPLE_LIMIT")
