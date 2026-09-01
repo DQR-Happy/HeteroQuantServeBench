@@ -73,6 +73,7 @@ fi
 EXCLUDES=(
   --exclude '._*'
   --exclude '.git/'
+  --exclude '.backups/'
   --exclude '__pycache__/'
   --exclude '*.pyc'
   --exclude '.codebuddy/'
