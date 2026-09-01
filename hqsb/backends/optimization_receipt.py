@@ -8,11 +8,14 @@ from hqsb.observation.storage import atomic_json
 
 
 def resolve_request(config, request):
+    kernel_profile = config.get("kernel_profile", "framework-native")
+    extra = {"kernel_profile": kernel_profile} if kernel_profile != "framework-native" else {}
     plan = resolve_plan(request.get("optimization"), {
         "cleanup_policy": request.get("cleanup_policy", "empty_cache"),
         "attention_backend": config["attention"],
         "output_budget": request["max_output_tokens"],
-    }, deployment_attention=config["attention"])
+        **extra,
+    }, deployment_attention=config["attention"], deployment_kernel_profile=kernel_profile)
     request = {**request, "cleanup_policy": plan["resolved"]["cleanup_policy"],
                "max_output_tokens": plan["resolved"]["output_budget"]}
     return request, plan
@@ -21,13 +24,20 @@ def resolve_request(config, request):
 def receipt(provider, request, plan, *, role, output_hash, status, cleanup, proof):
     attention = getattr(provider.model.config, "_attn_implementation", None)
     applied = status == "completed" and cleanup == "succeeded" and attention == plan["resolved"]["attention_backend"]
+    kernels = getattr(provider, "kernel_session", None)
+    kernel_summary = kernels.summary() if kernels else None
+    if kernels:
+        kernels.save(request.get("capture_dir"))
+        applied = applied and kernel_summary["status"] in {"invoked", "reference"}
+    kernel_id = kernel_summary["profile_id"] if kernel_summary else "framework-native"
     document = {**plan, "status": "applied" if applied else "not_fully_applied",
                 "run_id": request.get("capture_id"), "measurement_role": role,
                 "request_id": request.get("capture_id"),
                 "model_identity": provider.source_identity,
                 "source": provider.source_environment,
                 "tokenizer_identity": provider.tokenizer_identity,
-                "runtime": {"dtype": "float16", "kernel": "framework-native", "executor": "InteractivePyTorch"},
+                "runtime": {"dtype": "float16", "kernel": kernel_id, "executor": "InteractivePyTorch"},
+                "kernel_receipt": kernel_summary,
                 "experiment_links": request.get("experiment_links", {}),
                 "effective": {**plan["resolved"], "attention_backend": attention},
                 "output_token_hash": output_hash, "execution_status": status,

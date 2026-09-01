@@ -25,6 +25,10 @@ def evaluate(provider, request, cancel):
         raise RuntimeError("QUALITY_MODEL_NOT_LOADED")
     plan = validate_quality_plan(request["quality_plan"])
     request, optimization = resolve_request(provider.config, request)
+    kernels = getattr(provider, "kernel_session", None)
+    if kernels:
+        kernels.reset()
+    mode = plan.get("forward_mode", "incremental_decode")
     generation_limit = optimization["resolved"]["output_budget"]
     if not 1 <= generation_limit <= 32:
         raise ValueError("QUALITY_GENERATION_LIMIT")
@@ -39,11 +43,11 @@ def evaluate(provider, request, cancel):
     result = {"schema_version": "1.0.0", "run_id": request["capture_id"],
               "status": "partial", "measurement_role": "quality_not_performance",
               "dataset_sha256": fingerprint(plan["samples"]),
-              "protocol": {"name": "raw-token-next-token-v1", "max_tokens": plan["max_tokens"],
+              "protocol": {"name": "raw-full-prefill-v1" if mode == "full_prefill" else "raw-token-next-token-v1", "max_tokens": plan["max_tokens"],
                            "generation_tokens": generation_limit, "top_k": plan["top_k"], "dtype": "little_endian_float32"},
               "samples": [], "positions": [], "max_bytes": plan["max_bytes"]}
     atomic_json(directory / "quality-pending.json", {"status": "running", "run_id": request["capture_id"]})
-    cache = output = current = mask = None
+    cache = output = current = mask = full_output = None
     bytes_written, losses = 0, []
     finish, execution, cleanup = "length", "failed", "unknown"
 
@@ -56,13 +60,23 @@ def evaluate(provider, request, cancel):
             for sample_index, (sample, tokens) in enumerate(zip(plan["samples"], encoded)):
                 cache = None
                 sample_id = sample.get("id", str(sample_index))
+                if mode == "full_prefill":
+                    check()
+                    current = torch.tensor([tokens[:-1]], dtype=torch.long, device="cuda:0")
+                    mask = torch.ones_like(current)
+                    if kernels:
+                        kernels.set_phase("prefill")
+                    full_output = provider.model(input_ids=current, attention_mask=mask, use_cache=False)
                 for position, token in enumerate(tokens[:-1]):
                     check()
-                    current = torch.tensor([[token]], dtype=torch.long, device="cuda:0")
-                    mask = torch.ones((1, position + 1), dtype=torch.long, device="cuda:0")
-                    output = provider.model(input_ids=current, attention_mask=mask, past_key_values=cache, use_cache=True)
-                    cache = output.past_key_values
-                    row = output.logits[0, -1].float().cpu()
+                    if mode == "incremental_decode":
+                        current = torch.tensor([[token]], dtype=torch.long, device="cuda:0")
+                        mask = torch.ones((1, position + 1), dtype=torch.long, device="cuda:0")
+                        if kernels:
+                            kernels.set_phase("prefill" if position == 0 else "decode")
+                        output = provider.model(input_ids=current, attention_mask=mask, past_key_values=cache, use_cache=True)
+                        cache = output.past_key_values
+                    row = (full_output.logits[0, position] if full_output is not None else output.logits[0, -1]).float().cpu()
                     if not bool(torch.isfinite(row).all()):
                         raise ValueError("QUALITY_NONFINITE_LOGITS")
                     raw = row.numpy().astype("<f4", copy=False).tobytes()
@@ -81,13 +95,16 @@ def evaluate(provider, request, cancel):
                     output = row = raw = None
                 # A fresh cache makes free generation independent of teacher forcing.
                 cache = None
+                full_output = None
                 generated = []
                 current = torch.tensor([tokens], dtype=torch.long, device="cuda:0")
                 mask = torch.ones_like(current)
                 eos = provider.model.generation_config.eos_token_id
                 eos_ids = set(eos if isinstance(eos, list) else [eos])
-                for _ in range(generation_limit):
+                for step in range(generation_limit):
                     check()
+                    if kernels:
+                        kernels.set_phase("prefill" if step == 0 else "decode")
                     output = provider.model(input_ids=current, attention_mask=mask, past_key_values=cache, use_cache=True)
                     if not bool(torch.isfinite(output.logits[:, -1, :]).all()):
                         raise ValueError("QUALITY_NONFINITE_GENERATION_LOGITS")
@@ -116,7 +133,7 @@ def evaluate(provider, request, cancel):
         finish = "cancelled" if cancel.is_set() else "timed_out"
         execution = finish
     finally:
-        cache = output = current = mask = None
+        cache = output = current = mask = full_output = None
         gc.collect()
         if request["cleanup_policy"] == "empty_cache":
             torch.cuda.empty_cache()
