@@ -22,12 +22,14 @@ def main():
         "--output", type=Path, default=Path("reports/console/live-acceptance.json")
     )
     args = parser.parse_args()
-    token = (args.data_dir / "access-token").read_text().strip()
     client = httpx.Client(
         base_url=args.url + "/api/console/v1",
-        headers={"Authorization": "Bearer " + token},
+        headers={"X-HQSB-Client": "console"},
         timeout=30,
     )
+    if client.get("/session").status_code == 401:
+        token = (args.data_dir / "access-token").read_text().strip()
+        client.headers["Authorization"] = "Bearer " + token
     evidence = {
         "started_at": time.time(),
         "mode": "real_device",

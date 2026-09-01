@@ -8,7 +8,9 @@ from pathlib import Path
 
 PAGES = (
     ("workspace", "工作空间", "workspace-desktop.png"),
+    ("runs", "运行目录", "runs-desktop.png"),
     ("playground", "推理配置", "playground-desktop.png"),
+    ("optimization", "优化实验", "optimization-connected.png"),
     ("kv", "KV 布局", "kv-desktop.png"),
     ("allocator", "分配与回收", "allocator-desktop.png"),
     ("pages", "CPU 页样本", "pages-desktop.png"),
@@ -20,7 +22,7 @@ PAGES = (
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--screenshots", type=Path, default=Path("reports/console/v03"))
+    parser.add_argument("--screenshots", type=Path, default=Path("reports/console/v04"))
     parser.add_argument("--output", type=Path, default=Path("web/console/public/preview.html"))
     args = parser.parse_args()
     navigation, sections = [], []
@@ -48,7 +50,7 @@ nav a{padding:9px 12px;color:#435f82;text-decoration:none;border-radius:6px}nav 
 main{padding:24px;min-width:0}h2{font-size:18px;margin:0 0 6px}.caption{color:#586372;margin:0 0 16px}img{display:block;width:100%;height:auto;border:1px solid #d8dce1;border-radius:6px}img.mobile{max-width:390px}
 a:focus-visible{outline:2px solid #435f82;outline-offset:2px}footer{padding:16px 28px;color:#586372;font-size:12px}
 @media(max-width:700px){.layout{grid-template-columns:minmax(0,1fr)}nav{position:static;flex-direction:row;flex-wrap:wrap;padding:12px}main{padding:12px}header{padding:16px}}
-</style></head><body><header><h1>HQSB 离线界面预览</h1><p>UI v0.3 · 真实界面截图 · 不连接后端、不执行推理。左侧可切换页面；实际操作请访问已启动的工作台。</p></header>
+</style></head><body><header><h1>HQSB 离线界面预览</h1><p>UI v0.4 · 全新项目工作台 · 真实界面截图 · 不连接后端、不执行推理。左侧可切换页面；实际操作请访问已启动的工作台。</p></header>
 <div class="layout"><nav aria-label="预览页面">NAVIGATION</nav><main>SECTIONS</main></div>
 <footer>图片已嵌入此 HTML，单个文件即可离线打开。采集完整仅指声明范围，不代表所有物理内存和硬件访问可见。</footer>
 <script>

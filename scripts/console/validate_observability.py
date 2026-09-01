@@ -86,12 +86,14 @@ def main():
         return run
 
     try:
-        token = (args.data_dir / "access-token").read_text().strip()
         client = httpx.Client(
             base_url=args.url.rstrip("/") + "/api/console/v1",
-            headers={"Authorization": "Bearer " + token},
+            headers={"X-HQSB-Client": "console"},
             timeout=60,
         )
+        if client.get("/session").status_code == 401:
+            token = (args.data_dir / "access-token").read_text().strip()
+            client.headers["Authorization"] = "Bearer " + token
         session = get("/session")
         check("api_v0_2", session.get("version", "").startswith("0.2."))
         resources, research = get("/resources"), get("/research")
