@@ -473,3 +473,51 @@ __all__ = [
     "register_torch_ops",
     "dispatch_tables",
 ]
+
+
+_MODEL_NATIVE = None
+
+
+def register_model_ops(manifest_path):
+    """Register new semantic IDs under the existing schema owner, once per worker.
+
+    Exact artifact identity is immutable for a worker lifetime. Reloading another
+    profile on that artifact is safe; a different artifact requires a new worker.
+    """
+    global _MODEL_NATIVE
+    import hashlib
+    import torch
+    from hqsb.integration.model_native import ModelNative
+
+    with _LOCK:
+        if _MODEL_NATIVE is not None:
+            expected = hashlib.sha256(Path(manifest_path).expanduser().read_bytes()).hexdigest()
+            if _MODEL_NATIVE.identity["manifest_sha256"] != expected:
+                raise ValueError("KERNEL_ARTIFACT_REQUIRES_NEW_WORKER")
+            return _MODEL_NATIVE
+        native = ModelNative(manifest_path)
+        definition = torch.library.Library("hqsb", "FRAGMENT")
+        implementation = torch.library.Library("hqsb", "IMPL", "CUDA")
+        meta = torch.library.Library("hqsb", "IMPL", "Meta")
+        schemas = {
+            "l2_rms_norm": "(Tensor x, Tensor weight, float eps, int variant) -> Tensor",
+            "l2_residual_norm": "(Tensor x, Tensor residual, Tensor weight, float eps) -> (Tensor, Tensor)",
+            "l2_silu_mul": "(Tensor gate, Tensor up) -> Tensor",
+            "l2_rope": "(Tensor x, Tensor cos, Tensor sin) -> Tensor",
+            "l2_linear": "(Tensor x, Tensor weight, bool small_m) -> Tensor",
+        }
+        for name, signature in schemas.items():
+            definition.define(name + signature)
+        implementation.impl("l2_rms_norm", native.norm)
+        implementation.impl("l2_residual_norm", lambda x,r,w,eps: native.norm(x,w,eps,3,r))
+        implementation.impl("l2_silu_mul", native.silu)
+        implementation.impl("l2_rope", native.rope)
+        implementation.impl("l2_linear", native.linear)
+        meta.impl("l2_rms_norm", lambda x,w,eps,variant: torch.empty_like(x))
+        meta.impl("l2_residual_norm", lambda x,r,w,eps: (torch.empty_like(x),torch.empty_like(x)))
+        meta.impl("l2_silu_mul", lambda g,u: torch.empty_like(g))
+        meta.impl("l2_rope", lambda x,c,s: x.new_empty((x.shape[0],x.shape[2],x.shape[1],x.shape[3])))
+        meta.impl("l2_linear", lambda x,w,small_m: x.new_empty((*x.shape[:-1],w.shape[0])))
+        _LIBRARIES.extend((definition, implementation, meta))
+        _MODEL_NATIVE = native
+        return native
