@@ -23,6 +23,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--spec", required=True)
     parser.add_argument("--manifest", required=True)
+    parser.add_argument("--kernel-manifest")
     parser.add_argument("--model-path", default="~/models/hqsb/Qwen3-1.7B")
     parser.add_argument("--output-root", default="experiment_results/EXP")
     parser.add_argument("--timeout", type=int, default=600)
@@ -54,6 +55,8 @@ def main():
                                                               "pair_id": str(index), "arm": arm, "role": role})]
                 if payload.get("observation_plan"):
                     argv.extend(["--observation-plan-json", json.dumps(payload["observation_plan"])])
+                if args.kernel_manifest:
+                    argv.extend(["--kernel-manifest", args.kernel_manifest])
                 if role == "quality":
                     argv.extend(["--quality-plan", str(directory / "quality-plan.json")])
                 stdout, stderr = directory / f"{run_id}.stdout", directory / f"{run_id}.stderr"

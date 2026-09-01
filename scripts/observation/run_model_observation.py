@@ -33,6 +33,8 @@ def main():
     parser.add_argument("--osl", type=int, default=16)
     parser.add_argument("--model-path", default="~/models/hqsb/Qwen3-1.7B")
     parser.add_argument("--manifest")
+    parser.add_argument("--kernel-profile", default="framework-native")
+    parser.add_argument("--kernel-manifest")
     parser.add_argument(
         "--device-lock-path", default=str(Path.home() / ".cache/hqsb/device0.lock")
     )
@@ -53,6 +55,7 @@ def main():
     resolved = resolve_plan(optimization, {"attention_backend": args.attention,
                            "cleanup_policy": args.cleanup_policy, "output_budget": args.osl})
     args.attention = resolved["resolved"]["attention_backend"]
+    args.kernel_profile = resolved["resolved"].get("kernel_profile", args.kernel_profile)
     if (
         not 1 <= args.isl <= 2048
         or not 1 <= args.osl <= 512
@@ -75,6 +78,8 @@ def main():
             "attention": args.attention,
             "context_limit": 4096,
             "manifest": args.manifest,
+            "kernel_profile": args.kernel_profile,
+            "kernel_manifest": args.kernel_manifest,
             "device_lock_path": str(Path(args.device_lock_path).expanduser().resolve()),
         }
     )
