@@ -29,6 +29,10 @@ Console v0.2 增量（2026-09-21）：`console.analysis_routes` 只组合 HTTP �
 
 Console v0.2.1：`console.dataflow` 是不导入设备运行时的纯证据投影；通过 `captures.project` 单遍聚合已保留事件，避免再次复制完整 trace。浏览器 `features/memory-flow` 负责权重面积布局、KV 层视图与逻辑流程交互；不推断物理地址、GPU 缓存流量或跨时钟阶段归属。当前资源、加载时权重与请求末尾 KV 分别标注来源和时间。
 
+L2 增量（2026-10-15）：`core.kernel_profiles` 仅拥有 server-owned 版本配置。`backends.kernel_session` 拥有模型局部安装/恢复与有界阶段计数；`backends.model_kernels` 拥有固定上游源码语义适配。`integration.torch_ops` 继续唯一拥有 torch schema，新 `integration.model_native` 负责 tensor guard、精确制品校验与 C ABI；`ops/cuda/model_kernels` 只负责数学实现和 cuBLASLt 计划。真实执行与质量取样仍在 worker；`experiments` 读取封存 kernel 证据并比较，执行层不反向依赖它。默认不替换；profile 变化通过卸载/加载和新 epoch 生效。
+
+算子界面增量（2026-10-16）：`console.kernel_inventory`（Python）只读取服务端配置和文件身份，输出按部署筛选的可提交方案；不导入 torch、不装载动态库、不宣称运行兼容性。`core.kernel_profiles` 的展示标签只进入目录，不改变哈希执行计划。浏览器 `features/kernels/KernelControl`（TypeScript/React）拥有选择草稿和操作反馈，`lifecycle` 拥有一次用户动作内的卸载→终态确认→加载→epoch/方案核对；离开页面终止后续提交，已接受任务由现有服务队列持有。`KernelReceiptView` 只投影运行凭据中的实际版本与逻辑站点计数，不用当前部署配置补写历史。它与现有 `RunEvidence` 共用封存原件下载；算子执行、制品 ABI 校验和 GPU 采集仍由既有 worker 所有者负责。
+
 ## 1. 依赖图（Dependency Graph）
 
 ```mermaid
@@ -261,6 +265,18 @@ import `torch`/`triton`/`numpy`。
     环境可独立导入与测试（审计工具本身不得要求 GPU 或联网）。
 
 ## 4. 扩展点（Extension Points）
+
+### 固定用例性能与质量对照（2026-10-16）
+
+| 模块 | 语言与所有权 | 输入 → 输出 / 契约 |
+|---|---|---|
+| `experiments/benchmark_suite.py` | Python；纯固定输入、客观评分、统计投影，无设备操作 | 版本化 fixture / 完整 run → 输入哈希、exact/JSON 分、开放任务 null、分用例中位数与可比性原因；预热和诊断排除 |
+| `console/benchmark_campaigns.py` | Python；一轮任务的执行线程、取消与 journal | 固定 ID、预算 → 冻结计划、生命周期 run、warmup/measurement/diagnostic run；复用 ConsoleService 的串行 worker，持有独占 owner，最终释放并恢复原部署 |
+| `console/benchmark_routes.py` | Python；HTTP 形状、数量/预算校验 | 有界请求 → manager 返回文档；不接收路径或自定义输入，不处理推理和评分 |
+| `console/service.py` | Python；模型和设备任务所有者 | 增加 `claim_benchmark/release_benchmark` 和可选内部 owner；对照期间拒绝其他提交，旧提交契约保持兼容，执行仍由原 actor 负责 |
+| `pages/Benchmarks.tsx` / `features/benchmarks` | TypeScript；选择、显式提交、轮询和结果呈现 | 同源 API JSON → 配置表、按用例对照与输出；浏览器生命周期不拥有模型任务，刷新不重提 |
+
+数据方向：固定 suite → 冻结 plan → ConsoleService run → 原件/SQLite → 只读结果投影 → 原子 journal → 前端。journal 位于同一服务数据目录 `benchmarks/`，以 plan/records/report SHA-256 检出意外改写；不是签名或敌对篡改防护。`config.benchmark_links` 保存 benchmark/case/scheme/role/repeat 关联；原件和下载仍由现有 capture 模块管理。重启中断而不重放。质量、相对输出变化与性能口径分别判断。
 
 第三方开发者（或 Coding Agent）只需：
 

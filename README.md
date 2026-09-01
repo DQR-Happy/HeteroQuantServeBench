@@ -125,3 +125,48 @@ CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存�
 `ObservationPlan.sources` 可以组合 allocator/pages/operators；保留旧五种模式默认行为。详细数据走有界文件，SQLite/SSE 只保留任务和摘要。优化凭据与质量原件通过监督者封存、fsync 和 SHA-256 核验后提供认证下载；取消/错误保留 partial。来源缺失不是零，生成上下文分叉后的机制仅作描述。源码补丁、模型身份、dtype/kernel 的比较必须精确预先声明；它们的比较支持不表示对应优化执行器已接入。
 
 接口和边界详见 [G01–G08 实施与验证记录](docs/architecture/HQSB_G01_G08_实施与验证_20261014.md)。
+
+### 前端与 G01–G08 服务联通
+
+导航中的「优化实验」（`/optimization`）使用同源接口，测试阶段默认免登录：注册并冻结 JSON 配置 → 选择已就绪的 PyTorch 部署 → 串行执行未提交的 performance/diagnostic/quality 槽位 → 查看后端比较报告 → 从运行详情下载封存原件。`GET /experiments` 提供分页计划索引，`GET /experiments/{id}/jobs` 提供槽位状态。刷新按原实验 ID 恢复；接受过的槽位，包括失败和取消，不会自动重提。离开页面停止后续自动提交，已接受任务仍可在运行记录取消；显式停止会等待提交返回 ID 后请求取消。
+
+普通推理工作台可以选择 allocator 清理策略，并传给已有优化配置解析。运行详情新增「优化与质量凭据」，同时展示 requested/resolved/effective、独立质量协议和经过 SHA-256 验证的下载链接。机制报告提供指标筛选与原始 seq；缺失保持未知，质量 fixture 不能代表通用准确率，同 worker 性能不能替代独立进程验收。
+
+当前测试服务的代码位于 Jetson 独立 checkout `/home/jetson/work/HQSB-benchmark-ui-20261016`，监听 `127.0.0.1:8768`，沿用 `/home/jetson/work/HQSB-g01-g08-20261014/.console/connected/` 的运行和实验数据；原 8767 实例保留。编辑端通过 SSH 转发访问，构建、测试及真实推理仍只在 Jetson 进行：
+
+```bash
+ssh -N -L 127.0.0.1:8878:127.0.0.1:8768 jetson@192.168.10.7
+# 浏览器打开 http://127.0.0.1:8878/benchmarks
+# 测试模式直接进入，无需 API Key 或访问令牌。
+```
+
+当前实例重启时继续使用原来的已验证权重配置和数据目录，需已构建 `web/console/dist`，不能并行启动两个使用同一数据目录的实例。需要恢复认证时添加 `--require-auth` 或配置 `auth_required: true`：
+
+```bash
+export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-benchmark-ui-20261016
+./scripts/remote_run.sh env \
+  HQSB_CONSOLE_DATA=/home/jetson/work/HQSB-g01-g08-20261014/.console/connected \
+  HQSB_EVIDENCE_ROOT=/home/jetson/work/HQSB-g01-g08-20261014 \
+  python3 -m hqsb.console --port 8768 --privileged-worker \
+  --config /home/jetson/work/HQSB-benchmark-ui-20261016/reports/console/benchmark-ui/service.yaml
+```
+
+### 固定输入的性能与质量对照
+
+进入“评测 → 性能与质量对照”（`/benchmarks`），默认预选四个版本化用例：算术短答案、JSON 结构化提取、上下文检索、开放解释。输入原文可展开，输入及计划保存 SHA-256。选择一个基线和最多三个候选方案，统一 greedy 与输出预算，直接开始对照。默认候选为 RMSNorm half2 v2 和局部融合 v1；原生制品不可用时对应候选禁用。`/playground` 保留为交互推理案例，`/optimization` 保留为高级预注册实验。
+
+每个方案、每个用例先预热一次，再测量 1–5 次。服务端按方案串行切换和重载模型，刷新或离开浏览器不改变执行；同一时刻只允许一轮对照占用控制面，结束或取消后尝试恢复原部署。服务重启将未结束对照标为 `interrupted`，保留已接受任务，不自动重提，也不承诺恢复重启前的模型进程。
+
+按用例分别展示输出、参考答案正确率、基线 Token 一致率、首 Token、生成 E2E、Decode 吞吐、输入/输出 Token 数与峰值分配内存。前三个用例按固定答案评分，开放解释没有客观分；一致率不等于正确率，达到输出预算会显示可能截断。只有完整且生效凭据、输入 Token、实际输出数量和模型/源码/分词器身份可对齐时才显示 E2E 相对值。计时不含加载、分词、预热、归档和评分；同 worker 快速比较不能替代独立进程 AB/BA 正式性能验收。
+
+`GET /benchmark-catalog` 返回固定输入、目录与默认值；`POST /benchmarks` 冻结并执行，`GET /benchmarks`、`GET /benchmarks/{id}` 和 `POST /benchmarks/{id}/cancel` 提供历史、详情与取消。浏览器仅提交固定 ID 和有界预算，不能提交自定义路径或提示词。计划、角色、repeat、run ID、输出与投影凭据原子保存到数据目录 `benchmarks/bench_*.json`；生成原件继续使用已有 SQLite 运行记录与封存 capture。每次运行的 `config.benchmark_links` 反向关联本轮对照、用例和方案。可选内存/KV/系统页诊断独立执行，排除在性能统计之外；缺失指标保持未知。
+
+2026-10-16 已在 Jetson 验证 Qwen3-1.7B 的 native / RMSNorm half2 v2 / 局部融合 v1 三方案四用例，共 12 次预热、12 次测量，核对全部测量凭据与封存原件。另验证独立内存诊断、在运行中取消、原方案恢复、刷新不重提、桌面/小屏及免登录；升级前 143 条运行记录 SHA-256 未变。检索用例三方案均输出错误值 `blue39`，保留正确率 0 与一致率 1；开放任务保持未评分。私有原始证据与功能验收位于 `reports/console/benchmark-ui/`，不构成优化采用或通用质量结论。
+
+### 推理界面的算子替换
+
+打开 `/playground`，在“执行配置 → 算子实现与版本”选择一个明确版本的方案。当前提供框架原生、RMSNorm scalar v1 / half2 v2、残差归一化、SiLU×up、RoPE、cuBLASLt、小 M GEMV、SDPA math / flash 和两种组合方案；未列出的算子保留原实现。选择后点击“加载并应用算子”或“应用并重载模型”，等待新部署版本就绪，再开始推理。待应用选择与当前实际加载方案分别显示；版本不一致时不能开始推理。切换需要重新加载模型。
+
+“本次运行凭据与观测”显示 requested/resolved/effective、实际算子版本、Prefill/Decode 逻辑调用计数、未执行站点和 fallback，并提供封存的计划、绑定、汇总及执行凭据下载。阶段/token/allocator 摘要与内存、KV、OS 页、GPU profiler 的详细页面关联到同一个 run ID。逻辑调用证明与 GPU 活动、物理访存、质量和性能验收各有独立口径。
+
+`GET /api/console/v1/kernels/profiles?deployment_id=<id>` 提供部署级目录与制品文件身份检查；仅目录可读不代表模型加载通过。管理员通过 `kernel_manifest` 配置原生库的固定 manifest，浏览器不能提交库路径。当前服务绑定内容寻址制品；缺失或哈希不符的方案会禁用，worker 加载时仍校验 ABI、torch/CUDA/SM 及模型适配。默认继续免登录，默认加载方案仍为 `framework-native`。
