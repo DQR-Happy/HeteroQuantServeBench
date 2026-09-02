@@ -107,3 +107,6 @@ test-results/
 
 # Generated, self-contained gallery of private validation screenshots.
 /web/console/public/preview.html
+
+# Local snapshots taken before an explicitly requested redesign.
+/.backups/
