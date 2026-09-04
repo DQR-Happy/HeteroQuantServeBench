@@ -58,6 +58,7 @@ def test_s05_browser_list_preview_download_preserves_results(tmp_path):
         )
         documents.update(files)
     settings = Settings(
+        auth_required=True,
         data_dir=tmp_path / "state",
         evidence_root=tmp_path,
         web_dist=tmp_path / "dist",

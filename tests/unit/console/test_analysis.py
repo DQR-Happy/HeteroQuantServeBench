@@ -112,6 +112,7 @@ def api(tmp_path, monkeypatch):
         lambda path: SimpleNamespace(free=16 * 1024**3),
     )
     settings = Settings(
+        auth_required=True,
         data_dir=tmp_path / "state",
         evidence_root=tmp_path,
         web_dist=tmp_path / "dist",

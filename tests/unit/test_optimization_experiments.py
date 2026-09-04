@@ -220,14 +220,20 @@ def test_experiment_api_authentication_registration_and_missing_evidence(tmp_pat
     from hqsb.console.app import PREFIX, create_app
     from hqsb.console.config import DeploymentConfig, Settings
 
-    settings = Settings(data_dir=tmp_path / "store", evidence_root=tmp_path, web_dist=tmp_path / "web",
+    settings = Settings(auth_required=True, data_dir=tmp_path / "store", evidence_root=tmp_path, web_dist=tmp_path / "web",
                         deployments=[DeploymentConfig(id="reference", name="reference")])
     with TestClient(create_app(settings, "secret", monitor=False)) as client:
         assert client.get(PREFIX + "/optimization-catalog").status_code == 401
+        assert client.get(PREFIX + "/experiments").status_code == 401
         client.headers["Authorization"] = "Bearer secret"
         created = client.post(PREFIX + "/experiments/plans", json={"spec": spec()})
         assert created.status_code == 201
         experiment_id = created.json()["experiment_id"]
+        listing = client.get(PREFIX + "/experiments?limit=1").json()
+        assert listing["total"] == 1 and listing["items"][0]["spec_sha256"] == created.json()["spec_sha256"]
+        assert client.get(PREFIX + "/experiments?offset=1").json()["items"] == []
+        assert client.get(PREFIX + "/experiments?limit=51").status_code == 422
+        assert client.get(PREFIX + f"/experiments/{experiment_id}/jobs").json() == {"items": []}
         report = client.get(PREFIX + f"/experiments/{experiment_id}/report").json()
         assert report["completeness"] == "partial" and report["decision"] == "hold"
         assert report["quality_status"] == "not_evaluated"
@@ -240,3 +246,5 @@ def test_experiment_api_authentication_registration_and_missing_evidence(tmp_pat
         document["spec"]["output_tokens"] = 20
         atomic_json(path, document)
         assert client.get(PREFIX + f"/experiments/{experiment_id}/plan").status_code == 409
+        assert client.get(PREFIX + "/experiments").status_code == 409
+        assert client.get(PREFIX + f"/experiments/{experiment_id}/jobs").status_code == 409

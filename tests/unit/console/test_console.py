@@ -55,6 +55,7 @@ def settings(tmp_path):
         json.dumps({"performance": {"fp16": {"tiny": {"ttft_ms": {"median": 12}}}}})
     )
     return Settings(
+        auth_required=True,
         data_dir=tmp_path / "state",
         evidence_root=tmp_path,
         web_dist=tmp_path / "dist",
@@ -370,3 +371,75 @@ def test_api_import_keeps_heavy_runtime_lazy():
                     "triton",
                     "transformers",
                 }
+
+
+def test_kernel_profile_load_epoch_and_legacy_empty_body(client):
+    browser, service = client
+    listing = browser.get("/api/console/v1/kernels/profiles", headers=AUTH).json()
+    assert any(p["profile_id"] == "qwen3-attention-math-v1" for p in listing["profiles"])
+    rejected = post(browser, "/deployments/reference/load", {"kernel_profile": "not-a-profile"})
+    assert rejected.status_code == 422
+    missing_artifact = post(browser, "/deployments/reference/load", {"kernel_profile": "qwen3-norm-vector-v2"})
+    assert missing_artifact.status_code == 422
+    loaded = post(browser, "/deployments/reference/load", {"kernel_profile": "qwen3-attention-math-v1"})
+    assert wait(service, loaded.json())["state"] == "completed"
+    state = service.deployments()[0]
+    assert state["kernel_profile"] == "qwen3-attention-math-v1"
+    invalid = {**payload(state["epoch"]), "deployment_id":"reference",
+               "optimization":{"changes":{"kernel_profile":"framework-native"}}}
+    assert post(browser, "/requests", invalid).status_code == 422
+    first_epoch = state["epoch"]
+    assert wait(service, post(browser, "/deployments/reference/unload").json())["state"] == "completed"
+    assert wait(service, post(browser, "/deployments/reference/load", {}).json())["state"] == "completed"
+    state = service.deployments()[0]
+    assert state["kernel_profile"] == "framework-native" and state["epoch"] != first_epoch
+
+
+def test_deployment_kernel_catalogue_and_invalid_artifact(client):
+    browser, service = client
+    response = browser.get(BASE + "/kernels/profiles?deployment_id=reference", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json()["native_artifact"]["status"] == "missing"
+    assert browser.get(BASE + "/kernels/profiles?deployment_id=unknown", headers=AUTH).status_code == 404
+    service.configs["reference"].kernel_manifest = "/missing-artifact.json"
+    response = post(browser, "/deployments/reference/load", {"kernel_profile": "qwen3-norm-vector-v2"})
+    assert response.status_code == 422 and "KERNEL_NATIVE_ARTIFACT_INVALID" in response.text
+    assert service.deployments()[0]["state"] == "unloaded"
+
+
+def test_no_auth_workspace_allows_anonymous_reads_and_writes(settings):
+    settings.auth_required = False
+    service = ConsoleService(settings, actor_factory=TestActor)
+    with TestClient(create_app(settings, service=service, monitor=False)) as browser:
+        response = browser.get(BASE + "/session")
+        assert response.status_code == 200 and response.json()["auth_required"] is False
+        assert "hqsb_session" not in browser.cookies
+        browser.cookies.set("hqsb_session", "expired.invalid")
+        assert browser.get(BASE + "/deployments").status_code == 200
+        run = browser.post(BASE + "/deployments/reference/load", json={}, headers={
+            "X-HQSB-Client": "console", "Idempotency-Key": uuid.uuid4().hex})
+        assert run.status_code == 202
+        assert wait(service, run.json())["state"] == "completed"
+        response = browser.post(BASE + "/session/logout", json={}, headers={"X-HQSB-Client":"console"})
+        assert response.status_code == 200
+        assert browser.get(BASE + "/session").status_code == 200
+        assert browser.post(BASE + "/session/logout", json={}).status_code == 403
+        assert browser.post(BASE + "/session/logout", json={}, headers={
+            "X-HQSB-Client":"console", "Origin":"http://other-host"}).status_code == 403
+
+
+def test_token_file_only_used_when_authentication_is_enabled(settings):
+    from hqsb.console.__main__ import access_token
+
+    settings.data_dir.mkdir()
+    settings.auth_required = False
+    assert access_token(settings) is None
+    path = settings.data_dir / "access-token"
+    assert not path.exists()
+    path.write_text("old-invalid-token")
+    assert access_token(settings) is None and path.read_text() == "old-invalid-token"
+    settings.auth_required = True
+    with pytest.raises(ValueError, match="24 characters"):
+        access_token(settings)
+    with pytest.raises(ValueError, match="configured access token"):
+        create_app(settings, monitor=False)
