@@ -115,7 +115,7 @@ export default function Devices() {
                 {
                   key: 'precision',
                   label: '精度 / 算子',
-                  children: `${d.precision} / ${d.kernel}`,
+                  children: `${d.precision} / ${d.kernel_profile ?? d.kernel}`,
                 },
                 {
                   key: 'epoch',
@@ -130,6 +130,11 @@ export default function Devices() {
                 { key: 'load', label: '加载耗时', children: `${fmt(d.detail.load_seconds)} s` },
               ]}
             />
+            {d.provider === 'pytorch' && (
+              <div className="help-text">
+                <Link to="/playground">在推理工作台选择具体算子实现与版本、加载或重载模型 →</Link>
+              </div>
+            )}
             {d.last_error && <Alert type="error" message={d.last_error} />}
             <details>
               <summary>加载结果与制品身份</summary>

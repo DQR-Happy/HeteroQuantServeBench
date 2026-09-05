@@ -52,7 +52,13 @@ export default function Compare() {
         title="运行对比"
         description="固定基线 A 与候选 B，先检查控制变量，再阅读机制变化和请求指标。"
       />
-      <Panel title="对照对象" subtitle="候选来自最近 100 条任务。部署加载与失败请求不参与对比。">
+      <div className="comparison-explanation">
+        <strong>A → B</strong>
+        <p>
+          选择两次已完成推理，指定唯一放开的变量。差值统一为 B − A；可比性、质量与采用判定分别保留。
+        </p>
+      </div>
+      <Panel>
         <QueryState error={query.error} />
         <div className="comparison-pickers">
           {(['left', 'right'] as const).map((side) => (

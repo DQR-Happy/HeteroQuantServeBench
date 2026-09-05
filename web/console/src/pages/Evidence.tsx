@@ -103,20 +103,15 @@ export default function EvidencePage({
           description="本版不从网页启动任意阶段脚本或批量占用租用设备。实验执行仍通过项目远端流程完成；归档后自动进入证据中心。"
         />
       )}
-      <div className="stats-grid">
-        <div className="stat">
-          <div className="stat-label">可索引实验</div>
-          <div className="stat-value">{filtered.length}</div>
-          <div className="stat-hint">以 verdict.json 实际存在为准</div>
-        </div>
+      <div className="evidence-counts">
+        <span>
+          <strong>{filtered.length}</strong> 个归档实验
+        </span>
         {['PASS', 'FAIL', 'BLOCKED', 'N/A_BY_ADR'].map((s) => (
-          <div className="stat" key={s}>
-            <div className="stat-label">
-              <Status state={s} />
-            </div>
-            <div className="stat-value">{filtered.filter((x) => x.status === s).length}</div>
-            <div className="stat-hint">保留原始结论，不按展示需要修改</div>
-          </div>
+          <span key={s}>
+            <Status state={s} />
+            <strong>{filtered.filter((x) => x.status === s).length}</strong>
+          </span>
         ))}
       </div>
       <Panel

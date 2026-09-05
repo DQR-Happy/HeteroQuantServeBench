@@ -14,89 +14,80 @@ export function Showcase() {
         title="技术展示路线"
         description="沿着问题、测量、优化、质量与限制，讲清楚一次推理工程决策。每一步都落到真实页面和证据。"
       />
-      <div className="story-banner">
-        <Tag>建议 8–12 分钟</Tag>
-        <h2>
-          性能数字背后，
-          <br />
-          是可解释的工程选择。
-        </h2>
-        <p>
-          从真实请求开始，以证据和边界收尾。展示你如何发现问题、验证方案，并识别尚未成立的结论。
-        </p>
-        <Link to="/playground">
-          <Button type="primary" size="large">
-            开始真实演示
-          </Button>
-        </Link>
-      </div>
-      <Panel title="五步演示" subtitle="无需伪造 GPU 曲线或预填性能结果">
-        <Steps
-          direction="vertical"
-          items={[
-            {
-              title: '1. 提出约束：8 GB 端侧设备能稳定服务什么？',
-              description: (
-                <p>
-                  打开 <Link to="/devices">设备与部署</Link>
-                  ，展示实际模型、内存、执行平台和上下文上限。解释为何一次只驻留一个模型。
-                </p>
-              ),
-            },
-            {
-              title: '2. 跑通一条请求，分清时间花在哪里',
-              description: (
-                <p>
-                  在 <Link to="/playground">推理工作台</Link> 提交提示词，区分浏览器首内容、API
-                  首内容、Runtime 首 token，演示取消与资源清理。
-                </p>
-              ),
-            },
-            {
-              title: '3. 从整体指标追到具体实现',
-              description: (
-                <p>
-                  打开 <Link to="/runs">运行详情</Link> 看逐 token 延迟和实际 token ID，再看{' '}
-                  <Link to="/kernels">算子源码</Link>。清楚说明单算子优化与模型回接是两层验证。
-                </p>
-              ),
-            },
-            {
-              title: '4. 展示一个没有通过的优化，以及原因',
-              description: (
-                <p>
-                  进入 <Link to="/quantization">量化与质量</Link> 打开 E05-02 的 verdict
-                  和报告。解释原生低比特与 FP16 反量化控制路径的区别。
-                </p>
-              ),
-            },
-            {
-              title: '5. 说明多平台的实用价值与尚待完成的部分',
-              description: (
-                <p>
-                  用 <Link to="/compare">运行对比</Link>{' '}
-                  展示可比性门，说明多平台用于识别硬件约束、验证移植和部署决策。没有设备证据时，不宣布该平台获得加速。
-                </p>
-              ),
-            },
-          ]}
-        />
-      </Panel>
-      <div className="grid-two">
-        <Panel title="与推理引擎、编译器的关系">
-          <p>
-            HQSB Console 是面向异构推理工程的实验与观测入口。vLLM / SGLang
-            可以作为提供推理服务的引擎；编译器与自定义算子可以提供候选执行路径。
-          </p>
-          <p>
-            项目要证明的是：在明确约束下，为什么选择某个方案、实际运行了什么、质量和性能证据是否支持这个选择。
-          </p>
+      <div className="guide-layout">
+        <Panel title="五步演示" subtitle="无需伪造 GPU 曲线或预填性能结果">
+          <Steps
+            direction="vertical"
+            items={[
+              {
+                title: '1. 提出约束：8 GB 端侧设备能稳定服务什么？',
+                description: (
+                  <p>
+                    打开 <Link to="/devices">设备与部署</Link>
+                    ，展示实际模型、内存、执行平台和上下文上限。解释为何一次只驻留一个模型。
+                  </p>
+                ),
+              },
+              {
+                title: '2. 跑通一条请求，分清时间花在哪里',
+                description: (
+                  <p>
+                    在 <Link to="/playground">推理工作台</Link> 提交提示词，区分浏览器首内容、API
+                    首内容、Runtime 首 token，演示取消与资源清理。
+                  </p>
+                ),
+              },
+              {
+                title: '3. 从整体指标追到具体实现',
+                description: (
+                  <p>
+                    打开 <Link to="/runs">运行详情</Link> 看逐 token 延迟和实际 token ID，再看{' '}
+                    <Link to="/kernels">算子源码</Link>。清楚说明单算子优化与模型回接是两层验证。
+                  </p>
+                ),
+              },
+              {
+                title: '4. 展示一个没有通过的优化，以及原因',
+                description: (
+                  <p>
+                    进入 <Link to="/quantization">量化与质量</Link> 打开 E05-02 的 verdict
+                    和报告。解释原生低比特与 FP16 反量化控制路径的区别。
+                  </p>
+                ),
+              },
+              {
+                title: '5. 说明多平台的实用价值与尚待完成的部分',
+                description: (
+                  <p>
+                    用 <Link to="/compare">运行对比</Link>{' '}
+                    展示可比性门，说明多平台用于识别硬件约束、验证移植和部署决策。没有设备证据时，不宣布该平台获得加速。
+                  </p>
+                ),
+              },
+            ]}
+          />
         </Panel>
-        <Panel title="秋招里值得展示的工程能力">
-          <p>AI Infra：API 契约、进程隔离、背压、幂等、取消和重启恢复。</p>
-          <p>推理优化：真实 token 计时、测量范围、内存语义与可比性门。</p>
-          <p>算子与异构：源码、数值验证、模型回接以及能力缺口的明确表达。</p>
-        </Panel>
+        <aside className="guide-note">
+          <Tag>建议 8–12 分钟</Tag>
+          <p>从实际运行进入观测证据，说明测量范围、候选方案和验收边界。</p>
+          <Link to="/playground">
+            <Button>开始真实演示</Button>
+          </Link>
+          <Panel title="与推理引擎、编译器的关系">
+            <p>
+              HQSB Console 是面向异构推理工程的实验与观测入口。vLLM / SGLang
+              可以作为提供推理服务的引擎；编译器与自定义算子可以提供候选执行路径。
+            </p>
+            <p>
+              项目要证明的是：在明确约束下，为什么选择某个方案、实际运行了什么、质量和性能证据是否支持这个选择。
+            </p>
+          </Panel>
+          <Panel title="秋招里值得展示的工程能力">
+            <p>AI Infra：API 契约、进程隔离、背压、幂等、取消和重启恢复。</p>
+            <p>推理优化：真实 token 计时、测量范围、内存语义与可比性门。</p>
+            <p>算子与异构：源码、数值验证、模型回接以及能力缺口的明确表达。</p>
+          </Panel>
+        </aside>
       </div>
     </>
   );
@@ -126,7 +117,12 @@ export function SettingsPage() {
               label: '请求最大截止时间',
               children: `${(session?.limits.max_deadline_ms ?? 0) / 1000} s`,
             },
-            { key: 'auth', label: '会话有效期', children: '8 小时 · HttpOnly cookie' },
+            {
+              key: 'auth',
+              label: '访问方式',
+              children:
+                session?.auth_required === false ? '测试模式 · 免登录' : '令牌认证 · 会话 8 小时',
+            },
           ]}
         />
       </Panel>

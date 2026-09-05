@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Alert, Empty, Spin, Tag } from 'antd';
+import { Alert, Empty, Spin } from 'antd';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart } from 'echarts/charts';
 import {
@@ -44,6 +44,7 @@ const labels: Record<string, string> = {
   failed: '失败',
   cancelled: '已取消',
   cancel_requested: '取消中',
+  cancelling: '取消中',
   timed_out: '超时',
   interrupted: '执行中断',
   PASS: '通过',
@@ -63,10 +64,14 @@ export function Status({ state }: { state: string }) {
       : ['loading', 'running', 'queued', 'cancel_requested', 'quantizing'].includes(state)
         ? 'processing'
         : 'default';
-  return <Tag color={color}>{labels[state] ?? state}</Tag>;
+  return (
+    <span className={`run-status status-${color}`}>
+      <span aria-hidden="true" />
+      {labels[state] ?? state}
+    </span>
+  );
 }
 export function PageHead({
-  kicker,
   title,
   description,
   extra,
@@ -79,11 +84,10 @@ export function PageHead({
   return (
     <div className="page-head">
       <div>
-        <div className="eyebrow">{kicker}</div>
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      <div>{extra}</div>
+      {extra && <div className="page-actions">{extra}</div>}
     </div>
   );
 }

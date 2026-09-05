@@ -1,123 +1,15 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { App, Button, Input, Select, Space, Table, Tabs, Tag, Alert } from 'antd';
-import { DownloadOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons';
+import { App, Button, Space, Tabs, Tag, Alert } from 'antd';
+import { DownloadOutlined, StopOutlined } from '@ant-design/icons';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import RunEvidence from '../features/experiments/RunEvidence';
 import { api, base, date, fmt, gib, terminal } from '../api/client';
-import type { Run, RunPage } from '../api/types';
-import {
-  Chart,
-  JsonView,
-  PageHead,
-  Panel,
-  QueryState,
-  Stat,
-  Status,
-  runKindLabel,
-} from '../components';
+import { Chart, JsonView, PageHead, Panel, QueryState, Stat, Status } from '../components';
 import { useRun } from '../hooks';
 import ObservationPanel from '../features/observability/ObservationPanel';
 import QuantizationRun from '../features/research/QuantizationRun';
 
-export function Runs() {
-  const [offset, setOffset] = useState(0),
-    [filter, setFilter] = useState('all'),
-    [search, setSearch] = useState('');
-  const query = useQuery({
-    queryKey: ['runs', offset],
-    queryFn: () => api<RunPage>(`/runs?limit=30&offset=${offset}`),
-    refetchInterval: 3000,
-  });
-  const rows =
-    query.data?.items.filter(
-      (r) =>
-        (filter === 'all' || r.state === filter) &&
-        (r.id.includes(search) || r.config.deployment.name.includes(search)),
-    ) ?? [];
-  return (
-    <>
-      <PageHead
-        kicker="RUN HISTORY"
-        title="运行记录"
-        description="加载、生成、取消与失败都保留记录。每次运行绑定当时实际部署。"
-        extra={
-          <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>
-            刷新
-          </Button>
-        }
-      />
-      <Panel>
-        <div className="toolbar">
-          <Input.Search
-            placeholder="搜索本页运行 ID / 部署"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ maxWidth: 330 }}
-          />
-          <Select
-            aria-label="运行状态筛选"
-            value={filter}
-            onChange={setFilter}
-            style={{ width: 150 }}
-            options={[
-              'all',
-              'completed',
-              'running',
-              'queued',
-              'failed',
-              'cancelled',
-              'timed_out',
-            ].map((x) => ({ label: x === 'all' ? '全部状态' : x, value: x }))}
-          />
-        </div>
-        <QueryState error={query.error} />
-        <Table<Run>
-          loading={query.isPending}
-          rowKey="id"
-          dataSource={rows}
-          scroll={{ x: 850 }}
-          pagination={{
-            current: offset / 30 + 1,
-            pageSize: 30,
-            total: query.data?.total ?? 0,
-            showSizeChanger: false,
-            onChange: (n) => setOffset((n - 1) * 30),
-          }}
-          columns={[
-            {
-              title: '运行 ID',
-              dataIndex: 'id',
-              render: (id: string) => (
-                <Link className="mono" to={`/runs/${id}`}>
-                  {id.slice(0, 18)}
-                </Link>
-              ),
-            },
-            { title: '类型', dataIndex: 'kind', render: runKindLabel },
-            { title: '部署', render: (_, r) => r.config.deployment.name },
-            {
-              title: '观测',
-              render: (_, r) =>
-                (r.config.observation_mode ?? r.metrics.observation?.mode) &&
-                (r.config.observation_mode ?? r.metrics.observation?.mode) !== 'off' ? (
-                  <Link to={`/observations?run=${r.id}`}>
-                    {r.config.observation_mode ?? r.metrics.observation?.mode}
-                  </Link>
-                ) : (
-                  <span className="muted">未采集</span>
-                ),
-            },
-            { title: '状态', dataIndex: 'state', render: (s: string) => <Status state={s} /> },
-            { title: '首内容 / ms', render: (_, r) => fmt(r.metrics.console_first_content_ms) },
-            { title: '输出 token', render: (_, r) => fmt(r.metrics.output_tokens, 0) },
-            { title: '创建时间', dataIndex: 'created_at', render: date },
-          ]}
-        />
-      </Panel>
-    </>
-  );
-}
+export { default as Runs } from './RunDirectory';
 
 export function RunDetail() {
   const { id } = useParams();
@@ -159,7 +51,12 @@ export function RunDetail() {
             className="section-gap"
             type={r.error ? 'error' : 'info'}
             showIcon
-            message={r.error ?? '这是实际运行记录；质量未评估，单次交互不能形成正式加速结论。'}
+            message={
+              r.error ??
+              (r.config.experiment_role === 'quality'
+                ? '限定质量任务：请在「优化与质量凭据」查看评分协议与原件；此任务不参与推理性能比较。'
+                : '这是实际运行记录；单次交互不能形成正式加速结论，质量以独立评测为准。')
+            }
             action={
               !terminal(r.state) && (
                 <Button
@@ -189,7 +86,7 @@ export function RunDetail() {
           <Panel>
             <Tabs
               activeKey={
-                ['observation', 'config', 'metrics', 'identity', 'output'].includes(
+                ['observation', 'config', 'metrics', 'identity', 'output', 'experiment'].includes(
                   params.get('tab') ?? '',
                 )
                   ? params.get('tab')!
@@ -206,6 +103,7 @@ export function RunDetail() {
                 )
               }
               items={[
+                { key: 'experiment', label: '优化与质量凭据', children: <RunEvidence run={r} /> },
                 {
                   key: 'output',
                   label: '输出与计时',
@@ -299,7 +197,11 @@ export function RunDetail() {
                           {r.config.deployment.precision} / {r.config.deployment.kernel}
                         </strong>
                         <span>质量裁决</span>
-                        <strong>未执行质量基准</strong>
+                        <strong>
+                          {r.metrics.quality_evaluation
+                            ? `限定评测 ${r.metrics.quality_evaluation.status}；非通用基准`
+                            : '未执行质量基准'}
+                        </strong>
                         <span>输入保留</span>
                         <strong>
                           {r.config.messages ? '已按选择保存' : '仅摘要；精确复现需再次提供原输入'}

@@ -19,11 +19,11 @@ createRoot(document.getElementById('root')!).render(
       locale={zhCN}
       theme={{
         token: {
-          colorPrimary: '#435f82',
-          colorInfo: '#435f82',
-          colorSuccess: '#32664d',
-          colorWarning: '#7c5b1d',
-          colorError: '#9a4547',
+          colorPrimary: '#295c96',
+          colorInfo: '#295c96',
+          colorSuccess: '#217345',
+          colorWarning: '#805b10',
+          colorError: '#b42332',
           colorInfoBg: '#eef3f8',
           colorInfoBorder: '#c4d1e2',
           colorSuccessBg: '#eef5ef',
@@ -32,12 +32,12 @@ createRoot(document.getElementById('root')!).render(
           colorWarningBorder: '#e3d8b6',
           colorErrorBg: '#fff1f0',
           colorErrorBorder: '#ecc7c8',
-          colorText: '#20262e',
-          colorTextSecondary: '#586372',
-          colorBorder: '#a2aab5',
+          colorText: '#1f2328',
+          colorTextSecondary: '#59636e',
+          colorBorder: '#c2c9d1',
           borderRadius: 6,
           fontSize: 14,
-          controlHeight: 34,
+          controlHeight: 32,
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
         },
         components: {
@@ -47,7 +47,7 @@ createRoot(document.getElementById('root')!).render(
             itemSelectedColor: '#304e72',
             itemHeight: 36,
           },
-          Table: { headerBg: '#f4f5f7', cellPaddingBlock: 10, cellPaddingInline: 12 },
+          Table: { headerBg: '#f6f8fa', cellPaddingBlock: 12, cellPaddingInline: 16 },
           Button: { primaryShadow: 'none' },
         },
       }}

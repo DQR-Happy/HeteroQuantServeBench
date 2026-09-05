@@ -6,6 +6,7 @@ import {
   Button,
   Checkbox,
   Collapse,
+  Descriptions,
   Input,
   InputNumber,
   Select,
@@ -22,12 +23,14 @@ import {
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Link } from 'react-router-dom';
-import { api, terminal } from '../api/client';
+import { api, fmt, gib, terminal } from '../api/client';
 import type { Deployment, InferenceRequest, Run, Session } from '../api/types';
 import { PageHead, Panel, Stat, Status, QueryState } from '../components';
 import { useRun } from '../hooks';
 import ObservationControl from '../features/observability/ObservationControl';
 import type { ObservationMode } from '../features/observability/types';
+import KernelControl from '../features/kernels/KernelControl';
+import RunEvidence from '../features/experiments/RunEvidence';
 
 export default function Playground() {
   const { message } = App.useApp();
@@ -38,6 +41,8 @@ export default function Playground() {
     refetchInterval: 2000,
   });
   const [selected, setSelected] = useState('');
+  const [kernelDrafts, setKernelDrafts] = useState<Record<string, string>>({});
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const deployment =
     deployments.data?.items.find((x) => x.id === selected) ?? deployments.data?.items[0];
   const [prompt, setPrompt] = useState(
@@ -46,15 +51,29 @@ export default function Playground() {
   const [system, setSystem] = useState('你是一位严谨的技术助手。请用中文简明回答。');
   const [tokens, setTokens] = useState(128);
   const [save, setSave] = useState(false);
+  const [cleanup, setCleanup] = useState('empty_cache');
   const [observationMode, setObservationMode] = useState<ObservationMode>('basic');
   const [submitted, setSubmitted] = useState<{ id: string; time: number }>();
   const [sending, setSending] = useState(false);
   const run = useRun(submitted?.id, submitted?.time);
+  const observed = run.data?.metrics.observation;
   const localProvider = deployment?.provider === 'pytorch';
+  const kernelProfile =
+    (deployment && kernelDrafts[deployment.id]) ?? deployment?.kernel_profile ?? 'framework-native';
+  const kernelPending =
+    localProvider && kernelProfile !== (deployment?.kernel_profile ?? 'framework-native');
   const deadlineLimit = client.getQueryData<Session>(['session'])?.limits.max_deadline_ms ?? 120000;
   const active = sending || (!!run.data && !terminal(run.data.state));
+  const configLocked = active || lifecycleBusy;
   const start = async () => {
-    if (!deployment?.epoch || !prompt.trim()) return;
+    if (
+      !deployment?.epoch ||
+      !prompt.trim() ||
+      configLocked ||
+      kernelPending ||
+      deployment.state !== 'ready'
+    )
+      return;
     setSending(true);
     const time = performance.now();
     try {
@@ -69,6 +88,11 @@ export default function Playground() {
         deadline_ms: Math.min(120000, deadlineLimit),
         save_input: save,
         observation_mode: localProvider ? observationMode : 'off',
+        ...(localProvider
+          ? {
+              optimization: { changes: { cleanup_policy: cleanup, kernel_profile: kernelProfile } },
+            }
+          : {}),
       };
       const row = await api<Run>('/requests', body);
       client.setQueryData(['run', row.id], row);
@@ -118,7 +142,7 @@ export default function Playground() {
             onChange={setSelected}
             options={deployments.data?.items.map((d) => ({ label: d.name, value: d.id }))}
             style={{ width: '100%' }}
-            disabled={active}
+            disabled={configLocked}
           />
           <div className="config-meta">
             <span>执行平台</span>
@@ -128,6 +152,27 @@ export default function Playground() {
               {deployment?.provider === 'pytorch' ? 'HQSB PyTorch Reference' : 'OpenAI-compatible'}
             </strong>
           </div>
+          {localProvider && (
+            <>
+              <label className="field-label" htmlFor="cleanup-policy">
+                请求后清理策略
+              </label>
+              <Select
+                id="cleanup-policy"
+                value={cleanup}
+                onChange={setCleanup}
+                disabled={configLocked}
+                style={{ width: '100%' }}
+                options={[
+                  { value: 'empty_cache', label: '释放 allocator 空闲缓存' },
+                  { value: 'preserve_allocator', label: '保留 allocator 空闲缓存' },
+                ]}
+              />
+              <div className="help-text">
+                实际生效值记录在运行凭据中。<Link to="/optimization">建立质量与机制对照</Link>
+              </div>
+            </>
+          )}
           <label className="field-label">量化方式</label>
           <Select
             aria-label="量化方式"
@@ -151,26 +196,18 @@ export default function Playground() {
           <div className="help-text">
             量化选择绑定实际制品与执行路径。<Link to="/quantization">查看量化证据</Link>
           </div>
-          <label className="field-label">算子配置</label>
-          <Select
-            aria-label="算子配置"
-            value="native"
-            style={{ width: '100%' }}
-            options={[
-              {
-                label: localProvider
-                  ? `Framework native · ${deployment?.attention ?? 'eager'}`
-                  : `${deployment?.kernel ?? '—'} · 上游管理`,
-                value: 'native',
-              },
-              { label: '自定义 kernel · 模型回接待验证', value: 'custom', disabled: true },
-            ]}
-          />
-          <div className="help-text">
-            {localProvider
-              ? '当前实际执行框架原生算子，无静默替换。'
-              : '外部引擎的实际内核与权重精度尚未独立核验。'}
-          </div>
+          {localProvider && deployment ? (
+            <KernelControl
+              key={deployment.id}
+              deployment={deployment}
+              selected={kernelProfile}
+              onSelect={(value) => setKernelDrafts((old) => ({ ...old, [deployment.id]: value }))}
+              disabled={active}
+              onBusyChange={setLifecycleBusy}
+            />
+          ) : (
+            <div className="help-text">外部引擎的算子由上游管理，不能在此替换。</div>
+          )}
           <label className="field-label" htmlFor="max-tokens">
             最大输出 token
           </label>
@@ -181,7 +218,7 @@ export default function Playground() {
             value={Math.min(tokens, deployment?.max_output_tokens ?? 512)}
             onChange={(n) => setTokens(n ?? 128)}
             style={{ width: '100%' }}
-            disabled={active}
+            disabled={configLocked}
           />
           <div className="config-meta">
             <span>采样策略</span>
@@ -192,7 +229,7 @@ export default function Playground() {
           <ObservationControl
             value={observationMode}
             onChange={setObservationMode}
-            disabled={active}
+            disabled={configLocked}
             local={localProvider}
           />
           <Collapse
@@ -225,7 +262,8 @@ export default function Playground() {
               },
             ]}
           />
-          {deployment?.state === 'unloaded' || deployment?.state === 'failed' ? (
+          {!localProvider &&
+          (deployment?.state === 'unloaded' || deployment?.state === 'failed') ? (
             <Button block onClick={() => void load()}>
               加载并预热模型
             </Button>
@@ -262,7 +300,9 @@ export default function Playground() {
                 <Button
                   type="primary"
                   icon={<ArrowUpOutlined />}
-                  disabled={deployment?.state !== 'ready' || active || !prompt.trim()}
+                  disabled={
+                    deployment?.state !== 'ready' || configLocked || kernelPending || !prompt.trim()
+                  }
                   loading={sending}
                   onClick={() => void start()}
                 >
@@ -306,8 +346,7 @@ export default function Playground() {
               </div>
             ) : (
               <div className="output-empty">
-                <div className="output-mark">H</div>
-                <h3>{active ? '等待首个生成内容…' : '让一次推理成为可观察的实验'}</h3>
+                <h3>{active ? '等待首个生成内容…' : '尚未提交请求'}</h3>
                 <p>
                   {deployment?.state === 'ready'
                     ? '模型已就绪。点击「开始推理」查看真实输出。'
@@ -335,6 +374,51 @@ export default function Playground() {
               </div>
             )}
           </Panel>
+          {run.data && (
+            <Panel
+              title="本次运行凭据与观测"
+              subtitle="绑定本次运行与部署版本；切换模型后历史凭据保持原样"
+            >
+              <RunEvidence run={run.data} />
+              <h3>本次观测摘要</h3>
+              <Descriptions
+                size="small"
+                column={{ xs: 1, md: 2 }}
+                items={[
+                  { key: 'mode', label: '观测模式', children: observed?.mode ?? '尚无详细观测' },
+                  { key: 'phases', label: '阶段记录', children: observed?.phases.length ?? '—' },
+                  {
+                    key: 'tokens',
+                    label: '逐 token 样本',
+                    children: observed?.tokens.length ?? '—',
+                  },
+                  {
+                    key: 'memory',
+                    label: '峰值已分配 / GiB',
+                    children: fmt(gib(run.data.metrics.memory?.peak_allocated_bytes), 3),
+                  },
+                  {
+                    key: 'profile',
+                    label: 'Profiler 状态',
+                    children: observed?.profile?.status ?? '未采集',
+                  },
+                  {
+                    key: 'gpu',
+                    label: 'GPU 活动',
+                    children: observed?.profile?.activities?.includes('CUDA')
+                      ? '已采集 CUDA 活动'
+                      : '未采集 CUDA 活动',
+                  },
+                ]}
+              />
+              <Space wrap className="section-gap">
+                <Link to={`/observations?run=${run.data.id}`}>查看内存、KV 与系统页观测</Link>
+                <Link to={`/runs/${run.data.id}?tab=observation`}>
+                  查看阶段、token 与 GPU 算子观测
+                </Link>
+              </Space>
+            </Panel>
+          )}
         </div>
         <aside className="observation-column">
           <div className="observation-title">

@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Empty, Table, Tabs, Tag } from 'antd';
+import { Button, Empty, Table, Tabs, Tag } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import { api, base } from '../../api/client';
 import { JsonView, QueryState } from '../../components';
@@ -9,6 +10,13 @@ import CaptureLinks from './CaptureLinks';
 import RecordsExplorer from './RecordsExplorer';
 
 export default function MechanismPanel({ runId }: { runId: string }) {
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 900px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 900px)');
+    const update = () => setNarrow(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [params, setParams] = useSearchParams();
   const query = useQuery({
     queryKey: ['mechanisms', runId],
@@ -166,14 +174,19 @@ export default function MechanismPanel({ runId }: { runId: string }) {
   const active = tabs.some((t) => t.key === params.get('view')) ? params.get('view')! : 'metrics';
   return (
     <>
-      <Alert
-        type={evidence.capture_status === 'complete' ? 'info' : 'warning'}
-        showIcon
-        message={`采集 ${evidence.capture_status} · ${evidence.publication}`}
-        description="完整仅指声明的采集范围。分配器、进程、整机和页样本分别计量，不能相加或推断物理内存布局。"
-      />
+      <div className="capture-bar">
+        <span
+          className={
+            evidence.capture_status === 'complete' ? 'capture-complete' : 'capture-partial'
+          }
+        >
+          采集 {evidence.capture_status} · {evidence.publication}
+        </span>
+        <span>仅代表声明的采集范围；各作用域独立计量。</span>
+      </div>
       <Tabs
         className="mechanism-tabs"
+        tabPosition={narrow ? 'top' : 'left'}
         activeKey={active}
         onChange={(view) =>
           setParams(
