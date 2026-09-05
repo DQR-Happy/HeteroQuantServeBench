@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/kernels/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kernel Profiles */
+        get: operations["kernel_profiles_api_console_v1_kernels_profiles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/console/v1/deployments/{deployment_id}/{action}": {
         parameters: {
             query?: never;
@@ -769,6 +786,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plans */
+        get: operations["list_plans_api_console_v1_experiments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/console/v1/experiments/{experiment_id}/jobs": {
         parameters: {
             query?: never;
@@ -776,7 +810,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Jobs */
+        get: operations["list_jobs_api_console_v1_experiments__experiment_id__jobs_get"];
         put?: never;
         /** Job */
         post: operations["job_api_console_v1_experiments__experiment_id__jobs_post"];
@@ -927,6 +962,11 @@ export interface components {
              * @default 0
              */
             pair: number;
+        };
+        /** KernelSelection */
+        KernelSelection: {
+            /** Kernel Profile */
+            kernel_profile?: string | null;
         };
         /** Login */
         Login: {
@@ -1196,6 +1236,37 @@ export interface operations {
             };
         };
     };
+    kernel_profiles_api_console_v1_kernels_profiles_get: {
+        parameters: {
+            query?: {
+                deployment_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     deployment_action_api_console_v1_deployments__deployment_id___action__post: {
         parameters: {
             query?: never;
@@ -1208,7 +1279,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["KernelSelection"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -2305,6 +2380,69 @@ export interface operations {
         };
     };
     get_plan_api_console_v1_experiments__experiment_id__plan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plans_api_console_v1_experiments_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jobs_api_console_v1_experiments__experiment_id__jobs_get: {
         parameters: {
             query?: never;
             header?: never;

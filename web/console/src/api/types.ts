@@ -1,5 +1,7 @@
 import type { components } from './generated';
 import type { Observation, ObservationMode } from '../features/observability/types';
+import type { Receipt, Role } from '../features/experiments/types';
+import type { KernelPlan } from '../features/kernels/types';
 export type InferenceRequest = components['schemas']['InferenceRequest'] & {
   observation_mode?: ObservationMode;
 };
@@ -12,8 +14,10 @@ export type Deployment = {
   attention: string;
   precision: string;
   kernel: string;
+  kernel_profile?: string;
   state: string;
   epoch: string | null;
+  load_run_id?: string | null;
   context_limit: number;
   max_output_tokens: number;
   last_error: string | null;
@@ -22,9 +26,13 @@ export type Deployment = {
     load_seconds?: number;
     weight_verification?: string;
     metadata_hashes?: Record<string, string>;
+    kernel_plan?: KernelPlan;
   };
 };
 export type Metrics = {
+  experiment_bundle?: { status: string; publication: string };
+  optimization_receipt?: Receipt;
+  quality_evaluation?: { status: string; perplexity?: number; task_accuracy?: number | null };
   observation?: Observation;
   quantization?: {
     status: string;
@@ -75,6 +83,8 @@ export type Run = {
     max_output_tokens?: number;
     deadline_ms?: number;
     observation_mode?: ObservationMode;
+    experiment_role?: Role;
+    experiment_links?: { campaign_id: string };
   };
   output: string;
   metrics: Metrics;
@@ -142,6 +152,7 @@ export type StreamEvent = {
   data: { text?: string; metrics?: Metrics; [key: string]: unknown };
 };
 export type Session = {
+  auth_required?: boolean;
   api_version: string;
   role: string;
   version: string;

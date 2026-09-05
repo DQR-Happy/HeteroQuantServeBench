@@ -7,10 +7,11 @@ export class ApiError extends Error {
     super(message);
   }
 }
-export async function api<T>(path: string, body?: unknown): Promise<T> {
+export async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(base + path, {
     method: body === undefined ? 'GET' : 'POST',
     credentials: 'same-origin',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       'X-HQSB-Client': 'console',
