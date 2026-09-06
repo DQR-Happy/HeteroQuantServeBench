@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { enterWorkspace } from './session';
 
 const reportFile =
   process.env.HQSB_OBSERVATION_REPORT ??
@@ -17,15 +18,9 @@ test('real sealed memory evidence is visible and downloadable after model unload
     test.skip(true, 'Requires a real validate_console.py archive via HQSB_OBSERVATION_REPORT');
     return;
   }
-  const token = readFileSync(
-    process.env.HQSB_CONSOLE_TOKEN_FILE ?? path.resolve('../../.console/access-token'),
-    'utf8',
-  ).trim();
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/');
-  await page.getByLabel('访问令牌', { exact: true }).fill(token);
-  await page.getByRole('button', { name: '进入工作台' }).click();
+  await enterWorkspace(page);
   await expect(page.getByRole('heading', { name: '工作空间', exact: true })).toBeVisible();
   await page.goto(`/runs/${report.selected_runs.memory}`);
   await page.getByRole('tab', { name: '全链路观测', exact: true }).click();

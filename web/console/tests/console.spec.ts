@@ -1,15 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { createHash } from 'node:crypto';
-const token = readFileSync(
-  process.env.HQSB_CONSOLE_TOKEN_FILE ?? path.resolve('../../.console/access-token'),
-  'utf8',
-).trim();
+import { enterWorkspace, checkSessionExit } from './session';
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByLabel('访问令牌', { exact: true }).fill(token);
-  await page.getByRole('button', { name: '进入工作台' }).click();
+  await enterWorkspace(page);
   await expect(page.getByRole('heading', { name: '工作空间', exact: true })).toBeVisible();
 });
 
@@ -152,6 +146,5 @@ test('narrow viewport and logout are usable', async ({ page }) => {
     true,
   );
   await page.screenshot({ path: '../../reports/console/mobile.png', fullPage: true });
-  await page.getByRole('button', { name: '退出会话' }).click();
-  await expect(page.getByLabel('访问令牌', { exact: true })).toBeVisible();
+  await checkSessionExit(page);
 });

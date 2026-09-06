@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { enterWorkspace, checkSessionExit } from './session';
 
 const reportFile =
   process.env.HQSB_OBSERVATION_REPORT ??
@@ -11,18 +12,10 @@ const report: { selected_runs: Record<string, string> } = hasArchive
   : { selected_runs: {} };
 test.skip(!hasArchive, 'Requires a real validate_console.py archive via HQSB_OBSERVATION_REPORT');
 test.use({ actionTimeout: 15000 });
-const token = hasArchive
-  ? readFileSync(
-      process.env.HQSB_CONSOLE_TOKEN_FILE ?? path.resolve('../../.console/access-token'),
-      'utf8',
-    ).trim()
-  : '';
 const memory = report.selected_runs.memory;
 const basic = report.selected_runs.basic;
 async function login(page: Page) {
-  await page.goto('/');
-  await page.getByLabel('访问令牌', { exact: true }).fill(token);
-  await page.getByRole('button', { name: '进入工作台' }).click();
+  await enterWorkspace(page);
   await expect(page.getByRole('heading', { name: '工作空间', exact: true })).toBeVisible();
 }
 test.beforeEach(async ({ page }) => {
@@ -33,7 +26,7 @@ test('all workspaces render archived real API data and shared navigation', async
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.screenshot({
-    path: '../../reports/console/v03/workspace-desktop.png',
+    path: '../../reports/console/v04/workspace-desktop.png',
     fullPage: true,
   });
   for (const [route, title] of [
@@ -57,8 +50,10 @@ test('all workspaces render archived real API data and shared navigation', async
     await expect(page.getByText('数据读取失败', { exact: true })).toHaveCount(0);
   }
   await page.goto('/playground');
+  await expect(page.getByLabel('推理输入')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '尚未提交请求', exact: true })).toBeVisible();
   await page.screenshot({
-    path: '../../reports/console/v03/playground-desktop.png',
+    path: '../../reports/console/v04/playground-desktop.png',
     fullPage: true,
   });
   expect(errors).toEqual([]);
@@ -78,7 +73,7 @@ test('mechanism investigation retains run identity, filters, layout and native s
   await page.getByRole('tab', { name: 'KV 增长与布局', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'layer.0.key', exact: true })).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`run=${memory}.*view=kv`));
-  await page.screenshot({ path: '../../reports/console/v03/kv-desktop.png', fullPage: true });
+  await page.screenshot({ path: '../../reports/console/v04/kv-desktop.png', fullPage: true });
   await page.reload();
   await expect(page.getByRole('tab', { name: 'KV 增长与布局', exact: true })).toHaveAttribute(
     'aria-selected',
@@ -100,7 +95,7 @@ test('mechanism investigation retains run identity, filters, layout and native s
     page.getByRole('cell', { name: 'snapshot_correlated', exact: true }).first(),
   ).toBeVisible();
   await page.screenshot({
-    path: '../../reports/console/v03/allocator-desktop.png',
+    path: '../../reports/console/v04/allocator-desktop.png',
     fullPage: true,
   });
   await page.getByRole('tab', { name: 'CPU 页样本', exact: true }).click();
@@ -124,7 +119,7 @@ test('comparison is independent of latency gate, retains hold and clears stale s
   await expect(page.getByText('对照受阻：控制条件不一致', { exact: true })).toBeVisible();
   await expect(page.getByText('决策 hold', { exact: true })).toBeVisible();
   await expect(page.getByText('质量 not_evaluated', { exact: true })).toBeVisible();
-  await page.screenshot({ path: '../../reports/console/v03/compare-desktop.png', fullPage: true });
+  await page.screenshot({ path: '../../reports/console/v04/compare-desktop.png', fullPage: true });
   await page.getByRole('combobox', { name: '机制对照变量' }).press('Enter');
   await page.getByText('控制变量：Attention 实现', { exact: true }).click();
   await expect(page.getByText('决策 hold', { exact: true })).toHaveCount(0);
@@ -141,7 +136,7 @@ test('same-capture correlation presents tool IDs and coverage, not temporal infe
   ).toBeVisible();
   await expect(page.getByText(/有界预览 200 条/)).toBeVisible();
   await page.screenshot({
-    path: '../../reports/console/v03/correlation-desktop.png',
+    path: '../../reports/console/v04/correlation-desktop.png',
     fullPage: true,
   });
 });
@@ -156,7 +151,7 @@ test('mobile and narrow desktop preserve main actions, readable content and sign
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '打开导航' })).toBeFocused();
   await page.getByRole('button', { name: '打开导航' }).click();
-  await page.getByRole('menuitem', { name: /机制观测/ }).click();
+  await page.getByRole('link', { name: '机制观测', exact: true }).click();
   await expect(page).toHaveURL(/\/observations$/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   for (const route of [
@@ -170,15 +165,14 @@ test('mobile and narrow desktop preserve main actions, readable content and sign
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
       .toBeLessThanOrEqual(1);
   }
-  await page.screenshot({ path: '../../reports/console/v03/compare-mobile.png', fullPage: true });
+  await page.screenshot({ path: '../../reports/console/v04/compare-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 720, height: 450 });
   await page.goto(`/observations?run=${memory}&view=metrics`);
   await expect(page.getByLabel('搜索观测指标')).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
     .toBeLessThanOrEqual(1);
-  await page.getByRole('button', { name: '退出会话' }).click();
-  await expect(page.getByLabel('访问令牌', { exact: true })).toBeVisible();
+  await checkSessionExit(page);
 });
 
 test('sealed integrity failure is explicit and never replaced by an empty or successful result', async ({
@@ -196,7 +190,7 @@ test('sealed integrity failure is explicit and never replaced by an empty or suc
   await expect(page.getByText('数据读取失败', { exact: true })).toBeVisible();
   await expect(page.getByText(/FIXTURE_HASH_MISMATCH/)).toBeVisible();
   await expect(page.getByText('采集 complete · supervisor_acknowledged')).toHaveCount(0);
-  await page.screenshot({ path: '../../reports/console/v03/integrity-error.png', fullPage: true });
+  await page.screenshot({ path: '../../reports/console/v04/integrity-error.png', fullPage: true });
 });
 
 test('candidate selection uses requested modes from run metadata and distinguishes decode steps', async ({
@@ -222,5 +216,5 @@ test('candidate selection uses requested modes from run metadata and distinguish
   await expect(
     page.getByRole('cell', { name: 'sampled_cpu_pages_not_gpu_mappings', exact: true }).first(),
   ).toBeVisible();
-  await page.screenshot({ path: '../../reports/console/v03/pages-desktop.png', fullPage: true });
+  await page.screenshot({ path: '../../reports/console/v04/pages-desktop.png', fullPage: true });
 });
