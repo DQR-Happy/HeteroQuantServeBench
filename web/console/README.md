@@ -4,6 +4,57 @@
 
 详细逐页操作、指标口径、API、配置、故障处理和文件职责见 [完整前端使用说明书](../../docs/manual/前端使用说明书.md)。实际验证见 [v0.2 验收报告](../../docs/audit/HQSB_Console_v0.2_验收报告_20260921.md)。`docs/` 当前被仓库忽略，公开检出可能不含这些私有文档；本文件保留可独立使用的启动说明。
 
+## UI v0.4：项目工作台
+
+重设计覆盖全部既有路由，使用项目任务导航、运行筛选目录、证据检查器、推理编辑器和实验计划工作区。API v1、请求字段、认证、SSE 和下载协议保持原样；没有新增运行依赖。
+
+- `src/shell/`：项目导航、快速跳转（按钮或 Cmd/Ctrl+K）、小屏抽屉与登录。
+- `src/styles/`：共享语义 tokens、外壳、页面组合；旧版单体样式已替换。
+- `src/pages/RunDirectory.tsx`：30 条/页，当前页筛选；`q/state/kind/page` 写入 URL。
+- `/observations`：观测目录 → 固定运行对象 → 左侧证据视图；窄屏自动改顶部 tabs。
+- `/optimization`：已冻结计划目录与实验工作区；质量、性能和机制保留后端的独立判定。
+- `/benchmarks`：性能测试主工作面，预选固定典型输入和多个版本化方案；按用例比较真实输出、参考评分与性能。原推理工作台继续作为交互案例。
+
+## 固定输入的快速对照
+
+“评测 → 性能与质量对照”默认包含算术、结构化提取、上下文检索和开放解释，输入原文与 SHA-256 可展开核对。选择基线、最多三个候选、统一输出预算和重复次数后开始；后台负责预热、方案重载、测量与原部署恢复。刷新通过 URL `?benchmark=<id>` 恢复查看，不重复执行；任务可取消，历史可重新打开。测试环境保持免登录。
+
+结果按用例排列方案，分别展示任务正确率、Token 一致率、首 Token、生成 E2E、Decode 吞吐、输入/输出数量、峰值分配与实际输出。开放解释不自动评分，Token 一致率不代表准确率；输出数量不同的结果不计算 E2E 相对比例。每项可跳转同 run 的实际算子凭据与原件。可选机制诊断另做一轮，不污染性能样本。版本化用例是功能比较 fixture，同 worker 数据仅用于快速检查，不代表通用模型质量或正式性能收益。
+
+模块：`features/benchmarks/Results.tsx` 只呈现服务端冻结报告，`pages/Benchmarks.tsx` 管理选择、显式提交和轮询；评分与统计属于 Python `hqsb.experiments.benchmark_suite`，任务和 journal 所有权属于 `hqsb.console.benchmark_campaigns`。输入不允许浏览器任意改写。验收命令仍须通过项目远端代理执行：
+
+```bash
+./scripts/remote_run.sh python3 -m pytest tests/unit/console/test_benchmarks.py -q
+./scripts/remote_run.sh bash -lc 'cd web/console && HQSB_CONSOLE_URL=http://127.0.0.1:8768 npx playwright test tests/benchmarks.spec.ts'
+# 真实模型额外显式设置 HQSB_BENCHMARK_UI_LIVE=1；会占用 GPU 并重载模型。
+```
+
+真实功能通过同源 HTTP 服务访问。**不要直接双击 `index.html` 或 `dist/index.html`**，它们是应用入口，不是独立应用文件。`public/preview.html` 是明确标注的离线截图预览，可双击且不调用后端；生成命令仍须在 Jetson 执行：
+
+```bash
+./scripts/remote_run.sh python3 scripts/console/build_preview.py --screenshots reports/console/v04
+```
+
+生成器需要已保存的十张验收截图。私有截图、生成 HTML 和重设计前的 `.backups/` 不进入 Git；预览不替代交互工作台。安装、构建和测试仍遵守项目的远端执行规则。
+
+## 在推理界面切换算子
+
+进入 `/playground` 的“执行配置 → 算子实现与版本”，按算子类别选择带版本的固定方案，点击“加载并应用算子”或“应用并重载模型”。加载成功并获得新的部署 epoch 后，“开始推理”才可使用所选方案；选择与当前加载值不一致时会提示待应用并禁用推理。RMSNorm scalar v1 / half2 v2 等版本分别可选，组合方案不会改变未列出的算子。
+
+模型输出下方的“本次运行凭据与观测”展示实际方案、逻辑调用计数、封存原件下载及阶段/token/内存摘要，并链接同次运行的 KV、OS 页和 GPU profiler 详情。普通推理与实验任务使用同一凭据展示。制品缺失/身份不符、加载失败和缺少观测都明确显示；目录中的候选不表示质量或性能验收通过。
+
+当前 `8878` 测试入口对应 Jetson 的 `HQSB-kernel-ui-20261016`，使用 `reports/console/kernel-ui/service.yaml` 和原有 `.console/connected` 数据。启动、数据路径与免登录恢复开关见项目根 README。
+
+显式真实模型验收通过 `HQSB_KERNEL_UI_LIVE=1` 启用，默认不会执行新用例中的模型任务。该验收会串行重载当前服务，需独占设备；最终恢复框架原生模型就绪状态：
+
+```bash
+HQSB_REMOTE_DIR=/home/jetson/work/HQSB-kernel-ui-20261016 ./scripts/remote_run.sh \
+  env HQSB_CONSOLE_URL=http://127.0.0.1:8768 HQSB_KERNEL_UI_LIVE=1 \
+  bash -lc 'cd web/console && npx playwright test tests/kernel-ui.spec.ts'
+```
+
+结果位于 `reports/console/kernel-ui/`，包括 `acceptance.json`、逐方案运行 ID、下载哈希、CUDA 活动证明和界面截图；这是功能与证据联通验收，不代表独立质量或性能评测。
+
 ## 当前能力
 
 - Jetson / CUDA 上 Qwen3 FP16 greedy 真实逐 token 生成、SSE 续读、取消和超时。
@@ -48,13 +99,9 @@ W8/W4 原生低比特模型回接、任意算子热切换、GPU 频率写入、�
 ssh -N -L 8765:127.0.0.1:8765 jetson@192.168.10.7
 ```
 
-在第三个终端读取远端令牌，复制到登录页，不要提交到 Git：
+浏览器打开 <http://127.0.0.1:8765> 即可进入工作台，测试阶段默认免登录，无需 API Key 或访问令牌。进入“设备与部署”加载部署，再打开“推理工作台”。第一次加载会较慢，加载本身有独立任务记录。停止服务可在服务终端 Ctrl+C；页面卸载先排空请求。
 
-```bash
-./scripts/remote_run.sh cat .console/access-token
-```
-
-浏览器打开 <http://127.0.0.1:8765>，登录 → 设备与部署 → 加载部署 → 推理工作台。第一次加载会较慢，加载本身有独立任务记录。停止服务可在服务终端 Ctrl+C；页面卸载先排空请求。
+需要恢复令牌认证时，启动服务添加 `--require-auth`，或在服务配置中设置 `auth_required: true`。此时才会生成并读取 `.console/access-token`，浏览器显示登录页；免登录模式会忽略已有令牌及过期会话。
 
 本轮验收使用独立远端目录 `/home/jetson/work/HQSB-console-dev`，避免覆盖原工作区。要使用该目录，将命令前加 `HQSB_REMOTE_DIR=/home/jetson/work/HQSB-console-dev`。服务读取历史证据可加 `env HQSB_EVIDENCE_ROOT=/home/jetson/work/HeteroQuantServeBench`；默认从自身仓库读取。
 
@@ -64,7 +111,7 @@ ssh -N -L 8765:127.0.0.1:8765 jetson@192.168.10.7
 
 Jetson/CUPTI 权限受限时，管理员可显式加 `--privileged-worker`（或 YAML `privileged_worker: true`）；默认关闭。需要账户已有对应 `sudo -n` 权限，只提权固定私有管道设备 worker，API 保持普通用户，不修改 sudoers/全局驱动权限。必须信任本机仓库和依赖，不能作为恶意本地代码沙箱。没有 CUDA 活动时页面明确显示 CPU-only/partial，开关本身不等于 GPU 验收通过。
 
-`.console/` 包含私有令牌、SQLite WAL 运行记录和进程锁。运行记录默认不保存输入原文（仅 SHA-256），但保存输出、指标和实际部署快照；开启“保存输入”后才保存提示词。不要将私有数据或下载报告公开发布。备份先停止服务，再复制整个数据目录。没有自动清理历史的后台任务。
+`.console/` 包含 SQLite WAL 运行记录和进程锁；启用认证后还包含私有令牌。运行记录默认不保存输入原文（仅 SHA-256），但保存输出、指标和实际部署快照；开启“保存输入”后才保存提示词。不要将私有数据或下载报告公开发布。备份先停止服务，再复制整个数据目录。没有自动清理历史的后台任务。
 
 默认单操作者，不支持多租户隔离。需要公网部署时使用 HTTPS 反向代理和 `secure_cookie: true`，禁用 SSE 代理缓冲，限制入口访问；当前验收仅覆盖 SSH 隧道与回环访问。
 
