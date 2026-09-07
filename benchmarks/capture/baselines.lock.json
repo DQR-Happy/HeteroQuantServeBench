@@ -1,0 +1,12 @@
+{
+  "schema": "hqsb.capture.baselines/1",
+  "date": "2026-10-17",
+  "upstream": {
+    "NanoLog": {"url": "https://github.com/PlatformLab/NanoLog.git", "commit": "2a94d70f9d1db4da416053b1b926387fa068a59b", "scope": "C++17 runtime and official decompressor"},
+    "hindsight": {"url": "https://gitlab.mpi-sws.org/cld/tracing/hindsight.git", "commit": "c534f2c752793c491768b51ae3db94b4780a7f8f", "scope": "upstream C client and C agent API, benchmark full-stream sink; not Go distributed trigger deployment"},
+    "otel-arrow": {"url": "https://github.com/open-telemetry/otel-arrow.git", "commit": "234f95f1dd750cbb6712a68af08da84cfebd3c82", "rust": "1.98.1", "features": ["otlp", "otap", "crypto-ring"], "scope": "real df_engine, release build with explicit protocol/crypto features, separate SERVICE track"},
+    "moobench": {"url": "https://github.com/kieker-monitoring/moobench.git", "commit": "5821873b210cbb13afcf083f943bbf101514bd58", "scope": "unmodified recursive Python SuT; local Zipkin-protocol receiver; not a Zipkin database"}
+  },
+  "python": {"opentelemetry-sdk": "1.45.1", "opentelemetry-exporter-zipkin": "1.45.1", "opentelemetry-proto": "1.15.0", "protobuf": "3.20.3", "pytest": "9.1.1"},
+  "policy": "No source substitution after a dependency failure. Missing tools and unsupported contracts remain explicit. Exact transitive packages and binary hashes are recorded per execution."
+}
