@@ -1,0 +1,50 @@
+{
+  "schema": "hqsb.capture.cpu/0.2",
+  "design_reference": "spec/*.json archives the original 0.1 proposal; not a claim of complete implementation or formal acceptance",
+  "platform": "Linux CPU only; tested on cpu-hqsb x86_64",
+  "entry_points": {
+    "run": "Python prepared-UTF8 and structured-metadata input, real stock-library adapters",
+    "native_run": "native NanoLog and null diagnostics; separate track",
+    "service_run": "real OTAP engine over OTLP HTTP, independent materializing fsync sink; separate track",
+    "reproduce_moobench": "unmodified upstream Python recursive SuT with off/no-export/local-Zipkin-receiver configurations",
+    "diagnose": "HQSB policy, mutation, lifecycle, corruption and process-crash probes",
+    "native_contracts": "real C ABI buffer lifetime, UTF-8 and 64-bit round-trip probes",
+    "multiprocess_run": "independent captures, fixed total CPU affinity; not shared-collector IPC"
+  },
+  "common_input": "run UUID, producer ID, source sequence, monotonic scheduled timestamp and body; canonical logical size=64+UTF8 canonical body bytes",
+  "language": {"orchestration_source_oracle_analysis": "Python >=3.10", "bridges_native_generator": "C++17", "Hindsight_original_client": "C", "OTAP_original_engine": "Rust 1.98.1"},
+  "resource_profile": {
+    "name": "CPU4-affinity-v1",
+    "SUT_allowed_logical_CPUs": 4,
+    "collector_affinity_CPUs": 1,
+    "producer_affinity_CPUs": 3,
+    "observer_extra_CPU": 1,
+    "worker_address_space_guard_MiB": 1024,
+    "max_events_per_run": 2000000,
+    "limitations": "not exclusive physical cores, not a cgroup resident-byte quota, and not the original design's exact owned-buffer budgets; native and service guards differ and are separate tracks"
+  },
+  "stock_configurations": {
+    "hqsb": "original writer, queue 256 records; CORE capture lifetime budget enlarged; JSONL, 8MiB chunks, hash/fsync/manifest behavior retained",
+    "nanolog": "upstream C++17 runtime, 1MiB staging per producer, 64MiB output buffer, blocking frontend, O_DSYNC plus explicit sync/fsync; adapter does not split oversized logical records",
+    "hindsight": "original C client/agent API, 8192x4096B shared pool, benchmark full-stream file sink; not the Go distributed trigger/collector system",
+    "otel": "real SDK 1.45.1 BatchSpanProcessor, queue 256, export batch 64, 10ms schedule delay, benchmark file exporter with close fsync; not OTAP",
+    "otap": "pinned df_engine 0.61.0, release opt3, no default features, otlp+otap+crypto-ring; HTTP pipeline uses OTLP-byte forwarding, not an Arrow conversion claim"
+  },
+  "pacing": {
+    "cooperative": "Python sleep yields GIL while ahead; scheduled arrivals remain fixed during catch-up",
+    "hybrid_spin": "sleep only for >100us lead, then spin; an explicit CPU/GIL contention stress condition",
+    "calibration": "null uses the same source, plan, body and receipt bookkeeping; inspect attempted coverage and dispatch lag, not just mean input rate",
+    "sampling": "separate throughput and latency passes; SplitMix64 identity selection; sample_every in 1,4,16,64,1024",
+    "burst": "integer rational pulse schedule; legacy screening-v5 used approximate floating-point pulse boundaries and is not evidence of exact pulse fidelity"
+  },
+  "timing": {
+    "screening": "10s offered window, 100 warmup events +0.2s, 3 independent processes, separately measured throughput/latency; shorter CPU pilot than original 30s design screening",
+    "formal_option": "60s offered, 10s warmup, 10 processes; only if selected, sample support and resource/capacity conditions still require validation",
+    "endpoints": "common D2-close file fsync, optional stock HQSB publication within reader limits; service has actual per-batch sink completion timestamps",
+    "not_invented": "no stock per-event ready/fsync timestamp, no exact queue residence/owned bytes, no maximum sustainable capacity inferred from one point"
+  },
+  "data_integrity": "full deterministic output verification, identities/duplicates/order/field types/body; failures retained; Q0 public reader/publish bounds remain unchanged",
+  "implemented_workload_families": ["W00", "W01", "W02", "W03", "W04", "W05", "W06", "W07", "W08", "W09", "W10", "W11-independent", "W12", "W13", "W14-OTel-injection", "W15", "W16", "W17-probes", "W18-probes", "W19-process-crash", "W20-corruption", "W21", "W22", "W27-1800s", "W30-integer-UTF8"],
+  "not_claimed": ["W08 static callsite dictionary registration (current metadata cardinality is body data)", "shared-collector IPC", "FLIGHT/PRIORITY policies", "verified real-model replay corpus", "real GPU/model interference or D2H source", "native reentrancy/progress proof", "ARM/x86 portability", "7200s or high-rate 300s runs exceeding receipt/disk budget", "PMU/energy absent reliable capability", "paper headline speed reproduction or a cross-track overall ranking"],
+  "reporting": "all runs + block summaries/95% exploratory bootstrap CI; delivery rate alongside latency; resource Pareto, no composite score; unavailable metrics carry reasons"
+}
