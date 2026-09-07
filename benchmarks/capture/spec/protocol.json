@@ -1,0 +1,168 @@
+{
+  "benchmark": "HQSB 高频采集通路压力测试",
+  "version": "0.1.0-design",
+  "date": "2026-10-16",
+  "status": "设计稿；未实现 runner、adapter 或执行性能测试",
+  "source_snapshot": {
+    "git_head": "f8818e511ff4be39e901b514160207da7853d407",
+    "dirty_tree": true,
+    "rule": "执行时冻结实际源码、dirty patch、依赖及二进制指纹；本 HEAD 不是远端已部署版本证明"
+  },
+  "scope": {
+    "entry": "观测值已经准备好后的 emit/offer；另设 source-inclusive 测试覆盖读取与构造成本",
+    "exit": "独立解码验证、文件检查点和 supervisor publication；各边界分别计时",
+    "non_goals": ["大型历史轨迹 SQL 查询引擎排名", "优化模型 kernel", "把真实 profiler 采集成本算作纯传输成本", "跨机器统一时钟的绝对延迟排名"]
+  },
+  "integration": [
+    {"file": "hqsb/backends/interactive.py", "location": "InteractiveBackend.generate 中构造 CaptureSession，并将 session.emit 作为 ObservationRecorder sink", "task": "承接推理线程上的记录；不得强制 GPU 全局同步"},
+    {"file": "hqsb/backends/observation.py", "symbols": ["ObservationRecorder.phase", "ObservationRecorder.token", "ObservationRecorder.snapshot"], "task": "产生 host_phase、token 和 memory_sample 等记录"},
+    {"file": "hqsb/backends/observation_session.py", "symbols": ["CaptureSession.emit", "CaptureSession._sample_loop", "CaptureSession.boundary", "CaptureSession.allocator_snapshot", "CaptureSession.finish"], "task": "多来源汇入、实验身份、OS/KV/快照、覆盖与终态"},
+    {"file": "hqsb/observation/storage.py", "symbols": ["EvidenceWriter.offer", "EvidenceWriter._drain", "EvidenceWriter.close"], "task": "本次高频通路的主要替换/适配边界；排队、编码、分块、fsync、hash、关闭"},
+    {"file": "hqsb/observation/storage.py", "symbols": ["EvidenceReader.records", "publish"], "task": "下游可解码、哈希与计数校验、supervisor 发布；作为证据闭环终点，不能绕过后宣布成功"},
+    {"file": "hqsb/backends/observation.py", "symbols": ["OperatorCapture._export"], "task": "当前 torch profiler 原件独立导出 trace.json；其所有原始 kernel 事件尚未逐条进入 EvidenceWriter", "capability": "future callback/CUPTI replay workload 不代表当前已接入"},
+    {"file": "hqsb/console/worker_stdio.py", "symbols": ["ProtocolWriter.send"], "task": "现有控制/生成消息通道；不将每条高频事件经此 JSON pipe 或 SSE 转发", "existing_max_message_bytes": 8388608}
+  ],
+  "current_baseline": {
+    "name": "Q0-compatible",
+    "implementation": "原样 EvidenceWriter",
+    "queue_records": 256,
+    "queue_byte_bound": "未显式提供；条数上限不能当作内存字节上限",
+    "serialization": "后台 json.dumps + UTF-8 JSONL",
+    "chunk_bytes": 8388608,
+    "default_capture_records": 100000,
+    "default_capture_bytes": 134217728,
+    "reader_total_bytes_limit": 536870912,
+    "single_record_bytes_limit": 33554432,
+    "finalization_deadline_s": 30,
+    "important": ["max_records 是整个 capture 的接受上限，不是服务能力", "max_bytes 在后台编码后检查，accepted 不保证最终 written", "payload 当前以 Python 对象引用交接；所有权/调用后修改必须专项验证", "chunk fsync 和 hash 会产生消费停顿", "现有 offered/written 统计不提供所有阶段延迟或真实队列字节量"]
+  },
+  "comparison_tracks": [
+    {"id": "COMPAT", "description": "同一 ObservationPlan、默认预算、现有 reader/publish 全流程", "baseline": "Q0-compatible", "acceptance": "当前 public schema、100000 条和文件预算保持一致；策略触顶记录为 policy_limit，不用于宣称吞吐饱和"},
+    {"id": "CORE", "description": "独立压力 harness，准备好的同义事件进入 writer adapter", "baseline": "Q0-core 使用 EvidenceWriter 构造参数扩大 capture 预算；不改生产默认值", "acceptance": "扩展 capture 用独立有界参考解码器验证；超过当前 reader 上限的结果不得称为 HQSB 全链路已支持"},
+    {"id": "PYTHON", "description": "相同 Python producer 经过实际 binding 的完整成本", "acceptance": "包含 dict/字段复制、FFI、GIL 和对象生命周期；不可拿 native-only 结果冒充 Python 接入结果"},
+    {"id": "SOURCE", "description": "相同 hook/procfs/metadata 生成器，分别搭配 discard、Q0、candidate", "acceptance": "记录源成本、传输增量与总成本分别报告；排空或写入不允许隐式触发模型同步"},
+    {"id": "MODEL", "description": "真实模型共跑，测推理干扰和完整证据", "acceptance": "相同模型、权重、kernel profile、精度、cache 策略、输入及输出工作量"}
+  ],
+  "adapter_contract": {
+    "language": "负载生成和纯 native runner 使用 C++17；Python 做配置、模型接入和分析；候选可用 C++ 或 Rust，经同义 adapter 接入",
+    "interfaces": {
+      "open": "open(config, run_context) -> handle, capabilities",
+      "offer": "offer(handle, owned_or_call_scoped_event) -> accepted | rejected(reason)",
+      "offer_batch": "offer_batch(handle, events) -> 按事件的结果或明确的 all-or-none 结果",
+      "checkpoint": "checkpoint(handle, endpoint) -> watermark 与完成时间；不支持则标 unavailable",
+      "close": "close(handle, deadline) -> terminal_report；未完成或超时不能报 complete",
+      "decode": "原生输出 -> 统一语义事件流；必须支持字段、ID、顺序与缺口核对"
+    },
+    "record_identity": ["run_id", "producer_id", "producer_epoch", "source_seq", "event_kind", "schema_version"],
+    "ownership": "offer 返回后，调用方可立即修改或释放输入；异步消费者若需要原值，必须已复制、转移或建立有效租借。成本计入对应 track",
+    "ownership_fairness": "上述是新通路的 owning 接口目标，不追溯声称 Q0 现有 API 已承诺深拷贝。COMPAT 保持既有 caller 生命周期合同；CORE owning 比较中借用型库需要等价冻结/租借 adapter，成本必须包含。原生借用接口只在同样有效生命周期条件的子榜比较。",
+    "metadata": "跨进程/持久化只能用稳定 ID 或偏移，不能将进程私有指针当成字典身份",
+    "ordering": "保证每 producer 的 source_seq 与显式 barrier 因果边；无全局事件先后证据时不强加全局时序",
+    "unsupported": "不具备等价语义/阶段确认的候选仅进入其支持的子测试，不伪造 checkpoint 时间"
+  },
+  "semantic_profiles": [
+    {"id": "FULL", "retention": "保留所有 eligible 事件", "on_full": "drop-new 并计数；阻塞型作为另一配置单独比较", "default_filter": "none"},
+    {"id": "FLIGHT", "retention": "有界环形记录，触发后保留尚存窗口", "on_full": "按声明策略覆盖；报告被覆盖范围", "comparability": "不可用较低保留率换取 FULL 榜单优势"},
+    {"id": "PRIORITY", "retention": "保留终态/错误/覆盖等控制事件的预留预算", "on_full": "按冻结优先级策略处理", "comparability": "只与同样预留和优先级规则的配置比较"}
+  ],
+  "sink_profiles": [
+    {"id": "D0", "endpoint": "独立消费者解码并验证记录", "durability": "无；仅内存通路", "role": "定位通路上限，不能作为文件采集性能结论"},
+    {"id": "D1", "endpoint": "write 返回/可读取文件", "durability": "page-cache；不能称为耐久写入", "role": "单独可选诊断；不支持此 sink 的候选不参与"},
+    {"id": "D2", "endpoint": "每个 8MiB 分块轮转及 close 时 fsync 完成", "durability": "进程崩溃恢复范围；文件/目录与 manifest 的确认分开记录", "role": "与 Q0 的主要持久化策略对齐"},
+    {"id": "D2T", "endpoint": "D2 加最多 100ms 一次的定时检查点", "durability": "检查点合同", "role": "未来能力子榜；Q0 当前无此保证，不得冒充同策略比较"},
+    {"id": "D3", "endpoint": "reader/hash/count 校验后 supervisor manifest 发布完成", "role": "HQSB 封存完整成本；单独报告关闭与发布耗时"}
+  ],
+  "resource_profiles": [
+    {"id": "SMALL", "collector_cpu_quota_cores": 1, "event_buffer_budget_MiB": 8, "pipeline_working_budget_MiB": 64, "cgroup_total_guard_MiB": 256, "chunk_MiB": 8},
+    {"id": "DEFAULT", "collector_cpu_quota_cores": 1, "event_buffer_budget_MiB": 32, "pipeline_working_budget_MiB": 128, "cgroup_total_guard_MiB": 512, "chunk_MiB": 8},
+    {"id": "LARGE", "collector_cpu_quota_cores": 2, "event_buffer_budget_MiB": 64, "pipeline_working_budget_MiB": 256, "cgroup_total_guard_MiB": 1024, "chunk_MiB": 8}
+  ],
+  "resource_rules": [
+    "上述为待测设计档位，不是已测能力；比较双方使用同一档位；另报达到相同 SLO 所需的最小资源",
+    "预算包含 staging、队列、字典、编码器、压缩工作区、writer 和 adapter；模型本体与生成器单列",
+    "pipeline_working_budget 是通路工作区/运行时 resident 目标；cgroup_total_guard 是包含所计费 page cache/kernel memory 的硬隔离上限。两者均冻结且分别报告实际高水位，不能把工作区上限当全机物理内存上限。借用但被通路延长寿命的输入数据也计入保有内存。",
+    "进程共享内存以映射范围/分配账本及 PSS 交叉核对，不能简单相加多进程 RSS；page cache 和 pinned/device 内存单列",
+    "CORE 独立进程可用 cgroup/等价设施约束；与模型同进程时用工作区配额和分配账本，进程 PSS 只作共跑补充，不伪造精确隔离",
+    "writer 的磁盘/内存预算是资源条件，不得悄悄删除 FULL 数据循环利用空间；资源不足的高负载点标 resource_limited",
+    "文件试验预检自由空间 >= 1.5 倍预计未压缩输出加固定保留；不修改全机 cache、swap、权限、频率或驱动作为默认准备"
+  ],
+  "arrival_models": {
+    "open_periodic": "t_sched(i)=t0+i/lambda；计划不依赖 offer 完成",
+    "open_poisson": "delta_t=-ln(U)/lambda；按冻结 seed 预生成分块计划",
+    "burst": "固定周期/持续时间/倍率；同时使用同均值的均匀流量作对照",
+    "closed": "producer 调用完成后再产生下一条；只用于最大调用速率和 backpressure 诊断",
+    "real_model": "事件自然跟随模型执行；与 open-loop 的压力试验分开",
+    "pacer_rule": "逐事件记录计划时间与实际尝试时间。发生阻塞后不得重设计划起点。超出生成器有界 backlog 时记 scheduled_not_attempted，而非静默省略",
+    "validity": "报告 scheduled/attempted 速率、dispatch lag、generator CPU/内存；受 SUT 背压造成的迟发是结果，只有空 adapter 校准也无法达到计划或生成器独立过载时才标 generator_limited"
+  },
+  "rate_search": {
+    "absolute_event_rates_per_s": [1000, 10000, 100000, 1000000, 5000000, 10000000],
+    "reference": "先在独立 pilot 上冻结每个 workload/sink/resource 的 Q0-core sustainable capacity C0 和参考真实 trace rates；不能按 candidate 自身容量给它单独降低绝对负载",
+    "normalized_reference_multipliers": [0.25, 0.5, 0.8, 0.95, 1, 1.2, 2, 4],
+    "fallback": "C0 不可估时使用绝对速率并给容量上/下界；大 payload 用 logical bytes/s 同时限制，不盲目交叉到不可能的 TB/s",
+    "capacity_search": "指数探测包围首次不满足条件的区域，再以 <=5% 相对区间搜索；冻结最终点，以 300s 测量独立复验；若热/IO 导致非单调，保留全部点，不强行给单一交点",
+    "capacity_conditions": ["FULL 无缺失、损坏、重复或必需字段损失", "测量窗口计划的合法事件 S 必须全部实际尝试、接受并在 drain deadline 内到达指定端点；SUT 背压导致 scheduled_not_attempted 不得据此抬高容量", "结束后在 30s drain deadline 内完成", "collector 内存不越界", "稳态队列积压不随时间持续增长；generator 迟发债务和编码/写入/checkpoint 中的 in-flight 积压也须报告，不可只展示入口队列", "测量期间 admitted backlog 增量与线性斜率均披露", "指定端点的 SLO 若启用必须满足；未启用则称 finite-horizon sustainable capacity，不能称 SLO capacity"],
+    "backlog_tolerance": "在测量后 80% 的 1s 桶上拟合 queued_bytes 斜率，95% 上界 <= 0.001 * offered_logical_bytes_per_s，且窗口末减窗口初积压 <= 0.01 * buffer_budget；这些是本协议的操作性容差，保留原始曲线和斜率",
+    "slo_reporting_grid_ms": [1, 10, 100, 1000],
+    "slo_endpoint": "每条曲线明确是 decoder、fsync 还是 publication；业务采纳门槛另由已冻结的 HQSB 档位决定"
+  },
+  "measurement": {
+    "timestamps": {
+      "t_sched": "理论到达时刻，host clock",
+      "t_call": "offer 调用入口",
+      "t_return": "offer 返回",
+      "t_ready": "独立消费者拿到完整且可解码记录",
+      "t_durable": "包含该记录的检查点确认完成",
+      "t_publish": "supervisor 发布完整 manifest 完成"
+    },
+    "clock": "同机使用统一 monotonic 时钟；跨进程先验证 clock domain；硬件/GPU 自带时间单独校准，不把 host 各阶段差当 GPU 执行时间",
+    "timing_validation": "报告计时器分辨率、空调用/双读时钟成本、采样/直方图成本；不从每条 p99 中机械减常数，不把小于测量精度的差异当结论",
+    "sampling": "正确性小规模全量；大规模独立吞吐与延迟采样两种 pass，按 hash(identity, seed) 选 1/1024、1/64 或全量；候选用相同采样规则和预算；无法达到目标分位样本量时延长同条件运行或不报告该分位",
+    "quantiles": "分别给每次独立 run 的 p50/p95/p99/p99.9/max；阈值尾部期望样本 >=100，即 n*(1-p)>=100；分位的 CI 以独立运行/时间块为单位，不把相关事件当独立样本",
+    "censoring": "丢失或截止时间未完成事件保留在 attempted/scheduled goodput 分母；成功事件延迟分布标 conditional_on_delivery，不将其当所有事件延迟",
+    "pipeline_duration": "固定 offered 窗口 H 和之后 drain 分开；steady throughput 按窗口内完成计，cohort completion throughput 按 H+drain 计，不能把 drain 后完成数除以 H 冒充稳态吞吐"
+  },
+  "run_protocol": {
+    "smoke": "6 个基础 case，warmup 2s + offered 10s + drain <=30s，一次；只验证 runner，不出正式排名",
+    "screening": "选定 case 集，warmup 5s + offered 30s + drain <=30s，3 个独立进程；筛掉错误和不适用配置，不宣称稳定性能优势",
+    "formal": "候选与 baseline 使用同一冻结 case 集；warmup 10s + offered 60s + drain <=30s；10 个独立进程/配对 block；容量边界复验 offered 300s；soak 1800s 与 7200s 分档",
+    "randomization": "每个 case 内随机平衡 baseline/candidate 或 ABBA 顺序，seed 20261016；同一配对 block 使用相同事件计划与数据；cold/warm 字典、JIT、进程启动分层",
+    "statistics": "报告每个 run、配对相对变化、中位数及以独立 block 为单位的 10000 次 bootstrap 95% CI；噪声内写未证明差异，不用单个最优值排名",
+    "tuning": "每个候选相同硬件/语义/资源和预注册调参预算，使用 tuning seeds 0..2，正式 seeds 100..109；不得只调 candidate 或用正式 workload 后选最优参数",
+    "matrix_control": "workloads.json 的 mandatory_interactions 是必测交互；其余维度先单因素扫描再使用冻结的 pairwise covering array，保存覆盖表和排除理由，不把未跑组合计作覆盖",
+    "invalid_and_failure": "区分 harness_invalid、generator_limited、policy_limit、resource_limited、unsupported、SUT_correctness_fail、SUT_performance_fail；不删除失败、取消、timeout 或 OOM 行"
+  },
+  "model_protocol": {
+    "arms": ["OFF：禁用新增观测源", "SOURCE_DISCARD：同样采集/构造元数据，末端丢弃", "Q0：相同 source 接现有 writer", "CANDIDATE：相同 source 接候选 writer"],
+    "status": "当前 benchmark/experiment API 不能直接切换所有 arm；未来接入时需最小 adapter，不能声称现有脚本已支持",
+    "real_cases": [
+      {"id": "R0", "input_tokens": 128, "output_tokens": 32, "role": "复用现有开销脚本工作量，扩大到独立进程复验"},
+      {"id": "R1", "input_tokens": 512, "output_tokens": 1, "role": "prefill 集中写入；可用时增加 2048"},
+      {"id": "R2", "input_tokens": 32, "output_tokens": 128, "role": "长 decode；遵守当前输入 API 限制，不静默缩短"},
+      {"id": "R3", "input_tokens": 512, "output_tokens": 128, "role": "prefill 与 decode 混合，memory/pages 模式独立"}
+    ],
+    "fixed": ["当前已经验真的模型与权重 hash、精度、eager/SDPA/kernel profile", "相同 input token IDs 和 greedy/fixed token workload", "cleanup/cache policy、warmup 与部署 epoch", "每个设备独立执行和报告，不把 Jetson 与 4090D 样本混合"],
+    "repetitions": "至少 10 个独立 model-worker block；block 内至少 10 个交错配对请求只是启动下限，不保证尾分位证据足够。每个要发表的估计量按 measurement.quantiles 检查有效观测数：请求 p95 至少 2000 个请求/arm/case，p99 至少 10000 个；可跨独立 block 汇总，但 bootstrap 必须整块重采样且保留 block 差异。单个 run 样本不足时不发表其尾分位。成本不允许达到门槛则该分位和相应验收标 inconclusive。不能将同请求 token 当独立请求补足样本；ITL 同时给每请求摘要与分 decode 位置分布",
+    "natural_and_injected": "自然事件流和外加合成流分开；外加流可用参考容量 0.5x/0.9x 与受控 stall，不能冒充实际模型天然事件率",
+    "current_limits": "当前单 worker/设备租约路径的多请求主要体现排队；continuous batching、多 stream 回调和多 capture 同时写入列为扩展模拟，直到真实接入才标 integration_measured",
+    "entry_constraints": "当前 hqsb/experiments/plans.py 限 input_tokens=2..512、output_tokens=1..32；console benchmark route 限 output_tokens=8..128；普通 generate API 的输出上限是 4096。R0 可复用已有实验入口；其他组合要选择支持的入口或未来专用 benchmark adapter，固定输入 token 的能力需随入口验证，不得绕过合同或偷偷截短。",
+    "timing_boundaries_current_code": "runtime_first_token_ms=首次 selection_end-runtime_start；token_itl_ms=相邻 selection_end 差。两者不等于客户端首字节/流式接收间隔。runtime_e2e_ms 从 runtime_start 到生成循环结束，不包括随后 allocator snapshot/close/publish；worker_request_total_ms 包括 finish，service publication 成本另计。正式报告同时给 server 与 client/console 边界。",
+    "quality": "固定 workload 校验 input/output token IDs 和数值/质量合同；正确性回归单列，性能采集不持有 logits/Tensor，不为观测做隐式 .cpu() 或 synchronize",
+    "existing_script_limit": "scripts/observation/measure_capture_overhead.py 只测同一 resident worker 的 off/basic 条件开销，不能替代独立进程、饱和或高频通路验收"
+  },
+  "acceptance": {
+    "hard_correctness": ["FULL 无静默丢失、损坏、重复、跨 run/epoch 污染", "所有 accepted 未落盘和覆盖范围可对账；partial 不得发布 complete", "offer 返回后的有效载荷所有权成立", "ARM/x86 各自满足顺序和清理合同", "异常路径有界退出或明确 cleanup_unknown"],
+    "HQSB_L0_goal": "按现有 console 架构目标评估：相对 OFF 的请求延迟 p50 增量 <=3%、p95 <=5%；用独立 block 的上侧置信界判定，CI 跨阈值为 inconclusive；这不是所有 profiler/memory/pages 模式的统一承诺",
+    "capacity_goal": "按实测 source 的每 1ms/10ms/1s 桶峰值分别建立 envelope；正式冻结目标为持续速率的 2 倍或另行声明的工程余量，并另测相应 burst。2 倍是设计目标，不是领域标准，也不是已测结果",
+    "resource_goal": "不超过所选资源 profile；oversize input 明确拒绝或分块，不以扩容掩盖。RSS 采样不能证明所有瞬时峰值，结合 allocator/pool 高水位",
+    "priority_goal": "只有 PRIORITY 配置要求饱和下控制/错误/终态记录完整；FULL 和 FLIGHT 按自己的留存合同判断",
+    "comparison": "相同 workload、保真度、资源、durability 和测量边界下给 Pareto 图；不设混合总分。提高吞吐却损坏证据或扩大预算不能称为同条件改进"
+  },
+  "artifacts": {
+    "per_campaign": ["protocol.json", "resolved-case-list.json", "source-and-binary-manifest.json", "environment-capabilities.json", "exclusions.json"],
+    "per_run": ["config.json", "schedule-seed-and-digest.json", "counter-timeline.parquet", "latency-histograms", "producer-receipts", "checkpoint-watermarks", "raw-chunks", "terminal-manifest.json", "oracle-report.json", "generator-health.json"],
+    "aggregate": ["all-runs.parquet", "capacity-brackets.json", "paired-confidence-intervals.json", "coverage-matrix.json", "regressions-and-failures.json"],
+    "plots": ["offered vs admitted/decoded/durable goodput", "latency CDF and p99 vs offered load", "queue bytes and memory over time", "loss by source/kind/reason", "burst/stall recovery curve", "throughput vs CPU and memory Pareto", "model TTFT/ITL/request latency deltas", "shutdown/publication and recovery distributions"]
+  },
+  "execution": "未来实现与测试均从项目根经 scripts/remote_run.sh；Mac 仅编辑/阅读。故障、IO 压力和内存限制只作用于本 benchmark 创建的隔离进程/目录，不影响现有部署。特性/权限不足标 unsupported，不自动修改主机配置。"
+}
