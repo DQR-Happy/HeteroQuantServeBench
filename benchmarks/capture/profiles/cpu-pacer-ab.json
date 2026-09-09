@@ -1,0 +1,21 @@
+[
+  {
+    "id": "pacer-10k",
+    "workload": "W01/W16",
+    "duration_s": 10,
+    "rate": 10000,
+    "pacer_variants": [
+      "cooperative",
+      "hybrid_spin"
+    ],
+    "sample_every": 1
+  },
+  {
+    "id": "pacer-100k",
+    "workload": "W01/W16",
+    "duration_s": 10,
+    "rate": 100000,
+    "pacer": "cooperative",
+    "sample_every": 4
+  }
+]
