@@ -1,0 +1,18 @@
+# Run from the checkout root. Build native kernels on THIS target first.
+# No Jetson absolute paths or native binaries belong in this configuration.
+deployments:
+  - id: qwen-reference
+    name: Qwen3 · CUDA FP16
+    provider: pytorch
+    platform: CUDA / discrete GPU
+    model_path: ~/models/hqsb/Qwen3-1.7B
+    manifest: docs/benchmark/model_sha256_manifest.txt
+    kernel_manifest: build/l2/model-kernels.json
+    kernel_profile: framework-native
+    attention: eager
+    precision: float16
+    context_limit: 2048
+    max_output_tokens: 512
+privileged_worker: false
+auth_required: false
+request_deadline_ms: 120000
