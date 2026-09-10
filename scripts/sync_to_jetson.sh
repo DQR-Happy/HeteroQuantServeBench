@@ -4,11 +4,12 @@
 # 用法（在【开发机】的项目根目录执行）：
 #   ./scripts/sync_to_jetson.sh                      # 默认目标：Jetson
 #   ./scripts/sync_to_jetson.sh --target orangepi    # 目标：OrangePi AI Pro
+#   ./scripts/sync_to_jetson.sh --target 4090d       # 目标：4090D 新后端
 #   ./scripts/sync_to_jetson.sh --dry-run            # 仅预览，不写入
 #   ./scripts/sync_to_jetson.sh --verify             # 只校验两端一致性，不传输
 #
 # 可用环境变量覆盖默认值：
-#   HQSB_TARGET=jetson|orangepi
+#   HQSB_TARGET=jetson|orangepi|4090d
 #   HQSB_REMOTE_HOST=user@host        直连地址覆盖（对两个目标都生效）
 #   HQSB_REMOTE_DIR=/remote/path      远端项目根目录覆盖
 #   JETSON_USER / JETSON_HOST         仅 jetson 目标的兼容变量
@@ -54,8 +55,12 @@ case "${TARGET}" in
     DEFAULT_HOST="OrangePi-AI-Pro"
     DEFAULT_DIR="/home/HwHiAiUser/work/HeteroQuantServeBench"
     ;;
+  4090d)
+    DEFAULT_HOST="4090D-hqsb"
+    DEFAULT_DIR="/root/HeteroQuantServeBench-4090D"
+    ;;
   *)
-    echo "unknown target '${TARGET}'; expected 'jetson' or 'orangepi'" >&2
+    echo "unknown target '${TARGET}'; expected 'jetson', 'orangepi' or '4090d'" >&2
     exit 2
     ;;
 esac
@@ -128,7 +133,15 @@ sync_primary() {
 }
 
 sync_details() {
+  if [[ ! -d docs/stage_experiments/details ]]; then
+    echo "==> 私有阶段说明未随本检出提供，跳过补同步；不生成替代数据"
+    return
+  fi
   echo "==> [${TARGET}] 补同步运行期依赖 docs/stage_experiments/details/"
+  if [[ "${MODE}" != "dry-run" ]]; then
+    HQSB_REMOTE_HOST="${REMOTE_HOST}" HQSB_REMOTE_DIR="${REMOTE_DIR}" \
+      ./scripts/remote_run.sh mkdir -p docs/stage_experiments/details
+  fi
   rsync "${RSYNC_OPTIONS[@]}" \
     docs/stage_experiments/details/ \
     "${DEST}/docs/stage_experiments/details/"
