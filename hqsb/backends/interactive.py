@@ -30,6 +30,7 @@ class InteractivePyTorch:
         self.device_lease = None
         self.tokenizer_identity = None
         self.kernel_session = None
+        self.chat_template_policy = None
 
     def load(self, *, kernel_profile=None) -> dict:
         if self.model is not None:
@@ -52,7 +53,7 @@ class InteractivePyTorch:
 
     def _load(self) -> dict:
         import torch
-        from hqsb.models.loader import load_qwen3
+        from hqsb.models.loader import load_causal_lm
 
         if self.config.get("device_lock_path"):
             from hqsb.observation.lease import DeviceLease
@@ -63,7 +64,7 @@ class InteractivePyTorch:
         observation = ObservationRecorder()
         observation.snapshot("before_model_load", self.memory)
         with observation.phase("model_load"):
-            self.tokenizer, self.model, seconds = load_qwen3(
+            self.tokenizer, self.model, seconds = load_causal_lm(
                 self.config["model_path"],
                 attention_backend=self.config["attention"],
                 dtype=torch.float16,
@@ -78,7 +79,7 @@ class InteractivePyTorch:
             raise RuntimeError(
                 f"Reference requires full cuda:0 placement; observed {devices}"
             )
-        path = Path(self.config["model_path"]).expanduser()
+        path = Path(os.path.expandvars(self.config["model_path"])).expanduser()
         identity = {}
         for name in ("config.json", "tokenizer.json", "tokenizer_config.json"):
             file = path / name
@@ -105,9 +106,16 @@ class InteractivePyTorch:
         from hqsb.backends.kernel_session import KernelSession
 
         self.kernel_session = KernelSession(self.model, self.config)
+        self.chat_template_policy = {
+            "owner": "local_tokenizer",
+            "model_type": self.model.config.model_type,
+            "enable_thinking": False if self.model.config.model_type == "qwen3" else "model_template_default",
+        }
         with torch.inference_mode(), observation.phase("warmup"):
             x = self.tokenizer("Warmup", return_tensors="pt").to("cuda")
             out = self.model(**x, use_cache=False)
+            if not bool(torch.isfinite(out.logits[:, -1, :]).all().item()):
+                raise ValueError("MODEL_WARMUP_NONFINITE_LOGITS")
             del out, x
             torch.cuda.synchronize()
         observation.snapshot("after_warmup", self.memory)
@@ -128,6 +136,9 @@ class InteractivePyTorch:
             "torch_version": str(torch.__version__),
             "cuda_version": torch.version.cuda,
             "device_name": torch.cuda.get_device_name(0),
+            "model_type": self.model.config.model_type,
+            "model_class": type(self.model).__name__,
+            "chat_template_policy": self.chat_template_policy,
             "memory": self.memory(),
             "parameter_bytes": sum(
                 parameter.numel() * parameter.element_size()
@@ -240,7 +251,7 @@ class InteractivePyTorch:
                     request["messages"],
                     tokenize=False,
                     add_generation_prompt=True,
-                    enable_thinking=False,
+                    **({"enable_thinking": False} if self.model.config.model_type == "qwen3" else {}),
                 )
             with observation.phase("tokenize"):
                 if "experiment_input_tokens" in request:
@@ -399,6 +410,7 @@ class InteractivePyTorch:
                     "token_itl_ms": [b - a for a, b in zip(times, times[1:])],
                     "generated_token_ids": ids,
                     "input_token_sha256": input_token_sha256,
+                    "chat_template_policy": self.chat_template_policy,
                     "memory": memory,
                     "measurement_profile": "interactive-greedy-host-monotonic-v1",
                     "quality": "not_evaluated",

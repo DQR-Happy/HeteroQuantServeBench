@@ -1,6 +1,6 @@
 """Model loader for HQSB benchmarks.
 
-Provides a unified interface for loading Qwen3-family models from
+Provides a unified interface for loading causal language models from
 ModelScope local directories, with support for dtype configuration,
 attention backend selection, and timing instrumentation.
 
@@ -16,7 +16,7 @@ import time
 from typing import Any, Optional, Tuple
 
 import torch
-from modelscope import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from hqsb.benchmark.memory import (
     gpu_memory_budget_bytes,
@@ -153,7 +153,7 @@ def _consolidate_to_device(model: Any, *, target: Any, force: bool = False) -> b
     return True
 
 
-def load_qwen3(
+def load_causal_lm(
     model_path: str,
     dtype: torch.dtype = torch.float16,
     attention_backend: str = "eager",
@@ -165,7 +165,7 @@ def load_qwen3(
     cpu_staging: bool = False,
     device: str | None = None,
 ) -> Tuple:
-    """Load a Qwen3-family model and tokenizer from a local ModelScope directory.
+    """Load a built-in Transformers causal model from a local ModelScope snapshot.
 
     This is the primary entry point for loading models in HQSB benchmarks.
     All model files are loaded from the local filesystem only
@@ -297,6 +297,7 @@ def load_qwen3(
     tokenizer = AutoTokenizer.from_pretrained(
         model_path,
         local_files_only=True,
+        trust_remote_code=False,
     )
 
     # Load model with memory-efficient strategy.
@@ -312,6 +313,7 @@ def load_qwen3(
             device_map=device_map,
             low_cpu_mem_usage=True,
             local_files_only=True,
+            trust_remote_code=False,
             attn_implementation=attention_backend,
             offload_folder=offload_folder,
             max_memory=max_memory,
@@ -328,6 +330,7 @@ def load_qwen3(
                 device_map=device_map,
                 low_cpu_mem_usage=True,
                 local_files_only=True,
+                trust_remote_code=False,
                 attn_implementation=attention_backend,
                 offload_folder=offload_folder,
                 max_memory={
@@ -372,3 +375,7 @@ def load_qwen3(
         )
 
     return tokenizer, model, load_time_s
+
+
+# Frozen benchmark callers retain their public entry point and semantics.
+load_qwen3 = load_causal_lm
