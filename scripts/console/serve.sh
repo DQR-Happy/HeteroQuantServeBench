@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Invoke through scripts/remote_run.sh on Jetson. Never run models on the Mac.
+# Invoke through scripts/remote_run.sh on an authorized Linux CUDA target.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 if [[ ! -f web/console/dist/index.html ]]; then

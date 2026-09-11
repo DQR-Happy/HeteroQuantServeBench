@@ -18,6 +18,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:8765")
     parser.add_argument("--data-dir", type=Path, default=Path(".console"))
+    parser.add_argument("--allow-empty-history", action="store_true",
+                        help="Clean-checkout runtime acceptance; explicitly report private stage archives as not provided")
     parser.add_argument(
         "--output", type=Path, default=Path("reports/console/live-acceptance.json")
     )
@@ -33,6 +35,7 @@ def main():
     evidence = {
         "started_at": time.time(),
         "mode": "real_device",
+        "scope": "runtime_without_private_stage_history" if args.allow_empty_history else "runtime_and_stage_history",
         "checks": [],
         "runs": [],
     }
@@ -160,12 +163,15 @@ def main():
         rejected = post("/comparisons", {"run_ids": [first["id"], followup["id"]]})
         check("different_output_length_blocked", not rejected["comparable"])
         catalog = client.get("/evidence").json()["items"]
-        check("real_history_indexed", len(catalog) > 0, len(catalog))
-        raw = client.get("/evidence/" + catalog[0]["id"] + "/download")
-        check(
-            "evidence_download_hash",
-            hashlib.sha256(raw.content).hexdigest() == raw.headers["x-content-sha256"],
-        )
+        if not catalog and args.allow_empty_history:
+            evidence["private_stage_history"] = {"status": "not_provided", "download_verified": False}
+        else:
+            check("real_history_indexed", len(catalog) > 0, len(catalog))
+            raw = client.get("/evidence/" + catalog[0]["id"] + "/download")
+            check(
+                "evidence_download_hash",
+                hashlib.sha256(raw.content).hexdigest() == raw.headers["x-content-sha256"],
+            )
         check(
             "telemetry_has_real_samples",
             len(client.get("/telemetry").json()["samples"]) > 0,
