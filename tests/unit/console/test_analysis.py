@@ -788,3 +788,12 @@ def test_manifest_symlink_is_not_downloadable_even_for_completed_run(api, tmp_pa
         ).status_code
         == 404
     )
+
+
+def test_trace_nesting_limit_does_not_count_quoted_brackets(api):
+    run = recorded_run(api)
+    put_trace(api, run, [{"ph": "X", "ts": 0, "dur": 1, "name": '[{"escaped":"\\"' * 300}])
+    response = api.client.get(PREFIX + f"/runs/{run['id']}/trace/events")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["status"] == "available" and body["total"] == 1

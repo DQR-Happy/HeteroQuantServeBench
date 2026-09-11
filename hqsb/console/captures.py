@@ -15,6 +15,7 @@ MAX_TRACE_BYTES = 64 * 1024 * 1024
 MAX_EVENTS = 150_000
 TRACE_CHUNK_BYTES = 64 * 1024
 MAX_TRACE_VALUE_BYTES = 1024 * 1024
+MAX_TRACE_DEPTH = 128
 ARG_KEYS = (
     "External id",
     "External Id",
@@ -81,6 +82,33 @@ def _safe_arg(value, depth=0):
     return value if value is None or isinstance(value, bool) else None
 
 
+def _check_value_depth(text, start):
+    # Python 3.12's C JSON decoder may accept nesting that raised RecursionError
+    # on 3.10. Bound it before decoding, independently of interpreter internals.
+    if text[start:start + 1] not in {"[", "{"}:
+        return
+    depth, quoted, escaped = 0, False, False
+    for index in range(start, len(text)):
+        character = text[index]
+        if quoted:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                quoted = False
+        elif character == '"':
+            quoted = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_TRACE_DEPTH:
+                raise ValueError("Trace value exceeds the nesting budget")
+        elif character in "]}":
+            depth -= 1
+            if depth <= 0:
+                return
+
+
 class _TraceJSONReader:
     """Incremental JSON values with bounded byte buffers, using stdlib syntax.
 
@@ -139,6 +167,7 @@ class _TraceJSONReader:
         if not self.peek():
             raise ValueError("Truncated JSON trace value")
         while True:
+            _check_value_depth(self.buffer, self.position)
             try:
                 value, end = self.decoder.raw_decode(self.buffer, self.position)
             except json.JSONDecodeError:
