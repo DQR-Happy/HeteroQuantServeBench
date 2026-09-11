@@ -1,0 +1,73 @@
+# Target-specific paths. Download/verify via download_catalog_modelscope.py first.
+# One resident model at a time; the console drains the previous model on switch.
+deployments:
+  - id: qwen-reference
+    name: Qwen3 · 1.7B · HQSB 算子基线
+    provider: pytorch
+    platform: CUDA / RTX 4090 D
+    model: Qwen/Qwen3-1.7B
+    model_path: ~/models/hqsb/Qwen3-1.7B
+    manifest: docs/benchmark/model_sha256_manifest.txt
+    kernel_manifest: build/l2/model-kernels.json
+    attention: eager
+    context_limit: 2048
+    max_output_tokens: 512
+  - id: gemma3-1b
+    name: Google · Gemma 3 1B IT
+    platform: CUDA / RTX 4090 D
+    model: google/gemma-3-1b-it
+    model_path: /root/autodl-tmp/hqsb/models/gemma3-1b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/gemma3-1b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+  - id: llama32-1b
+    name: Meta · Llama 3.2 1B Instruct
+    platform: CUDA / RTX 4090 D
+    model: LLM-Research/Llama-3.2-1B-Instruct
+    model_path: /root/autodl-tmp/hqsb/models/llama3.2-1b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/llama3.2-1b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+  - id: llama32-3b
+    name: Meta · Llama 3.2 3B Instruct
+    platform: CUDA / RTX 4090 D
+    model: LLM-Research/Llama-3.2-3B-Instruct
+    model_path: /root/autodl-tmp/hqsb/models/llama3.2-3b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/llama3.2-3b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+  - id: qwen3-06b
+    name: Alibaba · Qwen3 0.6B
+    platform: CUDA / RTX 4090 D
+    model: Qwen/Qwen3-0.6B
+    model_path: /root/autodl-tmp/hqsb/models/qwen3-0.6b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/qwen3-0.6b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+  - id: qwen3-4b
+    name: Alibaba · Qwen3 4B
+    platform: CUDA / RTX 4090 D
+    model: Qwen/Qwen3-4B
+    model_path: /root/autodl-tmp/hqsb/models/qwen3-4b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/qwen3-4b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+  - id: qwen3-8b
+    name: Alibaba · Qwen3 8B
+    platform: CUDA / RTX 4090 D
+    model: Qwen/Qwen3-8B
+    model_path: /root/autodl-tmp/hqsb/models/qwen3-8b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/qwen3-8b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+  - id: deepseek-r1-15b
+    name: DeepSeek · R1 Distill Qwen 1.5B
+    platform: CUDA / RTX 4090 D
+    model: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+    model_path: /root/autodl-tmp/hqsb/models/deepseek-r1-1.5b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/deepseek-r1-1.5b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+privileged_worker: false
+auth_required: false
+request_deadline_ms: 120000
