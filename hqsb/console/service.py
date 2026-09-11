@@ -257,6 +257,12 @@ class ConsoleService:
                     profile(selected)
                     if set(payload) - {"kernel_profile"} or (cfg.provider != "pytorch" and payload):
                         raise ValueError("KERNEL_PROFILE_LOAD_INVALID")
+                    if profile(selected)["operators"]:
+                        from hqsb.console.kernel_inventory import model_kernel_compatibility
+
+                        incompatible = model_kernel_compatibility(cfg)
+                        if incompatible:
+                            raise ValueError(incompatible)
                     if requires_native(selected):
                         from hqsb.console.kernel_inventory import native_inventory
 
@@ -331,7 +337,7 @@ class ConsoleService:
                     "chat_template_owner": "local_tokenizer"
                     if cfg.provider == "pytorch"
                     else "upstream",
-                    "enable_thinking": False
+                    "enable_thinking": state["detail"].get("chat_template_policy", {}).get("enable_thinking", "model_template_default")
                     if cfg.provider == "pytorch"
                     else "upstream_defined",
                 },

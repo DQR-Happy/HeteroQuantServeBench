@@ -22,6 +22,22 @@ def test_external_provider_cannot_claim_local_kernel_selection():
     assert all(not item["availability"]["loadable"] for item in catalog["profiles"])
 
 
+def test_other_model_families_and_sizes_never_offer_qwen17b_kernels():
+    for model in ("google/gemma-3-1b-it", "LLM-Research/Llama-3.2-1B-Instruct", "Qwen/Qwen3-8B"):
+        result = deployment_catalogue(DeploymentConfig(id="test", name="test", model=model))
+        for row in result["profiles"]:
+            assert row["availability"]["loadable"] == (row["profile_id"] == "framework-native")
+            if row["operators"]:
+                assert row["availability"]["reason"] == "KERNEL_MODEL_SHAPE_UNSUPPORTED"
+
+
+def test_actual_config_overrides_mistaken_qwen17b_model_label(tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"model_type": "llama"}))
+    config = DeploymentConfig(id="test", name="test", model_path=str(tmp_path))
+    result = deployment_catalogue(config)
+    assert all(not row["availability"]["loadable"] for row in result["profiles"] if row["operators"])
+
+
 def test_file_identity_check_rejects_tampering_and_source_escape(tmp_path):
     source = tmp_path / "kernel.cu"
     library = tmp_path / "kernel.so"

@@ -10,6 +10,27 @@ from pathlib import Path
 from hqsb.core.kernel_profiles import catalogue
 
 
+def model_kernel_compatibility(config):
+    """Configuration/file check only; the worker still validates source/shape."""
+    if config.model != "Qwen/Qwen3-1.7B":
+        return "KERNEL_MODEL_SHAPE_UNSUPPORTED"
+    import os
+
+    path = Path(os.path.expandvars(config.model_path)).expanduser() / "config.json"
+    if path.exists():
+        try:
+            if path.stat().st_size > 1024**2:
+                return "KERNEL_MODEL_CONFIG_INVALID"
+            model = json.loads(path.read_text())
+            fields = ("hidden_size", "intermediate_size", "num_attention_heads",
+                      "num_key_value_heads", "num_hidden_layers")
+            if model.get("model_type") != "qwen3" or tuple(model.get(k) for k in fields) != (2048, 6144, 16, 8, 28):
+                return "KERNEL_MODEL_SHAPE_UNSUPPORTED"
+        except (OSError, ValueError, AttributeError):
+            return "KERNEL_MODEL_CONFIG_INVALID"
+    return None
+
+
 def native_inventory(config, *, source_root=None):
     if not config.kernel_manifest:
         return {"status": "missing", "reason": "KERNEL_NATIVE_MANIFEST_REQUIRED"}
@@ -50,6 +71,8 @@ def deployment_catalogue(config):
         reason = None
         if config.provider != "pytorch":
             reason = "EXTERNAL_PROVIDER_MANAGES_KERNELS"
+        elif item["operators"] and model_kernel_compatibility(config):
+            reason = model_kernel_compatibility(config)
         elif item["requires_native_artifact"] and native["status"] != "files_verified":
             reason = native["reason"]
         item["availability"] = {"loadable": reason is None, "reason": reason,
