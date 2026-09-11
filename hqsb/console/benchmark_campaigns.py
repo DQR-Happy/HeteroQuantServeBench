@@ -85,8 +85,12 @@ class BenchmarkCampaigns:
                     "cleanup_policy": "empty_cache", "availability": row["availability"], "operators": row["operators"]} for row in profiles["profiles"]]
         schemes.append({"id": "native-preserve-allocator", "name": "框架原生 · 保留 allocator 缓存", "kernel_profile": "framework-native",
                         "cleanup_policy": "preserve_allocator", "operators": {}, "availability": schemes[0]["availability"]})
+        candidates = [row["id"] for row in schemes if row["id"] in {"qwen3-norm-vector-v2", "qwen3-local-fusions-v1"}
+                      and row["availability"]["loadable"]]
+        if not candidates:
+            candidates = ["native-preserve-allocator"]
         return {**suite(), "schemes": schemes, "native_artifact": profiles["native_artifact"],
-                "defaults": {"baseline_id": "framework-native", "candidate_ids": ["qwen3-norm-vector-v2", "qwen3-local-fusions-v1"],
+                "defaults": {"baseline_id": "framework-native", "candidate_ids": candidates,
                              "case_ids": [case["id"] for case in suite()["cases"]], "repeats": 1, "output_tokens": 64, "diagnostics": False},
                 "active_id": self.active_id}
 

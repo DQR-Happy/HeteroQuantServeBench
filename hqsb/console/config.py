@@ -86,9 +86,9 @@ class Settings(BaseModel):
         ids = [item.id for item in self.deployments]
         if len(ids) != len(set(ids)):
             raise ValueError("deployment IDs must be unique")
-        if len(ids) > 4:
+        if len(ids) > 16:
             raise ValueError(
-                "Console supports at most four configured deployment workers"
+                "Console supports at most sixteen configured deployment workers"
             )
         return self
 

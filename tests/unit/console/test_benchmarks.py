@@ -92,6 +92,16 @@ def test_frozen_inputs_and_quality_do_not_confuse_agreement_with_correctness():
     assert score(cases["explanation"], "anything") is None
 
 
+def test_non_qwen_model_has_a_runnable_native_comparison_and_rejects_custom_load(env):
+    _, service, manager, _ = env
+    service.configs["reference"].model = "google/gemma-3-1b-it"
+    catalog = manager.catalogue("reference")
+    assert catalog["defaults"]["candidate_ids"] == ["native-preserve-allocator"]
+    with pytest.raises(ServiceError, match="KERNEL_MODEL_SHAPE_UNSUPPORTED"):
+        service.submit("load", "reference", {"kernel_profile": "qwen3-attention-math-v1"}, "incompatible")
+    assert service.pending == 0
+
+
 def test_report_excludes_warmups_and_blocks_unfair_ratios():
     case = suite()["cases"][0]
     schemes = [{"id": "base", "kernel_profile": "framework-native", "cleanup_policy": "empty_cache"},
