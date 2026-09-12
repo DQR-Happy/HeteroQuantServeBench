@@ -45,6 +45,14 @@ console = [
     "uvicorn==0.34.3",
     "httpx==0.28.1",
 ]
+# Verified Qwen3 console adapter. Install the target's CUDA torch separately;
+# this extra must never replace Jetson's vendor-managed wheel.
+console-model = [
+    "transformers==5.8.0",
+    "modelscope==1.29.0",
+    "accelerate>=1.0,<2",
+    "psutil>=5.9",
+]
 # Ascend/CANN backend (S09).
 ascend = [
     "torch-npu",
