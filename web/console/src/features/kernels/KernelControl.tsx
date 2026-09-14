@@ -13,6 +13,10 @@ const unavailable = (reason?: string | null) =>
     ? '服务尚未配置原生算子制品'
     : reason === 'EXTERNAL_PROVIDER_MANAGES_KERNELS'
       ? '算子由外部引擎管理'
+      : reason === 'KERNEL_MODEL_SHAPE_UNSUPPORTED'
+        ? '此实现仅适配 Qwen3 1.7B，当前模型使用框架原生实现'
+        : reason === 'KERNEL_MODEL_CONFIG_INVALID'
+          ? '模型配置读取失败，无法确认算子兼容性'
       : '原生制品身份检查未通过，请检查服务配置';
 
 export default function KernelControl({
@@ -161,10 +165,10 @@ export default function KernelControl({
             ? dirty
               ? '应用并重载模型'
               : '重新加载当前方案'
-            : '加载并应用算子'}
+            : '切换模型并加载方案'}
       </Button>
       <div className="help-text">
-        重载会排空现有请求、卸载模型，再应用所选方案。离开此页会停止后续自动提交；已接受任务可在运行记录查看。
+        切换会排空并卸载当前 GPU 模型，再加载所选模型与方案。加载成功后，仍需单独提交推理或固定输入评测。离开此页会停止后续自动提交；已接受任务可在运行记录查看。
       </div>
       {(job || deployment.load_run_id) && (
         <div className="help-text">

@@ -42,8 +42,10 @@ export async function applyKernelProfile(
       run = await api<Run>(`/runs/${run.id}`, undefined, signal);
     }
   };
+  let items: Deployment[] = [];
   const current = async () => {
     const data = await api<{ items: Deployment[] }>('/deployments', undefined, signal);
+    items = data.items;
     const row = data.items.find((item) => item.id === deployment.id);
     if (!row) throw new Error('部署已不存在，请刷新部署列表。');
     return row;
@@ -52,6 +54,18 @@ export async function applyKernelProfile(
   const initial = await current();
   if (initial.epoch !== deployment.epoch || initial.state !== deployment.state)
     throw new Error('部署状态已变化，请核对当前方案后重新操作。');
+  if (deployment.provider === 'pytorch') {
+    const owners = items.filter(
+      (item) => item.id !== deployment.id && item.provider === 'pytorch' &&
+        !['unloaded', 'failed'].includes(item.state),
+    );
+    if (owners.some((item) => item.state !== 'ready'))
+      throw new Error('其他模型正在加载或卸载，请等待生命周期任务完成。');
+    for (const owner of owners) {
+      checkAbort();
+      await wait(await api<Run>(`/deployments/${owner.id}/unload`, {}, signal));
+    }
+  }
   if (initial.state === 'ready') {
     checkAbort();
     await wait(await api<Run>(`/deployments/${deployment.id}/unload`, {}, signal));

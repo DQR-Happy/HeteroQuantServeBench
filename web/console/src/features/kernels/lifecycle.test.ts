@@ -25,6 +25,27 @@ const loaded = {
 };
 beforeEach(() => request.mockReset());
 describe('kernel lifecycle owns unload, load and confirmation in order', () => {
+  it('drains the other local model before loading the selected model', async () => {
+    const start = { ...initial, state: 'unloaded', epoch: null };
+    request
+      .mockResolvedValueOnce({ items: [start, { ...initial, id: 'other-model' }] })
+      .mockResolvedValueOnce(done('unload'))
+      .mockResolvedValueOnce(done('load'))
+      .mockResolvedValueOnce({ items: [loaded] });
+    await applyKernelProfile(start, loaded.kernel_profile, new AbortController().signal, vi.fn());
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/deployments', '/deployments/other-model/unload', '/deployments/model/load', '/deployments',
+    ]);
+  });
+  it('never loads a new model if the previous owner did not release the device', async () => {
+    const start = { ...initial, state: 'unloaded', epoch: null };
+    request
+      .mockResolvedValueOnce({ items: [start, { ...initial, id: 'other-model' }] })
+      .mockResolvedValueOnce({ ...done('unload', 'failed'), error: 'device retained' });
+    await expect(applyKernelProfile(start, 'framework-native', new AbortController().signal, vi.fn()))
+      .rejects.toThrow('device retained');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
   it('reloads with the exact selected version and verifies the new epoch', async () => {
     request
       .mockResolvedValueOnce({ items: [initial] })
