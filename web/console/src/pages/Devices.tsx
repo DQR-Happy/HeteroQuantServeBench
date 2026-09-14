@@ -56,14 +56,24 @@ export default function Devices() {
           label="GPU busy"
           value={last?.gpu_util_pct}
           unit="%"
-          hint="tegrastats · 不等同 SM occupancy"
+          hint={`${last?.source ?? '等待采样'} · 不等同 SM occupancy`}
         />
         <Stat label="GPU 温度" value={last?.gpu_temp_c} unit="°C" hint="控制节点传感器" />
         <Stat
-          label="SoC 输入功率"
+          label={
+            last?.power_scope === 'GPU board'
+              ? 'GPU 板卡功率'
+              : last?.power_scope === 'SoC VDD_IN'
+                ? 'SoC 输入功率'
+                : '功率（范围未确认）'
+          }
           value={last?.power_w}
           unit="W"
-          hint="VDD_IN · 不能等同 GPU 独立功耗"
+          hint={
+            last?.power_scope === 'GPU board'
+              ? 'nvidia-smi · 物理 GPU 0，非整机功耗'
+              : 'VDD_IN 仅适用于 Jetson；缺失传感器不记作零'
+          }
         />
       </div>
       <Panel
@@ -147,7 +157,7 @@ export default function Devices() {
       <TensorLedger />
       <div className="grid-two">
         <Panel
-          title="共享内存趋势"
+          title="主机内存趋势"
           subtitle={`${telemetry.data?.host ?? '—'} · ${telemetry.data?.architecture ?? '—'}`}
         >
           <QueryState error={telemetry.error} />
@@ -179,7 +189,10 @@ export default function Devices() {
             pagination={false}
             rowKey="platform"
             dataSource={[
-              { platform: 'Jetson / CUDA', state: '本地 PyTorch FP16 交互路径' },
+              {
+                platform: 'CUDA / Jetson / NVIDIA 独显',
+                state: '本地 PyTorch FP16 交互路径；按目标单独验证',
+              },
               { platform: 'ROCm / W7900D', state: '外部引擎接口可接入，硬件未认证' },
               { platform: 'Ascend / MUSA / MTT S4000', state: '需实际兼容服务与对应证据' },
               { platform: 'RK3588 / RKNN', state: '专用 Provider 尚未实现' },
