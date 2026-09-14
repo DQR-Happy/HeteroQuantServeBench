@@ -22,7 +22,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, fmt, gib, terminal } from '../api/client';
 import type { Deployment, InferenceRequest, Run, Session } from '../api/types';
 import { PageHead, Panel, Stat, Status, QueryState } from '../components';
@@ -33,6 +33,7 @@ import KernelControl from '../features/kernels/KernelControl';
 import RunEvidence from '../features/experiments/RunEvidence';
 
 export default function Playground() {
+  const [params] = useSearchParams();
   const { message } = App.useApp();
   const client = useQueryClient();
   const deployments = useQuery({
@@ -40,7 +41,7 @@ export default function Playground() {
     queryFn: () => api<{ items: Deployment[] }>('/deployments'),
     refetchInterval: 2000,
   });
-  const [selected, setSelected] = useState('');
+  const [selected, setSelected] = useState(params.get('deployment') ?? '');
   const [kernelDrafts, setKernelDrafts] = useState<Record<string, string>>({});
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const deployment =
@@ -274,7 +275,7 @@ export default function Playground() {
             title="输入"
             subtitle={
               localProvider
-                ? '默认关闭 Qwen thinking；服务端唯一应用聊天模板'
+                ? '使用各模型自带聊天模板；Qwen3 关闭 thinking，其他模型保留模板默认行为'
                 : '聊天模板与 thinking 策略由上游引擎管理'
             }
           >
