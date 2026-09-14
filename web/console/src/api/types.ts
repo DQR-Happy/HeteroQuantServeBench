@@ -100,7 +100,31 @@ export type Run = {
     rows_processed?: number;
     total_rows?: number;
   };
-  result?: { kind?: string; artifact_id?: string; manifest?: unknown; metrics?: Metrics };
+  result?: {
+    kind?: string;
+    artifact_id?: string;
+    manifest?: unknown;
+    metrics?: Metrics;
+    load_seconds?: number;
+    parameter_bytes?: number;
+    parameter_devices?: string[];
+    device_name?: string;
+    model_type?: string;
+    model_class?: string;
+    torch_version?: string;
+    cuda_version?: string;
+    weight_verification?: string;
+    memory?: Metrics['memory'];
+    observation?: Observation;
+    kernel_plan?: KernelPlan;
+    parameter_inventory?: {
+      availability?: string;
+      entry_count?: number;
+      unique_storage_bytes?: number;
+      truncated?: boolean;
+      limitations?: string[];
+    };
+  };
 };
 export type Message = components['schemas']['Message'];
 export type RunPage = { items: Run[]; total: number; next_offset: number | null };
@@ -131,6 +155,7 @@ export type Sample = {
   gpu_util_pct: number | null;
   gpu_temp_c: number | null;
   power_w: number | null;
+  power_scope?: string;
   source: string;
   gpu_availability: string;
 };
