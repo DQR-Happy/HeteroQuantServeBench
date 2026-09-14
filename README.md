@@ -34,6 +34,10 @@ Mac 用于编辑和版本管理；运行、构建、测试与硬件探测全部�
 
 默认远端为 `jetson@192.168.10.7:/home/jetson/work/HeteroQuantServeBench`。`HQSB_REMOTE_HOST`、`HQSB_REMOTE_DIR` 可统一覆盖运行、同步和拉取目标。自动保存不等同于已验证同步。
 
+新增 4090D / Linux x86_64 CUDA 后端的初始化流程见 [CUDA Console 部署说明](infra/README.cuda-console.md)。通过 `HQSB_REMOTE_HOST=4090D-hqsb` 选择新端，或使用 `scripts/sync_to_jetson.sh --target 4090d` 同步；Jetson 默认端保持不变。`scripts/console/bootstrap_cuda.sh` 复用目标 CUDA PyTorch，在隔离环境安装已锁定的模型依赖、校验权重、按实际 SM 构建算子并构建前端。通用服务配置为 `configs/console/cuda.example.yaml`。
+
+4090D 多厂商模型、ModelScope 权重校验、模型切换及观测边界见 [多模型接入说明](infra/README.modelscope-models.md)，目标配置为 `configs/console/4090d-models.yaml`。
+
 CPU 回归表示“不使用加速器”，并不表示“只安装 core 就能跑所有测试”：部分测试需要 CPU 可用的 torch 等 benchmark 依赖。Jetson 必须保留 NVIDIA 提供的 torch wheel，勿直接用普通 PyPI torch 替换。首次安装、CUDA 构建和模型运行见使用说明书。
 
 ## 主要工作流
