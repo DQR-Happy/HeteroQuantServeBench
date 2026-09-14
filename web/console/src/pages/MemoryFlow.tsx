@@ -180,7 +180,7 @@ export default function MemoryFlow() {
         )}
       </Panel>
       <nav className="mf-section-nav" aria-label="内存与数据流图形导航">
-        <a href="#memory-topology-section">01 统一内存</a>
+        <a href="#memory-topology-section">01 主机与设备内存</a>
         <a href="#weight-map-section">02 权重结构</a>
         <a href="#kv-map-section">03 KV 层结构</a>
         <a href="#request-dataflow-section">04 请求数据流</a>
@@ -203,7 +203,7 @@ export default function MemoryFlow() {
         <Alert
           className="section-gap"
           type="info"
-          message="此记录来自外部推理服务；本机 Jetson 的内存不能当作外部服务的内存结构。"
+          message="此记录来自外部推理服务；本控制节点的内存不能当作外部服务的内存结构。"
         />
       )}
       <QueryState error={resources.error ?? inventory.error ?? load.error} />

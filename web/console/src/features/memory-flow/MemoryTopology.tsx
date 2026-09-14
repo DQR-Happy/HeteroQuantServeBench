@@ -41,8 +41,8 @@ export default function MemoryTopology({
       : 0;
   return (
     <Panel
-      title="01 · Jetson 统一内存结构"
-      subtitle="CPU 与 GPU 共享物理 DRAM；下图区分硬件关系和软件统计口径。"
+      title="01 · 主机与 CUDA 内存结构"
+      subtitle="独显 VRAM 与主机 DRAM 分开；Jetson 共享 DRAM。下图分别核算主机与 allocator，面积不代表物理拓扑。"
     >
       <div className="mf-topology" data-testid="memory-topology">
         <div className="mf-compute-pair">
@@ -62,14 +62,14 @@ export default function MemoryTopology({
           </div>
         </div>
         <div className="mf-memory-connectors" aria-hidden="true">
-          <span>↕ 共享物理内存</span>
-          <span>↕ 共享物理内存</span>
+          <span>↕ Host 内存访问</span>
+          <span>↕ CUDA 设备内存访问</span>
         </div>
         <div className="mf-dram">
           <div className="mf-section-title">
-            <strong>共享 DRAM</strong>
-            <Tag color="cyan">Jetson SoC</Tag>
-            <span>没有一块单独的 HBM 可与系统内存相加</span>
+            <strong>主机与设备内存账本</strong>
+            <Tag>分别核算</Tag>
+            <span>不把系统内存、VRAM 和 allocator 数值直接相加</span>
           </div>
           <div className="mf-system-meter">
             <div className="mf-meter-label">

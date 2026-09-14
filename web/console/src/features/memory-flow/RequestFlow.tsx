@@ -21,7 +21,7 @@ const nodes = [
     location: 'CPU → GPU 逻辑位置',
     names: ['input_transfer'],
     description:
-      '输入张量执行 .to("cuda")。这是逻辑设备迁移：Jetson 仍共享物理 DRAM。当前这类采集在输入迁移之后启动 profiler，此节点的主机跨度不能冒充捕获到的 GPU memcpy。',
+      '输入张量执行 .to("cuda")。逻辑迁移的物理代价取决于设备：独显使用独立 VRAM，Jetson 共享 DRAM。当前这类采集在输入迁移之后启动 profiler，此节点的主机跨度不能冒充捕获到的 GPU memcpy。',
   },
   {
     id: 'prefill',
