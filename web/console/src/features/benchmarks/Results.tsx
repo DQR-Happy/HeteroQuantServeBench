@@ -32,6 +32,18 @@ export default function Results({ benchmark }: { benchmark: Benchmark }) {
         size="small"
         column={{ xs: 1, md: 3 }}
         items={[
+          {
+            key: 'model',
+            label: '冻结模型',
+            children: benchmark.plan.deployment?.name ?? benchmark.plan.deployment_id ?? '历史计划未记录',
+          },
+          {
+            key: 'runtime',
+            label: '精度 / Attention',
+            children: benchmark.plan.deployment
+              ? `${benchmark.plan.deployment.precision} / ${benchmark.plan.deployment.attention}`
+              : '历史计划未记录',
+          },
           { key: 'suite', label: '固定输入版本', children: benchmark.plan.suite_version },
           {
             key: 'tokens',

@@ -70,6 +70,8 @@ export type Benchmark = {
   error: string | null;
   restore_error: string | null;
   plan: {
+    deployment_id?: string;
+    deployment?: { name: string; model: string; precision: string; attention: string };
     baseline_id: string;
     schemes: Scheme[];
     cases: FixedCase[];

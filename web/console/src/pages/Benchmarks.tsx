@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Checkbox, InputNumber, Select, Space, Table, Tag } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { api, date } from '../api/client';
 import type { Deployment } from '../api/types';
 import { PageHead, Panel, QueryState, Status } from '../components';
 import Results from '../features/benchmarks/Results';
+import { applyKernelProfile } from '../features/kernels/lifecycle';
 import { finished } from '../features/benchmarks/types';
 import type {
   Benchmark,
@@ -31,7 +32,7 @@ export default function Benchmarks() {
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
   const identity = params.get('benchmark') ?? '';
-  const [selectedDeployment, setSelectedDeployment] = useState('');
+  const [selectedDeployment, setSelectedDeployment] = useState(params.get('deployment') ?? '');
   const [baseline, setBaseline] = useState('framework-native');
   const [candidateDraft, setCandidates] = useState<string[] | null>(null);
   const [caseDraft, setCases] = useState<string[] | null>(null);
@@ -39,6 +40,8 @@ export default function Benchmarks() {
   const [budget, setBudget] = useState(64);
   const [diagnostics, setDiagnostics] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const switchController = useRef<AbortController | null>(null);
+  useEffect(() => () => switchController.current?.abort(), []);
   const [error, setError] = useState('');
   const [configurationOpen, setConfigurationOpen] = useState(false);
   const deployments = useQuery({
@@ -84,7 +87,20 @@ export default function Benchmarks() {
     if (!deployment || !cases.length || !candidates.length || running || submitting) return;
     setSubmitting(true);
     setError('');
+    const controller = new AbortController();
+    switchController.current = controller;
     try {
+      const owner = deployments.data?.items.find(
+        (item) => item.id !== deployment.id && item.provider === 'pytorch' &&
+          !['unloaded', 'failed'].includes(item.state),
+      );
+      if (owner) {
+        const profile = catalog.data?.schemes.find((item) => item.id === baseline)?.kernel_profile;
+        if (!profile) throw new Error('请先选择有效基线方案。');
+        await applyKernelProfile(deployment, profile, controller.signal, () => {});
+        void client.invalidateQueries({ queryKey: ['deployments'] });
+      }
+      controller.signal.throwIfAborted();
       const created = await api<Benchmark>('/benchmarks', {
         deployment_id: deployment.id,
         baseline_id: baseline,
@@ -95,14 +111,18 @@ export default function Benchmarks() {
         diagnostics,
       });
       client.setQueryData(['benchmark', created.id], created);
+      if (controller.signal.aborted) return;
       setParams({ benchmark: created.id });
       setConfigurationOpen(false);
       void client.invalidateQueries({ queryKey: ['benchmark-catalog'] });
       void client.invalidateQueries({ queryKey: ['benchmarks'] });
     } catch (failure) {
-      setError((failure as Error).message);
+      if (!controller.signal.aborted) setError((failure as Error).message);
     } finally {
-      setSubmitting(false);
+      if (!controller.signal.aborted) {
+        switchController.current = null;
+        setSubmitting(false);
+      }
     }
   };
   const cancel = async () => {
@@ -151,7 +171,11 @@ export default function Benchmarks() {
               <Select
                 id="benchmark-deployment"
                 value={deployment?.id}
-                onChange={setSelectedDeployment}
+                onChange={(value) => {
+                  setSelectedDeployment(value);
+                  setCandidates(null);
+                  setBaseline('framework-native');
+                }}
                 disabled={locked}
                 options={deployments.data?.items
                   .filter((item) => item.provider === 'pytorch')
