@@ -2,6 +2,7 @@
 import gzip
 import json
 import struct
+from types import SimpleNamespace
 
 import pytest
 
@@ -68,3 +69,21 @@ def test_external_decoder_keeps_per_producer_order_contract(tmp_path):
     result = verify(tmp_path,tmp_path,decode_events=lambda *_: reversed(rows))
     assert result['ordering_violations'] == 1
     assert result['status'] == 'correctness_fail'
+
+
+@pytest.mark.parametrize('configured', [False, True])
+def test_nanolog_receiver_configuration_and_exact_fields(tmp_path, monkeypatch, configured):
+    body = json.dumps({'text':'推理|\\xE6'})
+    text = 'prefix HQSB|r|3|18446744073709551615|9223372036854775809|'+body+'\n'
+    chosen = '/official/configured16m/decompressor' if configured else str(tmp_path/'NanoLog/runtime/decompressor')
+    if configured:
+        monkeypatch.setenv('HQSB_NANOLOG_DECOMPRESSOR', chosen)
+    else:
+        monkeypatch.delenv('HQSB_NANOLOG_DECOMPRESSOR', raising=False)
+    def invoke(argv, **kwargs):
+        assert argv[0] == chosen
+        kwargs['stdout'].write(text.encode())
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr('benchmarks.capture.fair.decode.subprocess.run', invoke)
+    assert list(events(tmp_path, 'nanolog', tmp_path)) == [dict(
+        run_id='r', producer_id=3, source_seq=2**64-1, source_timestamp=2**63+1, body=body)]
