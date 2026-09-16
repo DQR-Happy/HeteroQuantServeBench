@@ -15,7 +15,7 @@ int hf_offer(const char* run, uint32_t producer, uint64_t sequence,
 int hf_close();
 ```
 
-run/body 指针只在调用期间有效，异步实现需要复制。调用返回成功与持久化成功分开；仅 HQSB 的原 writer 暴露明确 admission 结果。其他 stock void API 记为 submitted/unknown。LTTng 的 D2 由外部 stop/destroy/fsync 完成。
+run/body 指针只在调用期间有效，异步实现需要复制。Hindsight 桥接使用同签名的 `hh_open/hh_offer/hh_close`，避免与上游符号冲突。调用返回成功与持久化成功分开；仅 HQSB 的原 writer 暴露明确 admission 结果。其他 stock void API 记为 submitted/unknown。LTTng 的 D2 由外部 stop/destroy/fsync 完成。
 
 | 文件 | 具体职责 |
 |---|---|
@@ -23,7 +23,9 @@ run/body 指针只在调用期间有效，异步实现需要复制。调用返�
 | `*_adapter.cc` / `lttng_provider.h` | 调用作者库的真实入口，负责必须的复制/格式转换、关闭和 fsync；不替换其队列或算法。 |
 | `python_bridge.cc` / `python_endpoint.py` | 嵌入 CPython 调用原 HQSB/OTel 实现，GIL、Python 对象与序列化计入 SUT。 |
 | `run.py` | 隔离进程和 LTTng session；资源限制、PSS采样、计时；调用独立解码/Oracle；保留失败。 |
+| `lttng_control.py` | 私有 IPC 会话、detached consumer 与 run-as helper 登记；验证 app384+daemon256+consumer256+2×helper64MiB 的真实 AS 上限。 |
 | `decode.py` / `read_ctf.py` | 在计时窗口外用官方 trace_processor、Babeltrace2 等读取真实产物。 |
+| `wire_semantics.py` | 在合法单行 JSON 文本域内还原 Quill 的 UTF-8 字节转义；Perfetto SQL 的 int64 展示在解码器中按 uint64 位型还原。 |
 | `campaign.py` | 冻结输入/二进制；两倍率源端预检；至多3组配置训练；冻结选择；独立留出测试。 |
 | `versions.lock.json` | 精确版本和复现范围；不是“版本写在文件中即复现成功”的声明。 |
 
@@ -35,7 +37,7 @@ run/body 指针只在调用期间有效，异步实现需要复制。调用返�
 
 吞吐 pass 不对每次 offer 计时；延迟 pass 确定性抽样1/16。每种 case 的两倍输入用空通路做3次预检，要求全部尝试且 >1ms 的派发迟到 ≤1%。实际 SUT 造成的背压/GIL竞争仍计入扰动，不能通过重排计划隐藏。
 
-工具的配置与格式各不相同。评价同时看 V/N、V/A、未尝试数、V/(H+drain)、调用延迟、内存和原始编码字节；不把单个 offer 延迟当作整体性能。PMU/能耗/精确队列字节及逐事件落盘时间不可用，保持缺失。
+工具的配置与格式各不相同。评价同时看 V/N、V/A、未尝试数、V/(H+drain)、调用延迟、内存和原始编码字节；不把单个 offer 延迟当作整体性能。PSS 采样覆盖 native worker 存活期间的已登记进程，不能代表外部 stop 后的所有瞬时峰值。PMU/能耗/精确队列字节及逐事件落盘时间不可用，保持缺失。
 
 ## 在本次执行目录复测
 
@@ -66,3 +68,5 @@ HQSB_REMOTE_DIR=/tmp/hqsb-capture-fair-20261017 \
 部分已完成 raw 用 Zstd 无损归档：核对原 SHA、压缩后解压流核对同 SHA、写 manifest 后移除未压缩副本。这属于事后存储，不计入 SUT 的时间或编码比。恢复前核对 manifest，避免覆盖不同原件。损坏/失败/中断及被替代的旧试验仍保留。
 
 1–2秒短窗口是压力筛选；另有10/30秒确认。当前不是最大持续容量搜索、长期 soak、GPU 设备回传或真实模型扰动验收。旧 SERVICE/OTAP 的顺序 Python 发送结果不属于本轮排除了源端瓶颈的主轨数据。
+
+本次已经执行的长窗口、LTTng两版本、参数响应、有限字段准入、Loom Rust桥接、TraceZip Go fixture 和 raw恢复入口见 [具体复现脚本](reproduction_20261017/README.md)。维护版还包含两个真实LTTng采集smoke及21项合同回归测试；它与实验冻结源码的版本差异单独记录，不改写已测原件。
