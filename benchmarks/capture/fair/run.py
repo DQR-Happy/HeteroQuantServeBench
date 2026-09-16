@@ -19,6 +19,9 @@ import uuid
 
 from benchmarks.capture.fair.decode import events
 from benchmarks.capture.oracle import verify
+from benchmarks.capture.fair.lttng_control import (
+    bounded_command as bounded_command, cli, descendants, start as start_lttng, stop as stop_lttng,
+)
 from benchmarks.capture.run import sample
 from benchmarks.capture.schedule import payload, plan
 
@@ -26,10 +29,6 @@ EXTENSIONS = {"null": "null", "nanolog": "nanolog.bin", "hindsight": "hindsight.
               "quill": "quill.log", "perfetto": "perfetto.pftrace", "lttng": "unused",
               "dftracer": "dftrace", "hqsb": "hqsb.unused", "otel": "otel.jsonl"}
 LIMIT = 1024 * 1024**2
-
-
-def bounded_command(argv, mib, cpu):
-    return ["taskset", "-c", str(cpu), "prlimit", f"--as={mib*1024**2}", "--stack=2097152", "--", *argv]
 
 
 def input_files(root, case):
@@ -54,59 +53,6 @@ def input_files(root, case):
     return directory
 
 
-def cli(args, env, directory, label, cpu):
-    with (directory / (label + ".log")).open("w") as log:
-        return subprocess.run(["taskset", "-c", str(cpu), "lttng", *args], env=env,
-                              stdout=log, stderr=subprocess.STDOUT, timeout=30, check=True)
-
-
-def start_lttng(directory, env, cpu, profile):
-    # Unix-domain sockets have a 108-byte pathname limit.
-    home = Path("/tmp") / ("hsf-" + uuid.uuid4().hex[:12])
-    home.mkdir()
-    (directory / "lttng-rundir.txt").write_text(str(home))
-    env["LTTNG_HOME"] = str(home)
-    env["LTTNG_RUNDIR"] = str(home)
-    env["LTTNG_UST_CTL_PATH"] = str(home)
-    env["LTTNG_UST_APP_PATH"] = str(home)
-    env["LTTNG_UST_REGISTER_TIMEOUT"] = "10000"
-    # Sum of address-space ceilings: app 384 + sessiond 256 + consumerd 384 MiB.
-    wrapper = directory / "consumer-wrapper.sh"
-    wrapper.write_text("#!/bin/sh\nulimit -v 393216\nulimit -s 2048\nexec /usr/lib/x86_64-linux-gnu/lttng/libexec/lttng-consumerd \"$@\"\n")
-    wrapper.chmod(0o700)
-    log = (directory / "sessiond.log").open("w")
-    process = subprocess.Popen(bounded_command(["lttng-sessiond", "--no-kernel",
-                                "--consumerd64-path=" + str(wrapper)], 256, cpu),
-                               env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-    log.close()
-    # Do not let lttng client auto-spawn an unaccounted session daemon.
-    for _ in range(100):
-        if list(home.rglob("client-lttng-sessiond")):
-            break
-        if process.poll() is not None:
-            raise RuntimeError("sessiond exited; inspect sessiond.log")
-        time.sleep(0.02)
-    env["LTTNG_NO_SESSIOND"] = "1"
-    try:
-        cli(["create", "hqsb", "--output=" + str(directory / "ctf")], env, directory, "create", cpu)
-        # Per possible CPU; distinguish from per-process pool bytes.
-        subbuf = (8192, 32768, 131072)[profile]
-        cli(["enable-channel", "--userspace", "--buffers-pid", "--subbuf-size=" + str(subbuf),
-             "--num-subbuf=4", "--discard", "capture"], env, directory, "channel", cpu)
-        cli(["enable-event", "--userspace", "--channel=capture", "hqsb_capture:event"], env, directory, "enable", cpu)
-        cli(["start"], env, directory, "start", cpu)
-    except BaseException:
-        if process.poll() is None:
-            os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-        raise
-    return process
-
-
 def execute(work, output, case, adapter, profile, repeat, measurement_pass, label):
     directory = output / label
     directory.mkdir()
@@ -120,9 +66,9 @@ def execute(work, output, case, adapter, profile, repeat, measurement_pass, labe
     env = dict(os.environ, MALLOC_ARENA_MAX="2", HQSB_FAIR_PROFILE=str(profile), HQSB_FAIR_ADAPTER=adapter,
                PYTHONPATH=str(work / "source") + ":/tmp/hqsb-capture-bench-20261017/venv/lib/python3.12/site-packages")
     old = Path("/tmp/hqsb-capture-bench-20261017")
-    libraries = {"null": "null", "nanolog": str(old / "build/libcapture_nanolog.so"),
+    libraries = {"null": "null", "nanolog": env.get("HQSB_NANOLOG_LIBRARY", str(old / "build/libcapture_nanolog.so")),
                  "hindsight": str(work / "build/hindsight.so"), "quill": str(work / f"build/quill{profile}.so"),
-                 "perfetto": str(work / "build/perfetto.so"), "lttng": str(work / "build/lttng.so"),
+                 "perfetto": str(work / "build/perfetto.so"), "lttng": str(Path(env["HQSB_LTTNG_PREFIX"]) / "lttng216.so") if env.get("HQSB_LTTNG_PREFIX") else str(work / "build/lttng.so"),
                  "dftracer": str(work / "build/dftracer.so"),
                  "hqsb": str(work / "build/python_bridge.so"), "otel": str(work / "build/python_bridge.so")}
     cpus = [192, 193, 194, 195]
@@ -147,16 +93,7 @@ def execute(work, output, case, adapter, profile, repeat, measurement_pass, labe
                 # Include known sessiond descendants; don't charge unrelated host processes.
                 ids = {process.pid}
                 if daemon:
-                    ids.add(daemon.pid)
-                    frontier = [daemon.pid]
-                    while frontier:
-                        pid = frontier.pop()
-                        path = Path(f"/proc/{pid}/task/{pid}/children")
-                        if path.exists():
-                            for child in path.read_text().split():
-                                child = int(child)
-                                if child not in ids:
-                                    ids.add(child); frontier.append(child)
+                    ids.update(descendants({daemon.pid} | set(getattr(daemon, "hqsb_detached_pids", []))))
                 timeline.append({"monotonic_ns": time.monotonic_ns(), "processes": {str(pid): sample(pid) for pid in ids}})
                 if time.monotonic() > deadline:
                     raise TimeoutError("SUT exceeded bounded close deadline")
@@ -187,7 +124,9 @@ def execute(work, output, case, adapter, profile, repeat, measurement_pass, labe
             raw["terminal"].update(json.loads((directory / "python-terminal.json").read_text()))
         (directory / "worker.json").write_text(json.dumps(raw, indent=2))
     finally:
-        for child in (process, daemon):
+        if daemon:
+            stop_lttng(daemon)
+        for child in (process,):
             if child and child.poll() is None:
                 os.killpg(child.pid, signal.SIGTERM)
                 try:
@@ -240,7 +179,8 @@ def main():
         for repeat in range(args.repeats):
             block = []
             for adapter in args.adapters.split(","):
-                if adapter == "nanolog" and (case.get("mix") or case.get("giant_bytes", 0) >= 1024**2):
+                if (adapter == "nanolog" and not os.environ.get("HQSB_NANOLOG_LIBRARY")
+                        and (case.get("mix") or case.get("giant_bytes", 0) >= 1024**2)):
                     exclusions.append(dict(case_id=case["id"], adapter=adapter, reason="original 1MiB staging; no record splitting")); continue
                 for profile in profile_map.get(adapter, list(map(int, args.profiles.split(",")))):
                     for measurement_pass in args.passes.split(","):

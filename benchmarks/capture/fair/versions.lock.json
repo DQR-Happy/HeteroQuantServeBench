@@ -2,7 +2,7 @@
   "schema": "hqsb.capture.fair.versions/1",
   "cutoff": "2026-10-17",
   "upstream": {
-    "perfetto": {"release": "v58.2", "sdk_url": "https://github.com/google/perfetto/releases/download/v58.2/perfetto-cpp-sdk-src.zip", "scope": "actual amalgamated release SDK; in-process backend; official trace_processor v58.2; main clone is not the measured SDK revision"},
+    "perfetto": {"release": "v58.2", "sdk_url": "https://github.com/google/perfetto/releases/download/v58.2/perfetto-cpp-sdk-src.zip", "sdk_archive_sha256": "e56126ff81f0f914d35fe03c72419d147acf2890f36fbda7d4558fd5b84c4b09", "trace_processor_sha256": "58042408e6cc861fb1a731c26bb082dc222285561eaa4e12a48a8b2b90dca7b9", "requested_file_write_period_ms": [10, 50, 100], "effective_file_write_period_ms": [100, 100, 100], "scope": "v58.2 clamps periods below100ms (SDK perfetto.cc:67371,68342-68346); profiles differ by buffer capacity; actual release SDK, in-process backend, official trace_processor; main clone is not measured SDK"},
     "quill": {"url": "https://github.com/odygrd/quill", "commit": "78c0696c5be589488d882c280796dfa06bdcd492", "scope": "actual header-only implementation; initial per-thread queues128KiB/1MiB/4MiB; max64MiB"},
     "lttng_system": {"tools": "2.14.1", "ust": "2.14.0", "babeltrace2": "2.1.2", "scope": "main campaign; not advertised as latest"},
     "lttng_stable": {"release": "2.16.0", "tools_commit": "211e3ec5035ea62fe06c437693585d7844580f00", "ust_commit": "1cf92c7569d7dfa8bf44c186455ed832f88e1a97", "scope": "isolated-prefix supplementary build and retuning; completion/failure recorded separately"},
@@ -10,7 +10,7 @@
     "loom": {"url": "https://github.com/fsolleza/loom", "commit": "fb0f7e222b9665c11d944b499eed954037e9a7f8", "scope": "actual Rust Partitions; bounded wrapper ingress; Q-sync queryable, not D2"},
     "tracezip": {"url": "https://github.com/OpsPAI/TraceZip", "commit": "c0f23cf663d83d3c0a44ba22df33a016ec0c0318", "scope": "online Go implementation; new test harness in real receiver package; core unchanged; exact semantic admission before ranking"},
     "lmtracer": {"url": "https://github.com/llm-profiling/llm-profiling.github.io", "commit": "1482eab001699b913f54b09a4cf48ce7f96d5902", "scope": "official GPU graph-probe/shadow-buffer source inspected; CUDA-dependent core not reproduced on CPU; source dated2026-04-12 may precede camera-ready changes"},
-    "nanolog": {"commit": "2a94d70f9d1db4da416053b1b926387fa068a59b", "scope": "reuse previous actual release build, official decompressor"},
+    "nanolog": {"commit": "2a94d70f9d1db4da416053b1b926387fa068a59b", "staging_MiB": [1,4,16], "supplementary_receiver_staging_MiB": 16, "scope": "main uses actual default1MiB build; author Config.h staging4/16MiB variants built independently, output64MiB unchanged;21 configuration-response trials; larger official receiver recovers large records that default receiver silently prints as zero; original derivations preserved and raw reverified outside SUT timing"},
     "hindsight": {"commit": "c534f2c752793c491768b51ae3db94b4780a7f8f", "scope": "actual C client/agent APIs plus benchmark FULL file sink; not paper distributed sampler"},
     "opentelemetry_python": {"sdk": "1.45.1", "scope": "actual BatchSpanProcessor and benchmark file exporter; embedded CPython3.12.3"},
     "hqsb": {"git_head": "f8818e511ff4be39e901b514160207da7853d407", "dirty": true, "scope": "actual observation writer; exact source/build hashes frozen in campaign protocol, HEAD alone insufficient"}
