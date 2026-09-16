@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REMOTE_HOST="${HQSB_REMOTE_HOST:-jetson@192.168.10.7}"
-REMOTE_DIR="${HQSB_REMOTE_DIR:-/home/jetson/work/HeteroQuantServeBench}"
+REMOTE_HOST="${HQSB_REMOTE_HOST:-3090-inf}"
+REMOTE_DIR="${HQSB_REMOTE_DIR:-/root/HeteroQuantServeBench}"
 
 # 检查是否有输入命令
 if [ $# -eq 0 ]; then
@@ -17,4 +17,6 @@ fi
 # the experiment worktree.
 printf -v remote_dir_q '%q' "${REMOTE_DIR}"
 printf -v remote_argv_q ' %q' "$@"
-ssh -- "${REMOTE_HOST}" "cd ${remote_dir_q} && exec${remote_argv_q}"
+# Use the selected checkout's isolated runtime when present. No activation or
+# execution happens on the editing client; argv quoting remains unchanged.
+ssh -- "${REMOTE_HOST}" "cd ${remote_dir_q} && if [ -d .venv-console/bin ]; then export PATH=\"\$PWD/.venv-console/bin:\$PATH\"; fi && exec${remote_argv_q}"

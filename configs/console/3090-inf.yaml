@@ -1,0 +1,41 @@
+# Independently installed and compiled on the SM86 target. No copied CUDA binary.
+machine_name: 3090-inf · RTX 3090 24GB
+model_download_dir: /root/autodl-tmp/hqsb/downloaded-models
+model_download_reserve_bytes: 4294967296
+deployments:
+  - id: qwen-reference
+    name: Qwen3 · 1.7B · HQSB 算子基线
+    platform: CUDA / RTX 3090
+    model: Qwen/Qwen3-1.7B
+    model_path: ~/models/hqsb/Qwen3-1.7B
+    manifest: docs/benchmark/model_sha256_manifest.txt
+    kernel_manifest: build/l2/model-kernels.json
+    attention: eager
+    context_limit: 8192
+    max_output_tokens: 4096
+  - id: gemma3-1b
+    name: Google · Gemma 3 1B IT
+    platform: CUDA / RTX 3090
+    model: google/gemma-3-1b-it
+    model_path: /root/autodl-tmp/hqsb/models/gemma3-1b
+    manifest: /root/autodl-tmp/hqsb/models/manifests/gemma3-1b.sha256
+    manifest_allow_extra: [.msc, .mv]
+    attention: sdpa
+    context_limit: 8192
+    max_output_tokens: 4096
+machines:
+  - id: jetson-http
+    name: Jetson · HTTP（经 Mac 隧道）
+    transport: http
+    base_url: http://127.0.0.1:18878
+  - id: 4090d-ssh
+    name: 4090D · SSH
+    transport: ssh
+    ssh_host: connect.westb.seetacloud.com
+    ssh_user: root
+    ssh_port: 44116
+    remote_port: 8768
+    identity_file: /root/.ssh/hqsb_nodes
+privileged_worker: false
+auth_required: false
+request_deadline_ms: 120000

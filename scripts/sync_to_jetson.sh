@@ -2,14 +2,15 @@
 # 从开发机把代码同步到边缘设备（rsync push）。
 #
 # 用法（在【开发机】的项目根目录执行）：
-#   ./scripts/sync_to_jetson.sh                      # 默认目标：Jetson
+#   ./scripts/sync_to_jetson.sh                      # 默认目标：3090-inf
+#   ./scripts/sync_to_jetson.sh --target jetson      # 原 Jetson 执行端
 #   ./scripts/sync_to_jetson.sh --target orangepi    # 目标：OrangePi AI Pro
 #   ./scripts/sync_to_jetson.sh --target 4090d       # 目标：4090D 新后端
 #   ./scripts/sync_to_jetson.sh --dry-run            # 仅预览，不写入
 #   ./scripts/sync_to_jetson.sh --verify             # 只校验两端一致性，不传输
 #
 # 可用环境变量覆盖默认值：
-#   HQSB_TARGET=jetson|orangepi|4090d
+#   HQSB_TARGET=3090-inf|jetson|orangepi|4090d
 #   HQSB_REMOTE_HOST=user@host        直连地址覆盖（对两个目标都生效）
 #   HQSB_REMOTE_DIR=/remote/path      远端项目根目录覆盖
 #   JETSON_USER / JETSON_HOST         仅 jetson 目标的兼容变量
@@ -30,7 +31,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TARGET="${HQSB_TARGET:-jetson}"
+TARGET="${HQSB_TARGET:-3090-inf}"
 MODE="sync"
 
 while [[ $# -gt 0 ]]; do
@@ -45,6 +46,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "${TARGET}" in
+  3090-inf)
+    DEFAULT_HOST="3090-inf"
+    DEFAULT_DIR="/root/HeteroQuantServeBench"
+    ;;
   jetson)
     JETSON_USER="${JETSON_USER:-jetson}"
     JETSON_HOST="${JETSON_HOST:-192.168.10.7}"
@@ -60,7 +65,7 @@ case "${TARGET}" in
     DEFAULT_DIR="/root/HeteroQuantServeBench-4090D"
     ;;
   *)
-    echo "unknown target '${TARGET}'; expected 'jetson', 'orangepi' or '4090d'" >&2
+    echo "unknown target '${TARGET}'; expected '3090-inf', 'jetson', 'orangepi' or '4090d'" >&2
     exit 2
     ;;
 esac
