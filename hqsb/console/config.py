@@ -1,4 +1,4 @@
-"""Server-owned configuration. Browser clients never select paths or URLs."""
+"""Server-owned model configuration and operator-managed node connections."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from hqsb.console.machine_registry import MachineConfig
 
 
 class DeploymentConfig(BaseModel):
@@ -68,6 +69,8 @@ class Settings(BaseModel):
     evidence_root: Path
     web_dist: Path
     deployments: list[DeploymentConfig]
+    machine_name: str = "本机 HQSB"
+    machines: list[MachineConfig] = Field(default_factory=list)
     max_pending: int = Field(8, ge=1, le=64)
     request_deadline_ms: int = Field(120000, ge=1000, le=600000)
     max_body_bytes: int = Field(262144, ge=4096, le=1048576)
@@ -80,9 +83,14 @@ class Settings(BaseModel):
     artifact_min_available_bytes: int = Field(384 * 1024 * 1024, ge=0)
     artifact_budget_bytes: int = Field(8 * 1024**3, ge=1024**2)
     quantization_timeout_s: int = Field(900, ge=30, le=3600)
+    model_download_dir: Path | None = None
+    model_download_reserve_bytes: int = Field(4 * 1024**3, ge=1024**3)
 
     @model_validator(mode="after")
     def unique_ids(self):
+        machine_ids = [item.id for item in self.machines]
+        if len(machine_ids) != len(set(machine_ids)) or len(machine_ids) > 32:
+            raise ValueError("Machine connection IDs must be unique; at most 32")
         ids = [item.id for item in self.deployments]
         if len(ids) != len(set(ids)):
             raise ValueError("deployment IDs must be unique")
