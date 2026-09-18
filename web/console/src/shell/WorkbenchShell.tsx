@@ -6,9 +6,11 @@ import {
   MenuOutlined,
   SearchOutlined,
   SettingOutlined,
+  ReadOutlined,
 } from '@ant-design/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { destinations, navigation } from './navigation';
+import MachineSwitch from '../features/machines/MachineSwitch';
 
 export default function WorkbenchShell({
   children,
@@ -22,6 +24,27 @@ export default function WorkbenchShell({
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname.startsWith('/runs/') ? '/runs' : location.pathname;
+  const guideChapter =
+    (
+      {
+        '/benchmarks': 'benchmarks',
+        '/playground': 'playground',
+        '/machines': 'machines',
+        '/models': 'models',
+        '/devices': 'machines',
+        '/optimization': 'experiments',
+        '/observations': 'observations',
+        '/memory-flow': 'observations',
+        '/research': 'observations',
+        '/runs': 'evidence',
+        '/compare': 'evidence',
+        '/evidence': 'evidence',
+        '/experiments': 'evidence',
+        '/kernels': 'kernels',
+        '/quantization': 'boundaries',
+        '/efficiency': 'evidence',
+      } as Record<string, string>
+    )[path] ?? 'start';
   const group =
     navigation.find((group) => group.pages.some((page) => page.path === path)) ?? navigation[0];
   const [menuOpen, setMenuOpen] = useState(false);
@@ -103,6 +126,10 @@ export default function WorkbenchShell({
             <span className="scope-label">单机观测</span>
           </div>
           <div className="project-tools">
+            <MachineSwitch />
+            <Link className="manual-entry" to={`/guide#${guideChapter}`} aria-label="使用指南">
+              <ReadOutlined /> <span>使用指南</span>
+            </Link>
             <button
               className="quick-open"
               onClick={() => {

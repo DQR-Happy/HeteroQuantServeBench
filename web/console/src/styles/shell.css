@@ -379,3 +379,31 @@ kbd {
     flex-wrap: wrap;
   }
 }
+.machine-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .machine-switch .ant-select {
+    max-width: 140px;
+  }
+  .machine-switch > a {
+    display: none;
+  }
+}
+.manual-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 6px;
+}
+@media (max-width: 1100px) {
+  .manual-entry span:not(.anticon) {
+    display: none;
+  }
+}
