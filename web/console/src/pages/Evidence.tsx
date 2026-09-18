@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Drawer, Input, Select, Space, Table, Tag } from 'antd';
 import { DownloadOutlined, FileSearchOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
-import { api, date, fmt } from '../api/client';
+import { api, base, date, fmt } from '../api/client';
 import type { Evidence, EvidenceDetail, EvidenceFile } from '../api/types';
 import { JsonView, PageHead, Panel, QueryState, Status } from '../components';
 import QuantizationBuilder from '../features/research/QuantizationBuilder';
@@ -22,7 +22,7 @@ export function EvidenceViewer({ id, onClose }: { id?: string; onClose: () => vo
       onClose={onClose}
       extra={
         id && (
-          <Button href={`/api/console/v1/evidence/${id}/download`} icon={<DownloadOutlined />}>
+          <Button href={`${base}/evidence/${id}/download`} icon={<DownloadOutlined />}>
             下载原件
           </Button>
         )
