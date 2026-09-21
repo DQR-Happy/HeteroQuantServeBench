@@ -52,11 +52,30 @@ class ConsoleService:
                 return PrivilegedActor(config.model_dump(), data_dir=settings.data_dir)
             return Actor(config.model_dump())
 
+        self._make_actor = make_actor
         self.actors = {x.id: make_actor(x) for x in settings.deployments}
         self.executors = {
             x.id: ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"hqsb-{x.id}")
             for x in settings.deployments
         }
+
+    def register_deployment(self, config):
+        """Publish a verified model config without loading it or changing GPU ownership."""
+        with self.lock:
+            if self.closed:
+                raise ServiceError("SHUTTING_DOWN", "Service is shutting down", 503)
+            if config.id in self.configs:
+                if self.configs[config.id] != config:
+                    raise ServiceError("DEPLOYMENT_ID_CONFLICT", "Deployment ID already belongs to another artifact")
+                return
+            if len(self.configs) >= 16:
+                raise ServiceError("DEPLOYMENT_LIMIT", "At most sixteen registered deployments")
+            actor = self._make_actor(config)
+            executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"hqsb-{config.id}")
+            self.configs[config.id] = config
+            self.actors[config.id] = actor
+            self.executors[config.id] = executor
+            self.states[config.id] = {**config.public(), "state": "unloaded", "epoch": None, "detail": {}, "last_error": None}
 
     def deployments(self):
         with self.lock:
@@ -232,7 +251,8 @@ class ConsoleService:
                 ):
                     raise ServiceError(
                         "TOKEN_LIMIT",
-                        "Output length exceeds deployment capability",
+                        f"请求输出预算 {payload['max_output_tokens']} 超过部署输出上限 {cfg.max_output_tokens} tokens；"
+                        f"部署输入＋输出总窗口为 {cfg.context_limit} tokens",
                         422,
                     )
                 if kind == "quantize" and (
