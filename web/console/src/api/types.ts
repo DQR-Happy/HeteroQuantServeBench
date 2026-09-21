@@ -22,6 +22,7 @@ export type Deployment = {
   max_output_tokens: number;
   last_error: string | null;
   detail: {
+    native_context_limit?: number | null;
     device_name?: string;
     load_seconds?: number;
     weight_verification?: string;

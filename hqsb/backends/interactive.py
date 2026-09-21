@@ -73,6 +73,11 @@ class InteractivePyTorch:
                 allow_extra=tuple(self.config.get("manifest_allow_extra", [])),
             )
         observation.snapshot("after_model_load", self.memory)
+        native_context = getattr(self.model.config, "max_position_embeddings", None)
+        if type(native_context) is int and native_context > 0 and self.config["context_limit"] > native_context:
+            raise ValueError(
+                f"Deployment context {self.config['context_limit']} exceeds model config window {native_context}"
+            )
         devices = sorted({str(p.device) for p in self.model.parameters()})
         if devices != ["cuda:0"]:
             self.close()
@@ -138,6 +143,7 @@ class InteractivePyTorch:
             "device_name": torch.cuda.get_device_name(0),
             "model_type": self.model.config.model_type,
             "model_class": type(self.model).__name__,
+            "native_context_limit": native_context if type(native_context) is int and native_context > 0 else None,
             "chat_template_policy": self.chat_template_policy,
             "memory": self.memory(),
             "parameter_bytes": sum(

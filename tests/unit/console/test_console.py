@@ -105,6 +105,24 @@ def payload(epoch):
     }
 
 
+def test_larger_deployment_budget_preserves_requested_output_and_records_limits(settings):
+    settings.deployments[0].context_limit = 8192
+    settings.deployments[0].max_output_tokens = 4096
+    svc = ConsoleService(settings, actor_factory=TestActor)
+    try:
+        epoch = load(svc)
+        request = {**payload(epoch), "max_output_tokens": 2048}
+        run = wait(svc, svc.submit("generate", "reference", request, uuid.uuid4().hex))
+        assert run["state"] == "completed"
+        assert run["config"]["max_output_tokens"] == 2048
+        assert run["config"]["deployment"]["context_limit"] == 8192
+        assert run["config"]["deployment"]["max_output_tokens"] == 4096
+        with pytest.raises(ServiceError, match="4096.*8192"):
+            svc.submit("generate", "reference", {**request, "max_output_tokens": 4097}, uuid.uuid4().hex)
+    finally:
+        svc.close()
+
+
 def test_store_idempotency_sequence_and_restart(tmp_path):
     store = Store(tmp_path)
     run, new = store.create("generate", {}, "same", "digest")
