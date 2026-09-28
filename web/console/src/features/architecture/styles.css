@@ -1,0 +1,116 @@
+.architecture-picker {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.architecture-picker > div {
+  min-width: 260px;
+  flex: 1;
+}
+.architecture-sequence {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 16px 0;
+}
+.architecture-stage {
+  border: 1px solid var(--border, #dde2e5);
+  background: var(--panel, #fff);
+  border-radius: 6px;
+  padding: 12px 16px;
+  min-width: 155px;
+  white-space: nowrap;
+}
+.architecture-stage strong,
+.architecture-stage small {
+  display: block;
+}
+.architecture-stage small {
+  margin-top: 5px;
+  color: var(--muted, #667278);
+}
+.architecture-stage.active {
+  border-color: #50857a;
+  background: #f2f8f6;
+}
+.architecture-legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  color: var(--muted, #667278);
+  font-size: 12px;
+  padding: 14px 0;
+}
+.architecture-canvas {
+  overflow: auto;
+  border: 1px solid var(--border, #dde2e5);
+  border-radius: 6px;
+  background: var(--panel, #fff);
+}
+.architecture-canvas svg {
+  display: block;
+  font-family: inherit;
+  font-size: 12px;
+}
+.architecture-edge {
+  fill: none;
+  stroke: #83939a;
+  stroke-width: 1.5;
+  color: #83939a;
+}
+.architecture-edge.residual {
+  stroke-dasharray: 6 4;
+}
+.architecture-edge.state {
+  stroke: #9a8863;
+  stroke-dasharray: 3 3;
+}
+.architecture-node {
+  cursor: pointer;
+  outline: none;
+}
+.architecture-node rect {
+  fill: #f8fafb;
+  stroke: #cbd5d9;
+}
+.architecture-node text {
+  fill: #26383e;
+  pointer-events: none;
+}
+.architecture-node .architecture-node-caption {
+  fill: #6d7c83;
+  font-size: 10px;
+}
+.architecture-node.state rect {
+  fill: #faf7f0;
+  stroke: #c9b995;
+}
+.architecture-node.residual rect {
+  fill: #fff;
+  stroke-dasharray: 5 3;
+}
+.architecture-node.selected rect,
+.architecture-node:focus rect {
+  fill: #edf5f2;
+  stroke: #367e70;
+  stroke-width: 2;
+}
+.architecture-detail {
+  padding: 16px 0 4px;
+  min-height: 115px;
+}
+.architecture-detail code {
+  overflow-wrap: anywhere;
+}
+.architecture-layer-summary {
+  margin: 12px 0;
+  color: var(--muted, #667278);
+}
+@media (max-width: 700px) {
+  .architecture-picker > div {
+    min-width: 200px;
+  }
+}
