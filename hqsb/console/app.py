@@ -23,7 +23,11 @@ from hqsb.console.schemas import RunPage, RunRecord
 from hqsb.console.store import TERMINAL
 from hqsb.console.telemetry import Telemetry
 from hqsb.console.analysis_routes import analysis_router
+from hqsb.console.architecture_routes import architecture_router
 from hqsb.console.experiment_routes import experiment_router
+from hqsb.console.machine_registry import MachineError, MachineRegistry
+from hqsb.console.machine_transport import MachineConnections
+from hqsb.console.machine_routes import machine_router
 
 PREFIX = "/api/console/v1"
 
@@ -67,6 +71,12 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     svc = service or ConsoleService(settings)
     evidence = EvidenceCatalog(settings.evidence_root)
     telemetry = Telemetry()
+    machines = MachineRegistry(settings.data_dir, settings.machine_name, settings.machines)
+    connections = MachineConnections(machines)
+    from hqsb.console.model_hub import ModelHub
+    from hqsb.console.model_hub_routes import model_hub_router
+
+    model_hub = ModelHub(settings, svc)
     from hqsb.console.benchmark_campaigns import BenchmarkCampaigns
     from hqsb.console.benchmark_routes import benchmark_router
 
@@ -79,7 +89,9 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             telemetry.start()
         yield
         telemetry.close()
+        await asyncio.to_thread(connections.close)
         await asyncio.to_thread(benchmarks.close)
+        await asyncio.to_thread(model_hub.close)
         await asyncio.to_thread(svc.close)
 
     app = FastAPI(
@@ -92,6 +104,11 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     )
     app.state.service = svc
     app.state.benchmarks = benchmarks
+    app.state.machines = machines
+    app.state.machine_connections = connections
+    app.state.model_hub = model_hub
+    app.include_router(machine_router(machines, connections), prefix=PREFIX)
+    app.include_router(model_hub_router(model_hub), prefix=PREFIX)
 
     def valid_session(cookie):
         try:
@@ -177,7 +194,22 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
                         },
                         401,
                     )
-        response = await call_next(request)
+        target, relay_path = "local", None
+        if path.startswith(PREFIX + "/nodes/"):
+            suffix = path[len(PREFIX + "/nodes/"):]
+            target, separator, tail = suffix.partition("/")
+            if not separator or target == "local":
+                return JSONResponse({"error": {"code": "MACHINE_PATH_INVALID", "message": "Use the local API directly; remote paths require a resource"}}, 400)
+            relay_path = PREFIX + "/" + tail
+        if request.headers.get("x-hqsb-relay") and relay_path:
+            return JSONResponse({"error": {"code": "MACHINE_RELAY_LOOP", "message": "Nested machine forwarding is not supported"}}, 409)
+        if relay_path:
+            try:
+                response = await connections.forward(target, request, relay_path)
+            except MachineError as exc:
+                response = JSONResponse({"error": {"code": exc.code, "message": str(exc)}}, exc.status)
+        else:
+            response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["Content-Security-Policy"] = (
@@ -193,6 +225,10 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             {"error": {"code": exc.code, "message": str(exc)}}, exc.status
         )
 
+    @app.exception_handler(MachineError)
+    async def machine_error(_request, exc):
+        return JSONResponse({"error": {"code": exc.code, "message": str(exc)}}, exc.status)
+
     @app.exception_handler(KeyError)
     async def missing(_request, _exc):
         return JSONResponse(
@@ -201,7 +237,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
 
     @app.get("/healthz")
     def health():
-        return {"status": "ok", "api_version": "1", "version": __version__}
+        return {"status": "ok", "api_version": "1", "version": __version__, "node_id": machines.node_id}
 
     @app.post(PREFIX + "/session/login")
     def login(body: Login, request: Request):
@@ -252,6 +288,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
                 "memory_dataflow",
                 "research",
                 "quantization_artifacts",
+                "model_hub",
             ],
             "limits": {
                 "max_pending": settings.max_pending,
@@ -292,7 +329,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         if deployment_id is not None:
             from hqsb.console.kernel_inventory import deployment_catalogue
 
-            config = next((item for item in settings.deployments if item.id == deployment_id), None)
+            config = svc.configs.get(deployment_id)
             if config is None:
                 raise HTTPException(404, "Unknown deployment")
             return deployment_catalogue(config)
@@ -518,6 +555,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         }
 
     app.include_router(analysis_router(settings, svc), prefix=PREFIX)
+    app.include_router(architecture_router(svc), prefix=PREFIX)
     app.include_router(experiment_router(settings, svc), prefix=PREFIX)
     app.include_router(benchmark_router(benchmarks), prefix=PREFIX)
 
