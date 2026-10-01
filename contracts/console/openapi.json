@@ -5,6 +5,609 @@
     "version": "0.2.1"
   },
   "paths": {
+    "/api/console/v1/machines": {
+      "get": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_machines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Add",
+        "operationId": "add_api_console_v1_machines_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachineConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/machines/{identity}/probe": {
+      "post": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Probe",
+        "operationId": "probe_api_console_v1_machines__identity__probe_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/machines/{identity}/activate": {
+      "post": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Activate",
+        "operationId": "activate_api_console_v1_machines__identity__activate_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/machines/{identity}/remove": {
+      "post": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Remove",
+        "operationId": "remove_api_console_v1_machines__identity__remove_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/config": {
+      "get": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Config",
+        "operationId": "config_api_console_v1_model_hub_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/catalog": {
+      "get": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_model_hub_catalog_get",
+        "parameters": [
+          {
+            "name": "publisher",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Publisher"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "only_fit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Only Fit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "default",
+                "parameters",
+                "runtime_bytes"
+              ],
+              "type": "string",
+              "default": "default",
+              "title": "Sort By"
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string",
+              "default": "asc",
+              "title": "Sort Order"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/catalog/refresh": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_api_console_v1_model_hub_catalog_refresh_post",
+        "parameters": [
+          {
+            "name": "publisher",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "title": "Publisher"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/revisions": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Revisions",
+        "operationId": "revisions_api_console_v1_model_hub_revisions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/inspect": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Inspect",
+        "operationId": "inspect_api_console_v1_model_hub_inspect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/downloads": {
+      "get": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Downloads",
+        "operationId": "downloads_api_console_v1_model_hub_downloads_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Start",
+        "operationId": "start_api_console_v1_model_hub_downloads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/downloads/{identity}/cancel": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Cancel",
+        "operationId": "cancel_api_console_v1_model_hub_downloads__identity__cancel_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/downloads/{identity}/resume": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Resume",
+        "operationId": "resume_api_console_v1_model_hub_downloads__identity__resume_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/downloads/{identity}/register": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Register",
+        "operationId": "register_api_console_v1_model_hub_downloads__identity__register_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Health",
@@ -1655,6 +2258,46 @@
         }
       }
     },
+    "/api/console/v1/deployments/{deployment_id}/architecture": {
+      "get": {
+        "tags": [
+          "model-architecture"
+        ],
+        "summary": "Architecture",
+        "operationId": "architecture_api_console_v1_deployments__deployment_id__architecture_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/optimization-catalog": {
       "get": {
         "tags": [
@@ -2035,6 +2678,219 @@
         }
       }
     },
+    "/api/console/v1/benchmark-catalog": {
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Catalogue",
+        "operationId": "catalogue_api_console_v1_benchmark_catalog_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/benchmarks": {
+      "post": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Start",
+        "operationId": "start_api_console_v1_benchmarks_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenchmarkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_benchmarks_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/benchmarks/{identity}": {
+      "get": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Detail",
+        "operationId": "detail_api_console_v1_benchmarks__identity__get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/benchmarks/{identity}/cancel": {
+      "post": {
+        "tags": [
+          "benchmarks"
+        ],
+        "summary": "Cancel",
+        "operationId": "cancel_api_console_v1_benchmarks__identity__cancel_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{path}": {
       "get": {
         "summary": "Frontend",
@@ -2075,6 +2931,64 @@
   },
   "components": {
     "schemas": {
+      "BenchmarkRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "baseline_id": {
+            "type": "string",
+            "title": "Baseline Id",
+            "default": "framework-native"
+          },
+          "candidate_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Candidate Ids"
+          },
+          "case_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Case Ids"
+          },
+          "repeats": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Repeats",
+            "default": 1
+          },
+          "output_tokens": {
+            "type": "integer",
+            "maximum": 128.0,
+            "minimum": 8.0,
+            "title": "Output Tokens",
+            "default": 64
+          },
+          "diagnostics": {
+            "type": "boolean",
+            "title": "Diagnostics",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "candidate_ids",
+          "case_ids"
+        ],
+        "title": "BenchmarkRequest"
+      },
       "ComparisonRequest": {
         "properties": {
           "run_ids": {
@@ -2093,6 +3007,21 @@
         ],
         "title": "ComparisonRequest"
       },
+      "DownloadSelection": {
+        "properties": {
+          "plan_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Plan Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_sha256"
+        ],
+        "title": "DownloadSelection"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2105,6 +3034,29 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HubSelection": {
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Model Id"
+          },
+          "revision": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Revision",
+            "default": "master"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model_id"
+        ],
+        "title": "HubSelection"
       },
       "InferenceRequest": {
         "properties": {
@@ -2267,6 +3219,117 @@
           "token"
         ],
         "title": "Login"
+      },
+      "MachineConfig": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "http",
+              "ssh"
+            ],
+            "title": "Transport"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "ssh_host": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,252}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssh Host"
+          },
+          "ssh_user": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z_][a-zA-Z0-9_-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssh User"
+          },
+          "ssh_port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 65535.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ssh Port"
+          },
+          "identity_file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity File"
+          },
+          "remote_port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Remote Port",
+            "default": 8768
+          },
+          "token_env": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Env"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "transport"
+        ],
+        "title": "MachineConfig"
       },
       "Message": {
         "properties": {
@@ -2619,13 +3682,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
