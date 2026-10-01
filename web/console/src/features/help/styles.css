@@ -1,0 +1,124 @@
+.manual-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 36px;
+  align-items: start;
+}
+.manual-sidebar {
+  position: sticky;
+  top: 20px;
+  font-size: 13px;
+}
+.manual-sidebar nav {
+  display: grid;
+  gap: 3px;
+  padding-right: 20px;
+  border-right: 1px solid var(--border-subtle);
+}
+.manual-sidebar nav strong {
+  margin-bottom: 10px;
+}
+.manual-sidebar nav a {
+  display: flex;
+  gap: 12px;
+  padding: 7px 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.manual-sidebar nav a:hover {
+  color: var(--accent);
+}
+.manual-sidebar p {
+  margin-top: 20px;
+  color: var(--text-secondary);
+}
+.manual-article {
+  min-width: 0;
+  max-width: 1080px;
+}
+.manual-section {
+  scroll-margin-top: 24px;
+  padding: 0 0 28px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.manual-section h2 {
+  font-size: 19px;
+  margin: 0 0 16px;
+}
+.manual-section h3 {
+  margin: 22px 0 10px;
+}
+.manual-section p,
+.manual-section li {
+  line-height: 1.85;
+}
+.manual-section ol,
+.manual-section ul {
+  padding-left: 24px;
+}
+.manual-section li + li {
+  margin-top: 9px;
+}
+.manual-section code {
+  overflow-wrap: anywhere;
+}
+.manual-top {
+  display: inline-block;
+  margin-top: 18px;
+  font-size: 12px;
+}
+.manual-table-scroll {
+  overflow-x: auto;
+  margin: 16px 0;
+}
+.manual-table {
+  width: 100%;
+  min-width: 580px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.manual-table th,
+.manual-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 12px;
+  vertical-align: top;
+}
+.manual-table th {
+  background: var(--surface-sidebar);
+  font-weight: 600;
+}
+.manual-table th:first-child,
+.manual-table td:first-child {
+  width: 23%;
+}
+.manual-table th:nth-child(2),
+.manual-table td:nth-child(2) {
+  width: 32%;
+}
+.manual-table td:first-child {
+  font-weight: 500;
+}
+@media (max-width: 900px) {
+  .manual-layout {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .manual-sidebar {
+    position: static;
+  }
+  .manual-sidebar nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0 0 16px;
+  }
+  .manual-sidebar nav strong {
+    grid-column: 1 / -1;
+  }
+  .manual-section h2 {
+    font-size: 18px;
+  }
+}
