@@ -12,6 +12,7 @@ const Benchmarks = lazy(() => import('./pages/Benchmarks'));
 const Observations = lazy(() => import('./pages/Observations'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Devices = lazy(() => import('./pages/Devices'));
+const Machines = lazy(() => import('./pages/Machines'));
 const MemoryFlow = lazy(() => import('./pages/MemoryFlow'));
 const Research = lazy(() => import('./pages/Research'));
 const Optimization = lazy(() => import('./pages/Optimization'));
@@ -23,6 +24,9 @@ const Compare = lazy(() => import('./pages/Compare'));
 const Efficiency = lazy(() => import('./pages/Compare').then((m) => ({ default: m.Efficiency })));
 const Showcase = lazy(() => import('./pages/Guide').then((m) => ({ default: m.Showcase })));
 const Settings = lazy(() => import('./pages/Guide').then((m) => ({ default: m.SettingsPage })));
+const UserGuide = lazy(() => import('./pages/UserGuide'));
+const ModelHub = lazy(() => import('./pages/ModelHub'));
+const ModelArchitecture = lazy(() => import('./pages/ModelArchitecture'));
 
 export default function App() {
   const client = useQueryClient();
@@ -84,6 +88,7 @@ export default function App() {
           <Route path="/benchmarks" element={<Benchmarks />} />
           <Route path="/playground" element={<Playground />} />
           <Route path="/devices" element={<Devices />} />
+          <Route path="/machines" element={<Machines />} />
           <Route path="/memory-flow" element={<MemoryFlow />} />
           <Route path="/runs" element={<Runs />} />
           <Route path="/runs/:id" element={<RunDetail />} />
@@ -98,6 +103,9 @@ export default function App() {
           <Route path="/experiments" element={<Evidence mode="experiments" />} />
           <Route path="/showcase" element={<Showcase />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/guide" element={<UserGuide />} />
+          <Route path="/models" element={<ModelHub />} />
+          <Route path="/model-architecture" element={<ModelArchitecture />} />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
       </Suspense>

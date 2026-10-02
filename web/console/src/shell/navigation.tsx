@@ -82,6 +82,10 @@ export const navigation = [
     path: '/devices',
     pages: [
       { path: '/devices', label: '设备与部署', detail: '节点资源与模型生命周期' },
+      { path: '/model-architecture', label: '模型架构', detail: '制品模块、层结构与逻辑计算依赖' },
+      { path: '/models', label: '模型下载与接入', detail: 'ModelScope 发布方权重、版本与下载进度' },
+      { path: '/machines', label: '机器连接', detail: 'SSH / HTTP 节点管理与切换' },
+      { path: '/guide', label: '使用指南', detail: '逐页操作、替换范围与证据解读' },
       { path: '/settings', label: '设置与帮助', detail: '会话、能力与指标契约' },
     ],
   },

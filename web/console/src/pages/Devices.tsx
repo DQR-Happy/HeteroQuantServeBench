@@ -40,9 +40,14 @@ export default function Devices() {
         title="设备与部署"
         description="管理模型生命周期，观察实际执行节点。平台名称不代表已完成硬件适配认证。"
         extra={
-          <Link to="/memory-flow">
-            <Button type="primary">打开内存结构与数据流</Button>
-          </Link>
+          <Space wrap>
+            <Link to="/models">
+              <Button>下载与接入模型</Button>
+            </Link>
+            <Link to="/memory-flow">
+              <Button type="primary">打开内存结构与数据流</Button>
+            </Link>
+          </Space>
         }
       />
       <div className="stats-grid">
@@ -90,6 +95,11 @@ export default function Devices() {
               </div>
               <Space>
                 <Status state={d.state} />
+                {d.provider === 'pytorch' && (
+                  <Link to={`/model-architecture?deployment=${encodeURIComponent(d.id)}`}>
+                    <Button>查看模型架构</Button>
+                  </Link>
+                )}
                 <Button
                   disabled={!['unloaded', 'failed'].includes(d.state)}
                   onClick={() => void action(d, 'load')}

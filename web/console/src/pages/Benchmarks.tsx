@@ -91,7 +91,9 @@ export default function Benchmarks() {
     switchController.current = controller;
     try {
       const owner = deployments.data?.items.find(
-        (item) => item.id !== deployment.id && item.provider === 'pytorch' &&
+        (item) =>
+          item.id !== deployment.id &&
+          item.provider === 'pytorch' &&
           !['unloaded', 'failed'].includes(item.state),
       );
       if (owner) {
@@ -147,9 +149,17 @@ export default function Benchmarks() {
         kicker="FIXED INPUTS / MULTI-SCHEME COMPARISON"
         description="固定典型输入，串行执行多种推理方案，按同一用例核对输出质量、生成性能与实际生效。"
         extra={
-          <Link to="/playground">
-            <Button>打开交互推理案例</Button>
-          </Link>
+          <Space wrap>
+            <Link to="/models">
+              <Button>添加模型</Button>
+            </Link>
+            <Link to="/guide#benchmarks">
+              <Button>评测使用指南</Button>
+            </Link>
+            <Link to="/playground">
+              <Button>打开交互推理案例</Button>
+            </Link>
+          </Space>
         }
       />
       {identity && (

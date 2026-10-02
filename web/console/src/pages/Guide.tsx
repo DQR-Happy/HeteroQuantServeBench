@@ -104,6 +104,14 @@ export function SettingsPage() {
         description="当前工作台采用单操作者模式。部署配置与访问令牌由服务端管理，页面不读取 SSH 密钥和供应商 API key。"
       />
       <QueryState loading={query.isPending} error={query.error} />
+      <Panel title="操作手册" subtitle="按任务查找界面位置、可替换内容和实际能力边界">
+        <p>
+          从固定输入评测开始，逐步了解机器切换、模型与算子重载、质量实验、内存和系统页观测以及原件导出。
+        </p>
+        <Link to="/guide">
+          <Button type="primary">打开详细使用指南</Button>
+        </Link>
+      </Panel>
       <Panel title="当前会话">
         <Descriptions
           column={2}
