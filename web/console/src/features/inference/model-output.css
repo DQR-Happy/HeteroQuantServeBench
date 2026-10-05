@@ -1,0 +1,127 @@
+.model-output {
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.model-output > :first-child {
+  margin-top: 0;
+}
+.model-output > :last-child {
+  margin-bottom: 0;
+}
+.model-output :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.25em 0 0.5em;
+  color: var(--text-primary);
+  line-height: 1.4;
+  font-weight: 600;
+}
+.model-output h1 {
+  font-size: 22px;
+}
+.model-output h2 {
+  font-size: 19px;
+}
+.model-output h3 {
+  font-size: 16px;
+}
+.model-output :is(h4, h5, h6) {
+  font-size: 14px;
+}
+.model-output :is(p, ul, ol, blockquote, pre, .model-output-table) {
+  margin: 0 0 1em;
+}
+.model-output :is(ul, ol) {
+  padding-left: 1.7em;
+}
+.model-output ul > li {
+  list-style-type: disc;
+}
+.model-output ol > li {
+  list-style-type: decimal;
+}
+.model-output ul ul > li {
+  list-style-type: circle;
+}
+.model-output li + li {
+  margin-top: 0.3em;
+}
+.model-output li > p {
+  margin-bottom: 0.4em;
+}
+.model-output blockquote {
+  padding: 0 1em;
+  border-left: 3px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+.model-output blockquote > :last-child {
+  margin-bottom: 0;
+}
+.model-output code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.model-output :not(pre) > code {
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--surface-sidebar);
+}
+.model-output pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface-sidebar);
+  line-height: 1.6;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.model-output pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+  white-space: pre;
+}
+.model-output-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.model-output table {
+  width: max-content;
+  min-width: 50%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.model-output :is(th, td) {
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+}
+.model-output th {
+  font-weight: 600;
+  background: var(--surface-sidebar);
+}
+.model-output .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+.model-output .task-list-item {
+  list-style-type: none;
+}
+.model-output .task-list-item input {
+  margin-right: 0.5em;
+}
+.model-output hr {
+  margin: 1.25em 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.model-output img {
+  max-width: 100%;
+  height: auto;
+}
+.model-output .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 1em 0;
+  padding: 0.4em 0;
+}

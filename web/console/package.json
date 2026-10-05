@@ -18,10 +18,14 @@
     "@tanstack/react-query": "5.80.7",
     "antd": "5.26.2",
     "echarts": "6.1.0",
+    "katex": "0.16.22",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-markdown": "10.1.0",
-    "react-router-dom": "7.18.4"
+    "react-router-dom": "7.18.4",
+    "rehype-katex": "7.0.1",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
