@@ -21,7 +21,6 @@ import {
   ArrowRightOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import ReactMarkdown from 'react-markdown';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, fmt, gib, terminal } from '../api/client';
 import type { Deployment, InferenceRequest, Run, Session } from '../api/types';
@@ -31,6 +30,7 @@ import ObservationControl from '../features/observability/ObservationControl';
 import type { ObservationMode } from '../features/observability/types';
 import KernelControl from '../features/kernels/KernelControl';
 import RunEvidence from '../features/experiments/RunEvidence';
+import ModelOutput from '../features/inference/ModelOutput';
 
 export default function Playground() {
   const [params] = useSearchParams();
@@ -50,7 +50,7 @@ export default function Playground() {
     '请用一个简单的例子解释，大模型推理为什么可能受到内存带宽的限制？',
   );
   const [system, setSystem] = useState('你是一位严谨的技术助手。请用中文简明回答。');
-  const [tokens, setTokens] = useState(128);
+  const [tokens, setTokens] = useState<number | null>(128);
   const [save, setSave] = useState(false);
   const [cleanup, setCleanup] = useState('empty_cache');
   const [observationMode, setObservationMode] = useState<ObservationMode>('basic');
@@ -66,10 +66,21 @@ export default function Playground() {
   const deadlineLimit = client.getQueryData<Session>(['session'])?.limits.max_deadline_ms ?? 120000;
   const active = sending || (!!run.data && !terminal(run.data.state));
   const configLocked = active || lifecycleBusy;
+  const outputLimit = deployment?.max_output_tokens;
+  const outputError =
+    tokens == null || !Number.isInteger(tokens) || tokens < 1
+      ? '请输入大于等于 1 的整数。'
+      : outputLimit != null && tokens > outputLimit
+        ? `当前部署最多输出 ${outputLimit} tokens；请修改输出预算，输入值不会自动截断。`
+        : deployment && tokens >= deployment.context_limit
+          ? '输出预算必须小于部署总窗口，为输入和聊天模板留出空间。'
+          : '';
   const start = async () => {
     if (
       !deployment?.epoch ||
       !prompt.trim() ||
+      outputError ||
+      tokens == null ||
       configLocked ||
       kernelPending ||
       deployment.state !== 'ready'
@@ -85,7 +96,7 @@ export default function Playground() {
           ...(system.trim() ? [{ role: 'system' as const, content: system }] : []),
           { role: 'user', content: prompt },
         ],
-        max_output_tokens: Math.min(tokens, deployment.max_output_tokens),
+        max_output_tokens: tokens,
         deadline_ms: Math.min(120000, deadlineLimit),
         save_input: save,
         observation_mode: localProvider ? observationMode : 'off',
@@ -210,22 +221,40 @@ export default function Playground() {
             <div className="help-text">外部引擎的算子由上游管理，不能在此替换。</div>
           )}
           <label className="field-label" htmlFor="max-tokens">
-            最大输出 token
+            最大输出 token（仅生成部分）
           </label>
           <InputNumber
             id="max-tokens"
-            min={1}
-            max={deployment?.max_output_tokens ?? 512}
-            value={Math.min(tokens, deployment?.max_output_tokens ?? 512)}
-            onChange={(n) => setTokens(n ?? 128)}
+            value={tokens}
+            onChange={setTokens}
+            status={outputError ? 'error' : undefined}
+            aria-describedby="token-budget-help"
+            aria-invalid={!!outputError}
             style={{ width: '100%' }}
             disabled={configLocked}
           />
+          <div
+            id="token-budget-help"
+            className="help-text"
+            role={outputError ? 'alert' : undefined}
+          >
+            {outputError || `本部署输出范围：1–${outputLimit ?? '—'} tokens。`}
+          </div>
           <div className="config-meta">
             <span>采样策略</span>
             <strong>Greedy · temperature 0</strong>
-            <span>上下文上限</span>
+            <span>部署总窗口（输入＋输出）</span>
             <strong>{deployment?.context_limit ?? '—'} tokens</strong>
+            {deployment?.detail.native_context_limit && (
+              <>
+                <span>模型配置声明窗口</span>
+                <strong>{deployment.detail.native_context_limit} tokens</strong>
+              </>
+            )}
+          </div>
+          <div className="help-text">
+            总窗口包含 System prompt、聊天模板、输入和输出预算；以分词后的 token 数校验，
+            不按字符计数。部署上限是当前服务配置，不等于模型理论极限；增大窗口仍受显存与截止时间约束。
           </div>
           <ObservationControl
             value={observationMode}
@@ -302,7 +331,11 @@ export default function Playground() {
                   type="primary"
                   icon={<ArrowUpOutlined />}
                   disabled={
-                    deployment?.state !== 'ready' || configLocked || kernelPending || !prompt.trim()
+                    deployment?.state !== 'ready' ||
+                    configLocked ||
+                    kernelPending ||
+                    !prompt.trim() ||
+                    !!outputError
                   }
                   loading={sending}
                   onClick={() => void start()}
@@ -341,10 +374,7 @@ export default function Playground() {
             }
           >
             {run.data?.output ? (
-              <div className="markdown output-text">
-                <ReactMarkdown skipHtml>{run.data.output}</ReactMarkdown>
-                {active && <span className="cursor" />}
-              </div>
+              <ModelOutput text={run.data.output} active={active} />
             ) : (
               <div className="output-empty">
                 <h3>{active ? '等待首个生成内容…' : '尚未提交请求'}</h3>
