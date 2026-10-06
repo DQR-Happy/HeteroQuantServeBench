@@ -32,9 +32,9 @@ Mac 用于编辑和版本管理；运行、构建、测试与硬件探测全部�
 ./scripts/remote_run.sh python3 scripts/check_docs.py
 ```
 
-默认远端为 `jetson@192.168.10.7:/home/jetson/work/HeteroQuantServeBench`。`HQSB_REMOTE_HOST`、`HQSB_REMOTE_DIR` 可统一覆盖运行、同步和拉取目标。自动保存不等同于已验证同步。
+默认开发执行端为 `3090-inf:/root/HeteroQuantServeBench`。Mac 只编辑与管理版本，运行、构建和测试继续通过代理。`HQSB_REMOTE_HOST`、`HQSB_REMOTE_DIR` 可覆盖目标；Jetson 通过 `--target jetson` 显式同步。自动保存不等同于已验证同步。工作台 SSH / HTTP 机器管理及切换见[机器连接说明](infra/README.machine-connections.md)。
 
-新增 4090D / Linux x86_64 CUDA 后端的初始化流程见 [CUDA Console 部署说明](infra/README.cuda-console.md)。通过 `HQSB_REMOTE_HOST=4090D-hqsb` 选择新端，或使用 `scripts/sync_to_jetson.sh --target 4090d` 同步；Jetson 默认端保持不变。`scripts/console/bootstrap_cuda.sh` 复用目标 CUDA PyTorch，在隔离环境安装已锁定的模型依赖、校验权重、按实际 SM 构建算子并构建前端。通用服务配置为 `configs/console/cuda.example.yaml`。
+新增 4090D / Linux x86_64 CUDA 后端的初始化流程见 [CUDA Console 部署说明](infra/README.cuda-console.md)。通过 `HQSB_REMOTE_HOST=4090D-hqsb` 选择该端，或使用 `scripts/sync_to_jetson.sh --target 4090d` 同步；Jetson 执行端继续保留。`scripts/console/bootstrap_cuda.sh` 复用目标 CUDA PyTorch，在隔离环境安装已锁定的模型依赖、校验权重、按实际 SM 构建算子并构建前端。通用服务配置为 `configs/console/cuda.example.yaml`。
 
 4090D 多厂商模型、ModelScope 权重校验、模型切换及观测边界见 [多模型接入说明](infra/README.modelscope-models.md)，目标配置为 `configs/console/4090d-models.yaml`。
 
@@ -60,7 +60,7 @@ flowchart LR
 
 ## Web Console
 
-`web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认通过远端 Jetson 上的 Qwen3 FP16 Reference 运行；未验证的量化与自定义算子模型回接不会在页面中假装可用。
+`web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认开发服务运行在 `3090-inf`，可在界面通过 SSH / HTTP 选择其他 HQSB 节点；未验证的量化与自定义算子模型回接不会在页面中假装可用。
 
 Console v0.2 增加阶段与逐 token 观测、有限窗口 CPU/CUDA profiler、trace 查询/下载、内存归因与张量账本、历史 kernel 证据钻取，以及真实 RTN-W4/W8 制品任务。量化制品与在线低比特部署分开，优化导出保留为待验证假设。测试范围见 [v0.2 验收报告](docs/audit/HQSB_Console_v0.2_验收报告_20260921.md)。
 
@@ -84,6 +84,7 @@ v0.2.1 新增侧栏「内存与数据流」：共享 DRAM 与 allocator 结构�
 
 ```bash
 # 在 Mac 项目根目录输入；实际计算只在远端进行
+export HQSB_REMOTE_HOST=jetson
 export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-observation-20261014
 ./scripts/remote_run.sh python3 scripts/observation/run_model_observation.py \
   --mode memory --isl 128 --osl 16 \
@@ -118,6 +119,7 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-observation-20261014
 
 ```bash
 # 在 Mac 项目根目录输入，执行仍在隔离 Jetson checkout
+export HQSB_REMOTE_HOST=jetson
 export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-g01-g08-20261014
 ./scripts/remote_run.sh python3 scripts/observation/run_experiment.py \
   --spec configs/experiments/g01_cleanup.json \
@@ -136,17 +138,18 @@ CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存�
 
 普通推理工作台可以选择 allocator 清理策略，并传给已有优化配置解析。运行详情新增「优化与质量凭据」，同时展示 requested/resolved/effective、独立质量协议和经过 SHA-256 验证的下载链接。机制报告提供指标筛选与原始 seq；缺失保持未知，质量 fixture 不能代表通用准确率，同 worker 性能不能替代独立进程验收。
 
-当前测试服务的代码位于 Jetson 独立 checkout `/home/jetson/work/HQSB-benchmark-ui-20261016`，监听 `127.0.0.1:8768`，沿用 `/home/jetson/work/HQSB-g01-g08-20261014/.console/connected/` 的运行和实验数据；原 8767 实例保留。编辑端通过 SSH 转发访问，构建、测试及真实推理仍只在 Jetson 进行：
+2026-10-16 的 Jetson 测试服务位于独立 checkout `/home/jetson/work/HQSB-benchmark-ui-20261016`，监听 `127.0.0.1:8768`，沿用 `/home/jetson/work/HQSB-g01-g08-20261014/.console/connected/` 的运行和实验数据；原 8767 实例保留。当前默认开发服务已迁至 3090；如需查看 Jetson 原服务，可使用独立转发入口：
 
 ```bash
-ssh -N -L 127.0.0.1:8878:127.0.0.1:8768 jetson@192.168.10.7
-# 浏览器打开 http://127.0.0.1:8878/benchmarks
+ssh -N -L 127.0.0.1:8890:127.0.0.1:8768 jetson@192.168.10.7
+# 浏览器打开 http://127.0.0.1:8890/benchmarks
 # 测试模式直接进入，无需 API Key 或访问令牌。
 ```
 
 当前实例重启时继续使用原来的已验证权重配置和数据目录，需已构建 `web/console/dist`，不能并行启动两个使用同一数据目录的实例。需要恢复认证时添加 `--require-auth` 或配置 `auth_required: true`：
 
 ```bash
+export HQSB_REMOTE_HOST=jetson
 export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-benchmark-ui-20261016
 ./scripts/remote_run.sh env \
   HQSB_CONSOLE_DATA=/home/jetson/work/HQSB-g01-g08-20261014/.console/connected \

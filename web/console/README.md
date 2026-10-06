@@ -6,6 +6,18 @@
 
 ## UI v0.4：项目工作台
 
+### 推理输出格式
+
+推理页按 Markdown 实时渲染累计输出，支持标题、列表、引用、行内代码、代码块、链接，以及 GFM 表格、任务列表和删除线。`$...$` 行内公式与 `$$` 围栏内的独立公式通过本地打包的 KaTeX 渲染，支持分数、上下标和 `\boxed{}`；不请求外部公式服务或字体 CDN。长代码、宽表格和独立公式在内容区内横向滚动；复制输出保留模型原始 Markdown/LaTeX 文本。未闭合代码围栏和公式在生成过程中仍可显示，后续快照会继续更新；不合法公式保留为可读原文。输出不执行原始 HTML；本次仅调整浏览器呈现，不修改推理请求、SSE 协议或原始运行记录。
+
+### 内嵌使用指南
+
+`/guide` 提供与当前实现对应的十一章操作手册，覆盖机器连接、模型下载、固定输入评测、推理参数、算子版本替换、预注册实验、内存/KV/CPU 页与 profiler、原件保存及十层能力边界。顶部“使用指南”按当前页面定位章节；评测标题区和“设置与帮助”另有入口，环境导航与快速跳转可直接找到整份手册。手册只做导航与说明，不提交任务或改变部署。新增字段、profile 或能力时同步维护 `src/pages/UserGuide.tsx`，样式归 `src/features/help/styles.css`。
+
+### ModelScope 权重下载
+
+`/models`（环境 → 模型下载与接入）从登记发布方实时索引公开仓库，按当前 GPU/主机或容器/下载磁盘筛选，选择分支或标签后检查配置与文件哈希，显式下载。进度使用节点实际传输字节和已校验文件数，支持取消/续传、重启后保留任务，以及封存后动态登记到推理和评测列表。下载不自动加载 GPU 模型。平台镜像、资源预估与实测运行分开标注；当前不接量化、多模态、远程 Python 和未适配架构。模块职责、数据与 API 契约见 [模型下载说明](../../infra/README.model-hub.md)。
+
 重设计覆盖全部既有路由，使用项目任务导航、运行筛选目录、证据检查器、推理编辑器和实验计划工作区。API v1、请求字段、认证、SSE 和下载协议保持原样；没有新增运行依赖。
 
 - `src/shell/`：项目导航、快速跳转（按钮或 Cmd/Ctrl+K）、小屏抽屉与登录。
@@ -43,12 +55,12 @@
 
 模型输出下方的“本次运行凭据与观测”展示实际方案、逻辑调用计数、封存原件下载及阶段/token/内存摘要，并链接同次运行的 KV、OS 页和 GPU profiler 详情。普通推理与实验任务使用同一凭据展示。制品缺失/身份不符、加载失败和缺少观测都明确显示；目录中的候选不表示质量或性能验收通过。
 
-当前 `8878` 测试入口对应 Jetson 的 `HQSB-kernel-ui-20261016`，使用 `reports/console/kernel-ui/service.yaml` 和原有 `.console/connected` 数据。启动、数据路径与免登录恢复开关见项目根 README。
+当前 `8878` 测试入口对应 `3090-inf` 的 `/root/HeteroQuantServeBench`，配置为 `configs/console/3090-inf.yaml`，保留免登录；机器选择与隧道说明见 [机器连接说明](../../infra/README.machine-connections.md)。下面 kernel-ui 命令是原 Jetson 隔离目录的历史验收入口，需要显式指定目标。
 
 显式真实模型验收通过 `HQSB_KERNEL_UI_LIVE=1` 启用，默认不会执行新用例中的模型任务。该验收会串行重载当前服务，需独占设备；最终恢复框架原生模型就绪状态：
 
 ```bash
-HQSB_REMOTE_DIR=/home/jetson/work/HQSB-kernel-ui-20261016 ./scripts/remote_run.sh \
+HQSB_REMOTE_HOST=jetson HQSB_REMOTE_DIR=/home/jetson/work/HQSB-kernel-ui-20261016 ./scripts/remote_run.sh \
   env HQSB_CONSOLE_URL=http://127.0.0.1:8768 HQSB_KERNEL_UI_LIVE=1 \
   bash -lc 'cd web/console && npx playwright test tests/kernel-ui.spec.ts'
 ```
