@@ -1,0 +1,11 @@
+[package]
+name = "hqsb-loom-capture"
+version = "0.1.0"
+edition = "2021"
+[lib]
+crate-type = ["cdylib"]
+[dependencies]
+loom = { path = "/tmp/hqsb-capture-fair-20261017/upstream/loom" }
+libc = "0.2"
+[profile.release]
+opt-level = 3
