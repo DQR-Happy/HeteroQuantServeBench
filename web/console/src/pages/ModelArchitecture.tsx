@@ -17,7 +17,9 @@ function ArchitectureView({ data }: { data: Architecture }) {
   const prefix = current?.path ?? '';
   const modulePath = selected?.module ? `${prefix}.${selected.module}` : null;
   const weights = data.tensors.filter((row) =>
-    modulePath ? row.name.startsWith(modulePath + '.') : !selected && row.name.startsWith(prefix + '.'),
+    modulePath
+      ? row.name.startsWith(modulePath + '.')
+      : !selected && row.name.startsWith(prefix + '.'),
   );
   const sizes = data.config;
   return (
@@ -194,7 +196,11 @@ function ArchitectureView({ data }: { data: Architecture }) {
           size="small"
           scroll={{ x: 900 }}
           dataSource={data.graphs ? weights : data.tensors}
-          locale={{emptyText: selected ? '所选计算节点没有独立的模型权重；函数操作、残差与 KV 状态不等于可训练参数。' : '未读取到此层的权重'}}
+          locale={{
+            emptyText: selected
+              ? '所选计算节点没有独立的模型权重；函数操作、残差与 KV 状态不等于可训练参数。'
+              : '未读取到此层的权重',
+          }}
           pagination={{ pageSize: 10, showSizeChanger: false }}
           columns={[
             { title: 'Tensor 路径', dataIndex: 'name', render: (value) => <code>{value}</code> },
