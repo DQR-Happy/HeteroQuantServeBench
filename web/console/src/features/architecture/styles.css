@@ -114,3 +114,8 @@
     min-width: 200px;
   }
 }
+.architecture-graph-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
