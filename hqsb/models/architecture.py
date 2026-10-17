@@ -10,6 +10,7 @@ import struct
 import time
 
 from hqsb.models.architecture_graphs import graphs, implementation, layer_kinds
+from hqsb.models.architecture_structure import artifact_structure, semantic_family
 
 
 def read_json(path, limit=2 * 1024**2):
@@ -123,17 +124,20 @@ def inspect_architecture(model_path):
     visible_config = {key: config.get(key) for key in ("model_type", "architectures", "hidden_size", "intermediate_size", "num_hidden_layers",
         "num_attention_heads", "num_key_value_heads", "head_dim", "vocab_size", "max_position_embeddings", "hidden_act", "hidden_activation", "tie_word_embeddings", "sliding_window")}
     graph = graphs(model_type, config) if support["verified"] and count and not issues else None
+    structure = artifact_structure(list(tensors.values()))
+    semantic = semantic_family(config)
     identity = hashlib.sha256(json.dumps({"config": config_hash, "headers": shards, "implementation": support,
-                                         "graphs": graph}, sort_keys=True).encode()).hexdigest()
+                                         "graphs": graph, "structure": structure, "semantic": semantic}, sort_keys=True).encode()).hexdigest()
     return {"schema_version": "1.0", "snapshot_sha256": identity, "observed_at": time.time(),
             "config": visible_config, "config_sha256": config_hash,
             "implementation": support, "status": "verified_static" if graph else "metadata_only", "issues": issues[:100],
             "layers": layers, "tensors": list(tensors.values()), "shards": shards,
             "stored_tensor_count": len(tensors), "stored_parameter_elements": sum(math.prod(row["shape"]) for row in tensors.values()),
             "stored_bytes": sum(row["stored_bytes"] for row in tensors.values()), "dtypes": dict(Counter(row["dtype"] for row in tensors.values())),
-            "graphs": graph, "evidence_scope": "config + safetensors headers + reviewed installed model implementation; no weight values loaded",
+            "graphs": graph, "evidence_scope": "artifact containment from config + safetensors headers; optional reviewed static semantic diagrams; no forward execution or weight values loaded",
+            "structure": structure, "semantic": semantic,
             "limitations": ["这是逻辑计算依赖图，不是 GPU 执行时间线；分支独立不等于 stream 或 kernel 同时执行。",
                 "Safetensors header 哈希不等于完整权重校验；存储 dtype/字节不等于加载后的运行 dtype/显存。",
-                "权重名称不能确定 forward；仅对实现文件指纹匹配的模型族提供计算依赖图。",
+                "权重名称不能确定 forward；专用静态示意图要求实现指纹匹配，实际算子依赖需另行显式采集，不受模型族识别限制。",
                 "Attention 展示数学子步骤；SDPA 或自定义融合实现可能合并节点。无实际 trace 不推断融合、Tensor Core、SM 映射或 Cache 命中。",
                 "层间存在依赖；标准自回归 decode 的下一 token 依赖上一步结果。Prefill 中 token/head 并行属于逻辑机会，实际调度另需运行证据。"]}

@@ -12,7 +12,7 @@ IMPLEMENTATIONS = {
 
 def implementation(model_type):
     if model_type not in IMPLEMENTATIONS:
-        return {"verified": False, "reason": "此模型族尚未建立经过核对的计算依赖适配器"}
+        return {"verified": False, "reason": "未登记静态语义示意图；通用结构读取与实际算子采集仍可使用"}
     family, expected = IMPLEMENTATIONS[model_type]
     relative = f"transformers/models/{family}/modeling_{family}.py"
     try:
@@ -22,7 +22,7 @@ def implementation(model_type):
         return {"verified": False, "reason": "本机缺少可核对的 Transformers 模型实现，仅展示制品元数据"}
     return {"verified": dist.version == "5.8.0" and actual == expected,
             "version": dist.version, "file": relative, "sha256": actual,
-            "reason": None if dist.version == "5.8.0" and actual == expected else "安装的模型实现与已核对版本不同，仅展示制品结构"}
+            "reason": None if dist.version == "5.8.0" and actual == expected else "静态语义图的实现指纹不匹配；通用结构读取与实际算子采集仍可使用"}
 
 
 def graphs(model_type, config):

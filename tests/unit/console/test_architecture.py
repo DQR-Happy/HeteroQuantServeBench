@@ -75,6 +75,8 @@ def test_unrecognized_family_gets_no_guessed_transformer_diagram(tmp_path):
     result = inspect_architecture(str(tmp_path))
     assert result["graphs"] is None
     assert result["tensors"]
+    assert result['structure']['modules'] and result['structure']['status']=='complete'
+    assert not result['semantic']['recognized']
 
 
 def test_truncated_shard_and_oversize_header_are_explicit_errors(tmp_path):
