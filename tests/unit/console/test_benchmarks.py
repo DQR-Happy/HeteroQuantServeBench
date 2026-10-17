@@ -92,6 +92,32 @@ def test_frozen_inputs_and_quality_do_not_confuse_agreement_with_correctness():
     assert score(cases["explanation"], "anything") is None
 
 
+def test_generation_speed_projects_each_sample_before_median_and_excludes_warmup():
+    case = suite()["cases"][0]
+    plan = {"cases": [case], "schemes": [{"id": "base", "kernel_profile": "framework-native", "cleanup_policy": "empty_cache"}],
+            "baseline_id": "base", "repeats": 3}
+    records = []
+    for repeat, (tokens, elapsed) in enumerate([(10, 1000), (100, 100), (60, 2000)]):
+        run = run_fixture(case)
+        run["metrics"].update(output_tokens=tokens, runtime_e2e_ms=elapsed)
+        records.append(project_run(run, scheme_id="base", case=case, role="measurement", repeat=repeat))
+    warmup = copy.deepcopy(records[0])
+    warmup.update(role="warmup")
+    warmup["metrics"]["output_tokens_per_s"] = 99999
+    result = summarize(plan, records + [warmup])["rows"][0]
+    assert result["metrics"]["output_tokens_per_s"] == 30  # median(10, 1000, 30), not 60/1
+    records[1]["metrics"]["output_tokens_per_s"] = None
+    assert summarize(plan, records)["rows"][0]["metrics"]["output_tokens_per_s"] is None
+
+
+@pytest.mark.parametrize("tokens,elapsed", [(1, 0), (1, None), (None, 20), (True, 20), (1, float("nan"))])
+def test_generation_speed_never_invents_invalid_timing(tokens, elapsed):
+    case = suite()["cases"][0]
+    run = run_fixture(case)
+    run["metrics"].update(output_tokens=tokens, runtime_e2e_ms=elapsed)
+    assert project_run(run, scheme_id="base", case=case, role="measurement", repeat=0)["metrics"]["output_tokens_per_s"] is None
+
+
 def test_non_qwen_model_has_a_runnable_native_comparison_and_rejects_custom_load(env):
     _, service, manager, _ = env
     service.configs["reference"].model = "google/gemma-3-1b-it"

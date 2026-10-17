@@ -49,17 +49,23 @@ def score(case, output):
         return False
 
 
-METRICS = ("runtime_first_token_ms", "runtime_e2e_ms", "decode_tail_tokens_per_s", "input_tokens", "output_tokens")
+METRICS = ("runtime_first_token_ms", "runtime_e2e_ms", "output_tokens_per_s", "decode_tail_tokens_per_s", "input_tokens", "output_tokens")
 
 
 def project_run(run, *, scheme_id, case, role, repeat):
     metrics = run.get("metrics", {})
     receipt = metrics.get("optimization_receipt") or {}
+    projected = {key: metrics.get(key) for key in METRICS}
+    count, elapsed = metrics.get("output_tokens"), metrics.get("runtime_e2e_ms")
+    if (projected["output_tokens_per_s"] is None and type(count) is int and count >= 0
+            and type(elapsed) in (int, float) and math.isfinite(elapsed) and elapsed > 0):
+        projected["output_tokens_per_s"] = count * 1000 / elapsed
     return {"run_id": run["id"], "scheme_id": scheme_id, "case_id": case["id"], "role": role,
+            "input_mode": metrics.get("input_mode", run.get("config", {}).get("input_mode", "chat")),
             "repeat": repeat, "state": run["state"], "cleanup": run["cleanup"], "error": run.get("error"),
             "output": run.get("output", ""), "finish_reason": run.get("finish_reason"),
             "score": score(case, run.get("output", "")) if run["state"] == "completed" else None,
-            "metrics": {**{key: metrics.get(key) for key in METRICS},
+            "metrics": {**projected,
                         "peak_allocated_bytes": metrics.get("memory", {}).get("peak_allocated_bytes")},
             "input_token_sha256": metrics.get("input_token_sha256"),
             "generated_token_ids": metrics.get("generated_token_ids"),
