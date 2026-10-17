@@ -60,10 +60,35 @@ Missing architecture still requires cancelling the filter or inspecting a full
 registered-owner repo ID. Publisher and search are retained in the page URL.
 Concrete revision checks remain mandatory. Download
 admission additionally rejects unsupported architectures, remote Python code,
-quantization, unsupported MoE/multimodal configs, missing chat templates, missing
+quantization, unsupported MoE/multimodal configs, missing
 safetensors/tokenizer/config files, incomplete shards, missing hashes and
 insufficient memory/disk. Downloads are restricted to safe root runtime files;
 alternate `.bin`/GGUF formats and custom Python code are not selected.
+
+Publisher chat templates embedded in `tokenizer_config.json` or in root-level
+`chat_template.jinja` are downloaded, SHA-256 checked and sealed with the model.
+Missing templates no longer prevent acquiring a native causal-language model:
+inspection selects `input_mode=completion` and registration persists that mode.
+The PyTorch completion path accepts a raw `prompt`, preserves its text and uses
+the publisher tokenizer's special-token handling. It never fabricates role tags
+or copies another model's chat template. Chat deployments retain their official
+template and may explicitly use completion; template-free deployments reject chat.
+New inspections preserve a publisher-declared BF16 execution precision; other
+models retain FP16. Both use two-byte weight/KV capacity estimates. The worker
+checks native BF16 support and still requires finite warmup logits. This matters
+for Gemma 3 270M, whose FP16 conversion produced nonfinite warmup logits on 3090.
+Load details record actual parameter dtypes; observations and execution receipts
+record execution precision. Custom kernel profiles and interactive RTN artifact
+jobs retain their FP16 contract and explicitly reject BF16 instead of pretending
+their existing validation applies. Existing registered deployments keep their
+stored precision; this does not silently migrate a live model.
+
+`POST /requests` accepts exactly one of nonempty `messages` or a raw `prompt`.
+Raw prompts follow the existing save-input policy: hash only by default, explicit
+save for reproduction, excluded from list projections. Runtime metrics and
+execution receipts record the input mode; chat additionally records the template
+digest. Completion benchmark cases have a distinct suite identity and freeze raw
+prompts without the chat system message. Historical chat suites remain unchanged.
 
 GPU capacity is measured without importing CUDA into the API process. Runtime
 memory is **estimated** as weight storage + shape-derived FP16 KV (or a reserve

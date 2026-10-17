@@ -61,13 +61,20 @@ class InteractivePyTorch:
             self.device_lease = DeviceLease(self.config["device_lock_path"])
             self.device_lease.acquire()
 
+        precision = self.config.get("precision", "float16")
+        if precision not in {"float16", "bfloat16"}:
+            raise ValueError("MODEL_PRECISION_UNSUPPORTED")
+        if precision == "bfloat16" and not torch.cuda.is_bf16_supported():
+            raise ValueError("MODEL_BFLOAT16_DEVICE_UNSUPPORTED")
+        if precision == "bfloat16" and self.config.get("kernel_profile", "framework-native") != "framework-native":
+            raise ValueError("KERNEL_PRECISION_UNSUPPORTED")
         observation = ObservationRecorder()
         observation.snapshot("before_model_load", self.memory)
         with observation.phase("model_load"):
             self.tokenizer, self.model, seconds = load_causal_lm(
                 self.config["model_path"],
                 attention_backend=self.config["attention"],
-                dtype=torch.float16,
+                dtype={"float16": torch.float16, "bfloat16": torch.bfloat16}[precision],
                 cpu_staging=True,
                 verify_manifest=self.config.get("manifest"),
                 allow_extra=tuple(self.config.get("manifest_allow_extra", [])),
@@ -86,7 +93,7 @@ class InteractivePyTorch:
             )
         path = Path(os.path.expandvars(self.config["model_path"])).expanduser()
         identity = {}
-        for name in ("config.json", "tokenizer.json", "tokenizer_config.json"):
+        for name in ("config.json", "tokenizer.json", "tokenizer_config.json", "chat_template.jinja"):
             file = path / name
             if file.exists():
                 identity[name] = hashlib.sha256(file.read_bytes()).hexdigest()
@@ -112,6 +119,9 @@ class InteractivePyTorch:
 
         self.kernel_session = KernelSession(self.model, self.config)
         self.chat_template_policy = {
+            "default_input_mode": self.config.get("input_mode", "chat"),
+            "template_sha256": hashlib.sha256(self.tokenizer.get_chat_template().encode()).hexdigest()
+            if self.tokenizer.chat_template else None,
             "owner": "local_tokenizer",
             "model_type": self.model.config.model_type,
             "enable_thinking": False if self.model.config.model_type == "qwen3" else "model_template_default",
@@ -129,11 +139,12 @@ class InteractivePyTorch:
         self.source_environment = environment(Path(__file__).resolve().parents[2])
         from hqsb.core.optimization import fingerprint
 
-        self.tokenizer_identity = fingerprint({key: value for key, value in identity.items() if key.startswith("tokenizer")})
+        self.tokenizer_identity = fingerprint({key: value for key, value in identity.items() if key.startswith("tokenizer") or key == "chat_template.jinja"})
         self.load_inventory = parameter_inventory(self.model)
         return {
             "load_seconds": seconds,
             "parameter_devices": devices,
+            "parameter_dtypes": sorted({str(p.dtype).removeprefix("torch.") for p in self.model.parameters()}),
             "metadata_hashes": identity,
             "weight_verification": "manifest_verified"
             if self.config.get("manifest")
@@ -178,6 +189,7 @@ class InteractivePyTorch:
         import torch
 
         from hqsb.backends.optimization_receipt import resolve_request, receipt
+        from hqsb.backends.prompting import ContextLimitExceeded
         from hqsb.observation.contracts import resolve_observation, digest
 
         request, optimization = resolve_request(self.config, request)
@@ -205,8 +217,9 @@ class InteractivePyTorch:
                     "host_clock_domain": "host_monotonic",
                     "source": self.source_environment,
                     "model_identity": self.source_identity,
+                    "input_mode": request.get("input_mode", "chat"),
                     "attention_requested": self.config["attention"],
-                    "dtype": "float16", "cleanup_policy": request.get("cleanup_policy", "empty_cache"),
+                    "dtype": self.config.get("precision", "float16"), "cleanup_policy": request.get("cleanup_policy", "empty_cache"),
                     "optimization_plan": optimization,
                     "experiment_links": request.get("experiment_links", {}),
                 }, mode, request.get("observation_plan"))
@@ -222,10 +235,11 @@ class InteractivePyTorch:
             start=start,
             sink=session.emit if session else None,
             execution={
+                "input_mode": request.get("input_mode", "chat"),
                 "provider": "pytorch",
                 "device": "cuda:0",
-                "dtype": "float16",
-                "quant_execution_path": "fp16_reference",
+                "dtype": self.config.get("precision", "float16"),
+                "quant_execution_path": "bf16_reference" if self.config.get("precision") == "bfloat16" else "fp16_reference",
                 "attention_backend": self.kernel_session.profile["operators"].get("attention", self.config["attention"])
                 if self.kernel_session else self.config["attention"],
                 "attention_config": self.config["attention"],
@@ -251,14 +265,12 @@ class InteractivePyTorch:
         finish = "length"
         execution_status, cleanup_status = "failed", "unknown"
         result = None
+        input_token_sha256 = None
         try:
             with observation.phase("chat_template"):
-                prompt = self.tokenizer.apply_chat_template(
-                    request["messages"],
-                    tokenize=False,
-                    add_generation_prompt=True,
-                    **({"enable_thinking": False} if self.model.config.model_type == "qwen3" else {}),
-                )
+                from hqsb.backends.prompting import prepare_prompt
+
+                prompt, add_special_tokens = prepare_prompt(self.tokenizer, request, self.model.config.model_type)
             with observation.phase("tokenize"):
                 if "experiment_input_tokens" in request:
                     count = request["experiment_input_tokens"]
@@ -274,7 +286,7 @@ class InteractivePyTorch:
                               "attention_mask": torch.ones((1, len(supplied)), dtype=torch.long)}
                 else:
                     inputs = self.tokenizer(
-                        prompt, return_tensors="pt", add_special_tokens=False
+                        prompt, return_tensors="pt", add_special_tokens=add_special_tokens
                     )
             input_count = int(inputs["input_ids"].shape[1])
             if session:
@@ -288,12 +300,11 @@ class InteractivePyTorch:
                              if request.get("save_input") or "input_token_ids" in request else None,
                              "input_storage_policy": "saved" if request.get("save_input") or "input_token_ids" in request else "hash_only",
                              "requested_output_tokens": limit, "decoding": "greedy",
+                             "input_mode": request.get("input_mode", "chat"),
                              "fixed_output_length": bool(request.get("fixed_output_length", False))})
-            if input_count + limit > self.config["context_limit"]:
-                raise ValueError(
-                    f"Context limit exceeded: {input_count}+{limit}>{self.config['context_limit']}"
-                )
             input_token_sha256 = digest(inputs["input_ids"].tolist()[0])
+            if input_count + limit > self.config["context_limit"]:
+                raise ContextLimitExceeded(input_count, limit, self.config["context_limit"])
             with observation.phase("input_transfer"):
                 inputs = {key: value.to("cuda") for key, value in inputs.items()}
             current = inputs["input_ids"]
@@ -401,6 +412,11 @@ class InteractivePyTorch:
                 "text": text,
                 "finish_reason": finish,
                 "metrics": {
+                    "input_mode": request.get("input_mode", "chat"),
+                    "input_policy": {"mode": request.get("input_mode", "chat"),
+                        "add_special_tokens": add_special_tokens,
+                        "chat_template_sha256": self.chat_template_policy.get("template_sha256")
+                            if request.get("input_mode", "chat") == "chat" else None},
                     "runtime_first_token_ms": times[0] if times else None,
                     "runtime_e2e_ms": elapsed,
                     "input_tokens": input_count,

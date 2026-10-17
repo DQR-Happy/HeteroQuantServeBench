@@ -141,21 +141,23 @@ class ModelScopeSource:
         reasons = []
         model_type = str(config.get("model_type") or "")
         if model_type not in native_causal_types():
-            reasons.append("架构尚未接入当前纯文本 FP16 Provider：" + str(config.get("model_type")))
+            reasons.append("架构尚未接入当前纯文本 FP16/BF16 Provider：" + str(config.get("model_type")))
         if config.get("auto_map") or tokenizer.get("auto_map"):
             reasons.append("需要远程自定义代码，当前服务不执行该代码")
         if config.get("quantization_config") or config.get("quantization") or UNSUPPORTED_FORMAT.search(repo.split("/")[1]):
-            reasons.append("量化权重尚未接入当前 FP16 加载契约")
+            reasons.append("量化权重尚未接入当前浮点加载契约")
         if (config.get("vision_config") or config.get("num_local_experts") or config.get("num_experts")
                 or config.get("n_routed_experts") or "moe" in model_type or model_type in {"qwen3_next", "qwen3_5", "qwen3_5_moe"}):
             reasons.append("多模态或 MoE 配置尚未通过本下载部署通路适配")
-        if not tokenizer.get("chat_template") and "chat_template.jinja" not in by_name:
-            reasons.append("缺少仓库自带聊天模板，交互推理不兼容")
+        has_template = bool(tokenizer.get("chat_template") or "chat_template.jinja" in by_name)
         return {"model_id": repo, "revision": revision, "revisions": revisions,
                 "files": [{key: item[key] for key in ("Path", "Size", "Sha256", "Revision")} for item in entries],
                 "config": {key: config.get(key) for key in ("model_type", "hidden_size", "num_hidden_layers", "num_key_value_heads", "num_attention_heads", "head_dim", "max_position_embeddings")},
                 "download_bytes": sum(item["Size"] for item in entries),
                 "weight_bytes": sum(item["Size"] for item in entries if item["Path"].endswith(".safetensors")),
+                "input_mode": "chat" if has_template else "completion",
+                "chat_template_available": has_template,
+                "runtime_precision": "bfloat16" if config.get("dtype", config.get("torch_dtype")) == "bfloat16" else "float16",
                 "runtime_reasons": reasons, "license_url": "https://modelscope.cn/models/" + repo,
                 "provenance": PUBLISHERS[repo.split("/")[0]][1],
                 "revision_scope": "selected_branch_or_tag_with_publisher_per_file_commit_and_sha256"}

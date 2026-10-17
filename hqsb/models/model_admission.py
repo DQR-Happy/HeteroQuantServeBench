@@ -1,4 +1,4 @@
-"""Conservative estimates for one full-FP16, batch-one CUDA deployment."""
+"""Conservative estimates for one two-byte floating-point CUDA deployment."""
 from __future__ import annotations
 
 GIB = 1024**3
@@ -19,6 +19,7 @@ def estimate(weights, config=None, context=2048):
 
 
 def admission(plan, capacity, reserve):
+    precision = plan.get("runtime_precision", "float16")
     estimate_result = estimate(plan["weight_bytes"], plan.get("config"))
     reasons = list(plan.get("runtime_reasons", []))
     total = capacity.get("gpu_total_bytes")
@@ -27,7 +28,7 @@ def admission(plan, capacity, reserve):
     if total is None:
         reasons.append("设备显存容量未知；尚不能判断全 GPU 部署可用性")
     elif required is None or required > total:
-        reasons.append("FP16 权重、KV 与运行余量预估超过 GPU 总容量")
+        reasons.append("16 位浮点权重、KV 与运行余量预估超过 GPU 总容量")
     if host_available is None or host_available < plan["weight_bytes"] + GIB:
         reasons.append("主机可用内存不足以保守支持 CPU 权重暂存")
     disk_ok = capacity["disk_free_bytes"] >= plan["download_bytes"] + reserve
@@ -35,7 +36,7 @@ def admission(plan, capacity, reserve):
         reasons.append("下载磁盘空间不足，需保留节点配置的空闲余量")
     return {**estimate_result, "eligible": not reasons, "reasons": reasons,
             "disk_ok": disk_ok, "status": "estimated_fit" if not reasons else "blocked",
-            "scope": "single_gpu_fp16_batch1_context2048_after_unloading_current_model",
+            "scope": f"single_gpu_{'bf16' if precision == 'bfloat16' else 'fp16'}_batch1_context2048_after_unloading_current_model",
             "limitations": ["容量预估不是运行认证；下载后仍需加载、有限 logits 预热和实际推理验证。",
                             "不使用 CPU/disk offload，不把量化存储体积当作 FP16 驻留体积。",
                             "显存总量用于卸载当前模型后的估算；其他负载、分配碎片与瞬时余量仍可能导致失败。"]}

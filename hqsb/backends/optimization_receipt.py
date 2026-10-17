@@ -36,7 +36,10 @@ def receipt(provider, request, plan, *, role, output_hash, status, cleanup, proo
                 "model_identity": provider.source_identity,
                 "source": provider.source_environment,
                 "tokenizer_identity": provider.tokenizer_identity,
-                "runtime": {"dtype": "float16", "kernel": kernel_id, "executor": "InteractivePyTorch"},
+                "runtime": {"dtype": (getattr(provider, "config", None) or {}).get("precision", "float16"), "kernel": kernel_id, "executor": "InteractivePyTorch",
+                            "input_mode": request.get("input_mode", "chat"),
+                            "chat_template_sha256": (getattr(provider, "chat_template_policy", None) or {}).get("template_sha256")
+                            if request.get("input_mode", "chat") == "chat" else None},
                 "kernel_receipt": kernel_summary,
                 "experiment_links": request.get("experiment_links", {}),
                 "effective": {**plan["resolved"], "attention_backend": attention},
