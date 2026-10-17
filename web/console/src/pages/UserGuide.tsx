@@ -310,9 +310,21 @@ export default function UserGuide() {
               GPU。
             </p>
             <p>
-              先看整体串行路径，再选具体层号。Decoder Block 展示 Attention、MLP 与残差关系；切换
-              Attention 内部、MLP 内部或点击节点查看模块路径、权重 shape、存储 dtype 和字节。Gemma 3
-              的局部 / 全局 Attention 按层显示。
+              先看“通用模块与权重结构”：未加载时从实际权重名称建立层级；加载后展示真实 nn.Module
+              类、参数与
+              buffer。未知模型族也能查看这部分，不依赖模型族白名单。层级包含关系不等于计算依赖。
+            </p>
+            <p>
+              加载模型后点击“采集运行架构”，系统用固定 Hello 输入和最多 2 个输出 Token
+              提交诊断运行，记录前两次 forward 的实际 ATen 算子、所属模块、输出 shape / dtype 与
+              Tensor 依赖。可筛选阶段、点选节点查看前驱后继、导出完整 JSON，并追溯运行凭据。
+              页面读取或刷新不会自动推理。采集有额外开销，其 Token/s 不能作为正式性能比较。
+            </p>
+            <p>
+              下方经过核对的模型族示意图可帮助理解：先看整体串行路径，再选具体层号。Decoder Block
+              展示 Attention、MLP 与残差关系；切换 Attention 内部、MLP
+              内部或点击节点查看模块路径、权重 shape、存储 dtype 和字节。Gemma 3 的局部 / 全局
+              Attention 按层显示。
             </p>
             <p>
               实线表示数据依赖，虚线表示残差恒等路径，点线表示 KV 状态依赖。Q/K/V 和 Gate/Up
@@ -321,9 +333,11 @@ export default function UserGuide() {
               分配或 Tensor Core 使用。
             </p>
             <p>
-              首版核对当前 Transformers 实现的 Qwen2、Qwen3、Gemma 3
-              纯文本模型。未知模型族、实现指纹变化或制品不匹配会降级为元数据，不能套用通用架构图。导出的
-              JSON 包含配置、header 和实现指纹，适合保存结构快照；它不替代完整权重校验或运行验收。
+              已核对的静态示意图覆盖当前实现的 Llama、Qwen2、Qwen3、Gemma 3 纯文本模型；
+              Llama、Qwen、Gemma、DeepSeek、GLM、Mistral / Mixtral、Phi、GPT-OSS、MiniMax、InternLM
+              等模型族另有配置语义标注。缺少专用示意图不会阻止通用结构解析和执行采集。
+              实际采集仅代表这次输入走过的路径，融合算子内部、未访问的专家和分支不能凭空展开；
+              达到节点、边或字节上限会明确标为部分采集。导出快照不替代完整权重校验或运行验收。
             </p>
           </Section>
 
