@@ -12,6 +12,8 @@ from hqsb.core.kernel_profiles import catalogue
 
 def model_kernel_compatibility(config):
     """Configuration/file check only; the worker still validates source/shape."""
+    if config.precision != "float16":
+        return "KERNEL_PRECISION_UNSUPPORTED"
     if config.model != "Qwen/Qwen3-1.7B":
         return "KERNEL_MODEL_SHAPE_UNSUPPORTED"
     import os

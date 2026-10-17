@@ -50,6 +50,12 @@ class InferenceRequest(BaseModel):
     optimization: dict | None = None
     observation_plan: dict | None = None
 
+    @model_validator(mode="after")
+    def one_input_format(self):
+        if bool(self.messages) == (self.prompt is not None):
+            raise ValueError("Provide exactly one of messages or a raw prompt")
+        return self
+
 
 class Login(BaseModel):
     token: str = Field(min_length=1, max_length=512)

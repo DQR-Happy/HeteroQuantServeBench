@@ -219,6 +219,13 @@ class ConsoleService:
             self._reserve()
             state, cfg = self.states[deployment_id], self.configs[deployment_id]
             if kind == "generate":
+                completion = payload.get("prompt") is not None
+                if completion:
+                    if cfg.provider != "pytorch" or payload.get("messages") or not isinstance(payload["prompt"], str) or not payload["prompt"].strip() or len(payload["prompt"]) > 32768:
+                        raise ServiceError("INPUT_MODE", "原始文本续写需要非空 prompt，不能同时提交聊天消息，且仅支持本地 PyTorch Provider", 422)
+                elif cfg.input_mode == "completion":
+                    raise ServiceError("INPUT_MODE", "该部署没有官方聊天模板，请使用原始文本续写 prompt", 422)
+                payload = {**payload, "input_mode": "completion" if completion else "chat"}
                 from hqsb.core.optimization import resolve_plan, validate_quality_plan
                 from hqsb.observation.contracts import resolve_observation
 
@@ -268,6 +275,8 @@ class ConsoleService:
                         "W4 requires group 32/64/128; W8 uses per-channel scaling",
                         422,
                     )
+                if kind == "quantize" and cfg.precision != "float16":
+                    raise ServiceError("QUANT_PRECISION_UNSUPPORTED", "当前交互量化制品通路仅验收了 FP16 源模型", 422)
                 self._preflight(kind, cfg, payload)
             elif kind == "load":
                 from hqsb.core.kernel_profiles import profile, requires_native
@@ -335,6 +344,13 @@ class ConsoleService:
                 ).hexdigest()
                 if payload.get("save_input"):
                     safe_payload["messages"] = messages
+            if "prompt" in safe_payload:
+                prompt = safe_payload.pop("prompt")
+                safe_payload["input_sha256"] = hashlib.sha256(
+                    json.dumps({"input_mode": "completion", "prompt": prompt}, ensure_ascii=False, sort_keys=True).encode()
+                ).hexdigest()
+                if payload.get("save_input"):
+                    safe_payload["prompt"] = prompt
             config = {
                 "deployment": cfg.public(),
                 "epoch": state["epoch"],
@@ -352,12 +368,13 @@ class ConsoleService:
                 if kind != "load"
                 else {},
                 "generation_policy": {
+                    "input_mode": payload.get("input_mode", cfg.input_mode),
                     "sampling": "greedy",
                     "temperature": 0,
-                    "chat_template_owner": "local_tokenizer"
+                    "chat_template_owner": "none_raw_text" if payload.get("input_mode") == "completion" else "local_tokenizer"
                     if cfg.provider == "pytorch"
                     else "upstream",
-                    "enable_thinking": state["detail"].get("chat_template_policy", {}).get("enable_thinking", "model_template_default")
+                    "enable_thinking": "not_applicable" if payload.get("input_mode") == "completion" else state["detail"].get("chat_template_policy", {}).get("enable_thinking", "model_template_default")
                     if cfg.provider == "pytorch"
                     else "upstream_defined",
                 },

@@ -479,6 +479,44 @@ def test_sdk_plan_rejects_unsafe_runtime_formats_and_missing_shards(monkeypatch)
         source.inspect("Qwen/Test", "master")
 
 
+@pytest.mark.parametrize('template', ['missing', 'embedded', 'jinja'])
+def test_template_assets_choose_input_mode_without_blocking_base_weights(monkeypatch, template):
+    from hqsb.models.modelscope_source import ModelScopeSource
+    monkeypatch.setattr('hqsb.models.modelscope_source.native_causal_types', lambda: {'gemma3_text'})
+    entries = [{**entry, 'Type':'blob'} for entry in plan()['files']]
+    if template == 'jinja':
+        entries.append({'Type':'blob','Path':'chat_template.jinja','Size':3,'Sha256':'a'*64,'Revision':'a'*40})
+    source = ModelScopeSource.__new__(ModelScopeSource)
+    class API:
+        def get_model_files(self, *_args, **_kwargs):
+            return entries
+    source.api = API()
+    source.revisions = lambda _: {'branches':['master'],'tags':[]}
+    source.small_json = lambda repo, entry: {'model_type':'gemma3_text', 'torch_dtype':'bfloat16'} if entry['Path'] == 'config.json' else ({'chat_template':'{{messages}}'} if template == 'embedded' else {})
+    result = source.inspect('google/gemma-3-270m','master')
+    assert result['runtime_reasons'] == []
+    assert result['input_mode'] == ('completion' if template == 'missing' else 'chat')
+    assert result['chat_template_available'] is (template != 'missing')
+    assert result['runtime_precision'] == 'bfloat16'
+    if template == 'jinja':
+        assert any(row['Path'] == 'chat_template.jinja' and row['Sha256'] == 'a'*64 for row in result['files'])
+
+
+def test_registration_persists_completion_mode(setup, monkeypatch):
+    hub, service = setup[2], setup[1]
+    original = Source.inspect
+    def raw_plan(self, repo, revision):
+        return {**original(self, repo, revision), 'input_mode':'completion', 'chat_template_available':False, 'runtime_precision':'bfloat16'}
+    monkeypatch.setattr(Source, 'inspect', raw_plan)
+    inspection = hub.inspect('Qwen/Test','master')
+    job = wait(hub, hub.start(inspection['plan_sha256'])['id'])
+    registered = hub.register(job['id'])
+    config = service.configs[registered['deployment_id']]
+    assert config.input_mode == 'completion'
+    assert config.precision == 'bfloat16'
+    assert json.loads((hub.root/'deployments.json').read_text())[config.id]['input_mode'] == 'completion'
+
+
 def test_effective_host_memory_respects_container_limit(tmp_path):
     from hqsb.models.model_admission import effective_host_available
     (tmp_path / "memory.max").write_text(str(8 * GIB))

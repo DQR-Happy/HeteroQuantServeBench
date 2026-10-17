@@ -419,6 +419,8 @@ class ModelHub:
                 raise ServiceError("DEPLOYMENT_LIMIT", "节点最多登记 16 个部署；权重已下载，不受此限制", 409)
             config = DeploymentConfig(id=name, name=item["model_id"].split("/")[1] + " · " + item["revision"],
                 model=item["model_id"], model_path=item["snapshot_path"], manifest=item["manifest_path"],
+                input_mode=item["plan"].get("input_mode", "chat"),
+                precision=item["plan"].get("runtime_precision", "float16"),
                 platform="CUDA / " + self.capacity().get("gpu_name", "当前节点"), attention="sdpa",
                 context_limit=min(2048, item["plan"]["config"].get("max_position_embeddings") or 2048),
                 device_lock_path=next((cfg.device_lock_path for cfg in self.service.configs.values() if cfg.provider == "pytorch" and cfg.device_lock_path), str(Path.home() / ".cache/hqsb/device0.lock")))

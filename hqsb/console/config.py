@@ -23,6 +23,7 @@ class DeploymentConfig(BaseModel):
     precision: str = "float16"
     kernel: str = "framework-native"
     kernel_profile: str = "framework-native"
+    input_mode: Literal["chat", "completion"] = "chat"
     kernel_manifest: str | None = None
     context_limit: int = Field(2048, ge=32, le=131072)
     max_output_tokens: int = Field(512, ge=1, le=4096)
@@ -40,13 +41,17 @@ class DeploymentConfig(BaseModel):
         if self.provider != "pytorch" and self.kernel_profile != "framework-native":
             raise ValueError("kernel profiles require a local PyTorch worker")
         if self.provider == "pytorch" and (
-            self.precision != "float16" or self.kernel != "framework-native"
+            self.precision not in {"float16", "bfloat16"} or self.kernel != "framework-native"
         ):
             raise ValueError(
-                "interactive reference currently supports FP16 framework-native only"
+                "interactive reference supports FP16/BF16 framework-native only"
             )
+        if self.provider == "pytorch" and self.precision == "bfloat16" and self.kernel_profile != "framework-native":
+            raise ValueError("Custom kernel profiles currently require FP16")
         if self.provider == "openai" and not self.base_url:
             raise ValueError("OpenAI provider requires a server-configured base_url")
+        if self.provider == "openai" and self.input_mode != "chat":
+            raise ValueError("External provider currently supports chat input only")
         return self
 
     def public(self) -> dict:

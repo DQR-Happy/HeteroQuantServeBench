@@ -3074,8 +3074,20 @@
             },
             "type": "array",
             "maxItems": 32,
-            "minItems": 1,
             "title": "Messages"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32768,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
           },
           "max_output_tokens": {
             "type": "integer",
@@ -3137,8 +3149,7 @@
         "type": "object",
         "required": [
           "deployment_id",
-          "expected_epoch",
-          "messages"
+          "expected_epoch"
         ],
         "title": "InferenceRequest"
       },

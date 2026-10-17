@@ -17,6 +17,7 @@ LIST_DETAIL_PATHS = (
     "$.metrics.experiment_bundle.artifacts",
     "$.result",
     "$.config.messages",
+    "$.config.prompt",
     "$.config.actual_runtime.parameter_inventory",
     "$.config.actual_runtime.source_environment.source_files",
     "$.metrics.observation",
