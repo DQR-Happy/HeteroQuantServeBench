@@ -185,11 +185,22 @@ export default function Playground() {
   const load = async () => {
     if (deployment)
       try {
+        if (localProvider) {
+          const controller = new AbortController();
+          recovery.current = controller;
+          setLifecycleBusy(true);
+          await applyKernelProfile(deployment, kernelProfile, controller.signal, () => {});
+          return;
+        }
         await api(`/deployments/${deployment.id}/load`, {});
         void client.invalidateQueries({ queryKey: ['deployments'] });
         void message.info('模型正在远端加载与预热，可在运行列表查看进度。');
       } catch (e) {
         void message.error((e as Error).message);
+      } finally {
+        recovery.current = null;
+        setLifecycleBusy(false);
+        void client.invalidateQueries({ queryKey: ['deployments'] });
       }
   };
   return (
@@ -405,11 +416,34 @@ export default function Playground() {
           <Panel
             title="输入"
             subtitle={
-              localProvider
-                ? '使用各模型自带聊天模板；Qwen3 关闭 thinking，其他模型保留模板默认行为'
-                : '聊天模板与 thinking 策略由上游引擎管理'
+              inputMode === 'completion'
+                ? '原始文本续写：输出接在输入文本之后，无需聊天模板'
+                : localProvider
+                  ? '使用各模型自带聊天模板；Qwen3 关闭 thinking，其他模型保留模板默认行为'
+                  : '聊天模板与 thinking 策略由上游引擎管理'
             }
           >
+            {localProvider && deployment && ['failed', 'unloaded'].includes(deployment.state) && (
+              <Alert
+                type={deployment.state === 'failed' ? 'error' : 'info'}
+                showIcon
+                message={
+                  deployment.state === 'failed'
+                    ? '模型需要重新加载，输入与配置已保留'
+                    : '模型尚未加载'
+                }
+                description={deployment.last_error ?? '加载完成后可直接提交当前输入。'}
+                action={
+                  <Button
+                    loading={lifecycleBusy}
+                    disabled={configLocked}
+                    onClick={() => void load()}
+                  >
+                    {deployment.state === 'failed' ? '重新加载模型' : '加载模型'}
+                  </Button>
+                }
+              />
+            )}
             <Input.TextArea
               aria-label="推理输入"
               value={prompt}
