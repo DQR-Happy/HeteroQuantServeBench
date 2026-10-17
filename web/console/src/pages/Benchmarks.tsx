@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Checkbox, InputNumber, Select, Space, Table, Tag } from 'antd';
+import { Alert, Button, Checkbox, Select, Space, Table, Tag } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, date } from '../api/client';
 import type { Deployment } from '../api/types';
 import { PageHead, Panel, QueryState, Status } from '../components';
 import Results from '../features/benchmarks/Results';
+import OutputTokenBudget from '../features/inference/OutputTokenBudget';
 import { applyKernelProfile } from '../features/kernels/lifecycle';
 import { finished } from '../features/benchmarks/types';
 import type {
@@ -37,7 +38,7 @@ export default function Benchmarks() {
   const [candidateDraft, setCandidates] = useState<string[] | null>(null);
   const [caseDraft, setCases] = useState<string[] | null>(null);
   const [repeats, setRepeats] = useState(1);
-  const [budget, setBudget] = useState(64);
+  const [budget, setBudget] = useState<number | null>(64);
   const [diagnostics, setDiagnostics] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const switchController = useRef<AbortController | null>(null);
@@ -83,8 +84,16 @@ export default function Benchmarks() {
   ).filter((item) => item !== baseline);
   const cases = caseDraft ?? catalog.data?.defaults.case_ids ?? [];
   const running = !!catalog.data?.active_id || (!!result.data && !finished(result.data.state));
+  const maximumBudget = Math.min(
+    128,
+    deployment?.max_output_tokens ?? 128,
+    (deployment?.context_limit ?? 129) - 1,
+  );
+  const budgetError =
+    budget == null || !Number.isInteger(budget) || budget < 8 || budget > maximumBudget;
   const launch = async () => {
-    if (!deployment || !cases.length || !candidates.length || running || submitting) return;
+    if (!deployment || !cases.length || !candidates.length || running || submitting || budgetError)
+      return;
     setSubmitting(true);
     setError('');
     const controller = new AbortController();
@@ -225,15 +234,25 @@ export default function Benchmarks() {
               <label className="field-label" htmlFor="benchmark-budget">
                 每次输出预算 / tokens
               </label>
-              <InputNumber
+              <OutputTokenBudget
                 id="benchmark-budget"
-                min={8}
-                max={Math.min(128, deployment?.max_output_tokens ?? 128)}
+                minimum={8}
+                maximum={maximumBudget}
                 value={budget}
-                onChange={(value) => setBudget(value ?? 64)}
+                onChange={setBudget}
+                invalid={budgetError}
+                describedBy="benchmark-budget-help"
                 disabled={locked}
-                className="wide-select"
               />
+              <div
+                id="benchmark-budget-help"
+                className="help-text"
+                role={budgetError ? 'alert' : undefined}
+              >
+                {budgetError
+                  ? `请输入 8–${maximumBudget} 的整数。`
+                  : `快测上限 ${maximumBudget} tokens；最大值按当前评测限制设置。`}
+              </div>
             </div>
             <div>
               <label className="field-label" htmlFor="benchmark-repeats">
@@ -320,7 +339,9 @@ export default function Benchmarks() {
             <Button
               type="primary"
               loading={submitting}
-              disabled={locked || !catalog.data || !cases.length || !candidates.length}
+              disabled={
+                locked || !catalog.data || !cases.length || !candidates.length || budgetError
+              }
               onClick={() => void launch()}
             >
               开始固定输入对照
