@@ -89,9 +89,10 @@ class BenchmarkCampaigns:
                       and row["availability"]["loadable"]]
         if not candidates:
             candidates = ["native-preserve-allocator"]
-        return {**suite(), "schemes": schemes, "native_artifact": profiles["native_artifact"],
+        fixed_suite = suite(config.input_mode)
+        return {**fixed_suite, "input_mode": config.input_mode, "schemes": schemes, "native_artifact": profiles["native_artifact"],
                 "defaults": {"baseline_id": "framework-native", "candidate_ids": candidates,
-                             "case_ids": [case["id"] for case in suite()["cases"]], "repeats": 1, "output_tokens": 64, "diagnostics": False},
+                             "case_ids": [case["id"] for case in fixed_suite["cases"]], "repeats": 1, "output_tokens": 64, "diagnostics": False},
                 "active_id": self.active_id}
 
     def _save(self, document):
@@ -138,7 +139,7 @@ class BenchmarkCampaigns:
                 initial = next(row for row in self.service.deployments() if row["id"] == config.id)
                 if initial["state"] not in {"ready", "unloaded", "failed"}:
                     raise ServiceError("DEPLOYMENT_BUSY", "模型生命周期任务尚未完成。")
-                plan = {**request, "suite_version": catalog["version"], "suite_sha256": catalog["suite_sha256"],
+                plan = {**request, "input_mode": config.input_mode, "suite_version": catalog["version"], "suite_sha256": catalog["suite_sha256"],
                         "cases": [case_map[name] for name in request["case_ids"]], "schemes": [scheme_map[name] for name in selected],
                         "warmups_per_case": 1, "native_artifact": catalog["native_artifact"], "deployment": config.public()}
                 document = {"id": identity, "state": "running", "phase": "starting", "created_at": time.time(),
@@ -223,7 +224,8 @@ class BenchmarkCampaigns:
                     for role, repeat in roles:
                         self._check()
                         state = self._state(document)
-                        payload = {"expected_epoch": state["epoch"], "messages": case["messages"],
+                        payload = {"expected_epoch": state["epoch"],
+                                   **({"prompt": case["prompt"]} if plan.get("input_mode") == "completion" else {"messages": case["messages"]}),
                                    "max_output_tokens": plan["output_tokens"], "deadline_ms": self.settings.request_deadline_ms,
                                    "save_input": True, "observation_mode": "memory" if role == "diagnostic" else "off",
                                    "optimization": {"changes": {"kernel_profile": scheme["kernel_profile"], "cleanup_policy": scheme["cleanup_policy"]}},

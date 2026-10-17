@@ -26,11 +26,14 @@ CASES = [
 ]
 
 
-def suite():
+def suite(input_mode="chat"):
     cases = [{**case, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": case["prompt"]}]} for case in CASES]
+    if input_mode == "completion":
+        for case in cases:
+            case.update(messages=[], input_mode="completion")
     for case in cases:
-        case["input_sha256"] = fingerprint(case["messages"])
-    return {"version": VERSION, "cases": cases, "suite_sha256": fingerprint(cases),
+        case["input_sha256"] = fingerprint({"input_mode": "completion", "prompt": case["prompt"]}) if input_mode == "completion" else fingerprint(case["messages"])
+    return {"version": VERSION + "-completion-v1" if input_mode == "completion" else VERSION, "cases": cases, "suite_sha256": fingerprint(cases),
             "quality_scope": "fixed_tasks_only_not_general_model_accuracy"}
 
 
