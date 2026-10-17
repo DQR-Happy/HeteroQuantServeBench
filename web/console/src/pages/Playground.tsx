@@ -479,6 +479,18 @@ export default function Playground() {
             value={run.data?.metrics.output_tokens}
             hint="以引擎记账为准，非网络分片数"
           />
+          <Stat
+            label="生成速度"
+            value={run.data?.metrics.output_tokens_per_s}
+            unit="Token/s"
+            hint="输出 Token 数 ÷ 生成循环时间，含首 Token 等待；完成后给出"
+          />
+          <Stat
+            label="Decode 速度"
+            value={run.data?.metrics.decode_tail_tokens_per_s}
+            unit="Token/s"
+            hint="首 Token 之后的生成速度；少于 2 个 Token 时无定义"
+          />
           <div className="info-note">
             <strong>指标有边界</strong>
             <p>浏览器、服务和模型的计时不同。此处是交互诊断，不能替代正式性能基准。</p>

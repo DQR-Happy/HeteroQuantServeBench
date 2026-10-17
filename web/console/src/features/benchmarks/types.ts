@@ -31,6 +31,7 @@ export type BenchmarkCatalogue = {
   };
 };
 export type Measurement = {
+  metrics?: Record<string, number | null>;
   receipt: { status: string | null; effective: { kernel_profile?: string } | null };
   run_id: string;
   scheme_id: string;

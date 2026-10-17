@@ -90,6 +90,10 @@ export function RunDetail() {
               <Stat label="服务端首内容" value={r.metrics.console_first_content_ms} unit="ms" />
               <Stat label="Runtime 首 token" value={r.metrics.runtime_first_token_ms} unit="ms" />
               <Stat label="请求总时间" value={r.metrics.console_e2e_ms} unit="ms" />
+              <Stat label="生成速度" value={r.metrics.output_tokens_per_s} unit="Token/s"
+                hint="输出 Token 数 ÷ 生成循环时间，含首 Token 等待" />
+              <Stat label="Decode 速度" value={r.metrics.decode_tail_tokens_per_s} unit="Token/s"
+                hint="首 Token 之后；少于 2 个 Token 时无定义" />
               <Stat
                 label="峰值分配内存"
                 value={gib(r.metrics.memory?.peak_allocated_bytes)}

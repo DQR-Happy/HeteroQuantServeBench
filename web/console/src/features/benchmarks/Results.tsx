@@ -3,6 +3,7 @@ import { Alert, Descriptions, Select, Space, Table, Tabs, Tag } from 'antd';
 import { Link } from 'react-router-dom';
 import { base, fmt, gib } from '../../api/client';
 import type { Benchmark, ResultRow } from './types';
+import { generationRate } from './throughput';
 
 const percent = (value: number | null) => (value == null ? '—' : `${fmt(value * 100, 1)}%`);
 const reasons: Record<string, string> = {
@@ -67,7 +68,7 @@ export default function Results({ benchmark }: { benchmark: Benchmark }) {
         size="small"
         rowKey="scheme_id"
         pagination={false}
-        scroll={{ x: 1250 }}
+        scroll={{ x: 1450 }}
         dataSource={rows}
         columns={[
           {
@@ -79,6 +80,22 @@ export default function Results({ benchmark }: { benchmark: Benchmark }) {
               </>
             ),
           },
+          {
+            title: '生成速度 / Token/s',
+            render: (_, row) => {
+              const rate = generationRate(row, benchmark.records);
+              return (
+                <span>
+                  {fmt(rate.value, 2)}
+                  {rate.derived && <small className="help-text"> · 按样本计算</small>}
+                </span>
+              );
+            },
+          },
+          {
+            title: 'Decode / Token/s',
+            render: (_, row) => fmt(row.metrics.decode_tail_tokens_per_s, 2),
+          },
           { title: '测量数', render: (_, row) => `${row.completed} / ${row.expected}` },
           { title: '任务正确率', dataIndex: 'task_accuracy', render: percent },
           { title: 'Token 一致率', dataIndex: 'token_agreement', render: percent },
@@ -87,10 +104,6 @@ export default function Results({ benchmark }: { benchmark: Benchmark }) {
             render: (_, row) => fmt(row.metrics.runtime_first_token_ms, 2),
           },
           { title: '生成 E2E / ms', render: (_, row) => fmt(row.metrics.runtime_e2e_ms, 2) },
-          {
-            title: 'Decode / token·s⁻¹',
-            render: (_, row) => fmt(row.metrics.decode_tail_tokens_per_s, 2),
-          },
           {
             title: '输入 / 输出 Token',
             render: (_, row) =>
@@ -119,7 +132,10 @@ export default function Results({ benchmark }: { benchmark: Benchmark }) {
       />
       <p className="help-text">
         各指标为本用例测量样本的中位数；预热、加载、恢复和机制诊断均不计入。E2E 相对值为候选 / 基线
-        − 1，负值表示生成循环更短；输出数量变化时不计算该比例。
+        − 1，负值表示生成循环更短；输出数量变化时不计算该比例。 生成速度 = 输出 Token 数 ÷
+        生成循环秒数（含首 Token 等待）；Decode 只统计首 Token 之后的速度，少于 2 个 Token 时显示
+        —。 历史报告缺少生成速度时，按每条测量样本的 Token
+        数和耗时计算后取中位数，标注“按样本计算”，不改写历史报告。
       </p>
       <Space wrap className="section-gap">
         <h3>同一输入的输出对照</h3>
