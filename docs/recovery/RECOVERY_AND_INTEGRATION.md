@@ -9,9 +9,9 @@ points at the current GitHub `main` commit:
 - branch: `recovery/unified`
 - base/HEAD: `a3c73552f43c613857dd1d5df282aad1505cec06`
 - Mac primary working tree:
-  `/Users/dengqirui/Documents/HeteroQuantServeBench`
+  `<mac-workspace>/HeteroQuantServeBench`
 - local review tree:
-  `/Users/dengqirui/Documents/HQSB-recovery-20260919T182513Z/integration`
+  `<recovery-backup-root>/integration`
 - Jetson review/run tree:
   `/home/jetson/work/HeteroQuantServeBench`
 
@@ -44,7 +44,7 @@ deleting either source snapshot.
 ## Recoverable backups
 
 Backup root:
-`/Users/dengqirui/Documents/HQSB-recovery-20260919T182513Z`
+`<recovery-backup-root>`
 
 It contains independent raw repository snapshots, full compressed archives
 including `.git` and ignored files, all-ref Git bundles, working-tree patches,

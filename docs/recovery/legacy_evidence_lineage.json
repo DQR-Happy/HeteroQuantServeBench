@@ -23,13 +23,13 @@
     "mac": {
       "head": "f08e1d8019682993a1948a0a7b9a66df94c255d7",
       "dirty": true,
-      "archive": "/Users/dengqirui/Documents/HQSB-recovery-20260919T182513Z/mac-original-full.tar.gz",
+      "archive": "<recovery-backup-root>/mac-original-full.tar.gz",
       "archive_sha256": "ac009a5c2a45a0faaaf8cda894e038f909b227ef92e2263fccb0e98f6482f38d"
     },
     "jetson": {
       "head": "526e86b6aa63376dd85d19bf495b8661e83d084a",
       "dirty": true,
-      "archive": "/Users/dengqirui/Documents/HQSB-recovery-20260919T182513Z/jetson-original-full.tar.gz",
+      "archive": "<recovery-backup-root>/jetson-original-full.tar.gz",
       "archive_sha256": "00cfb005d06957589f30dbc5acd9cc02cfd54eb29d50f9133263d752ba7e202d"
     }
   },

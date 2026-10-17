@@ -138,7 +138,7 @@ CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存�
 2026-10-16 的 Jetson 测试服务位于独立 checkout `/home/jetson/work/HQSB-benchmark-ui-20261016`，监听 `127.0.0.1:8768`，沿用 `/home/jetson/work/HQSB-g01-g08-20261014/.console/connected/` 的运行和实验数据；原 8767 实例保留。当前默认开发服务已迁至 3090；如需查看 Jetson 原服务，可使用独立转发入口：
 
 ```bash
-ssh -N -L 127.0.0.1:8890:127.0.0.1:8768 jetson@192.168.10.7
+ssh -N -L 127.0.0.1:8890:127.0.0.1:8768 <jetson-user>@<jetson-lan-ip>
 # 浏览器打开 http://127.0.0.1:8890/benchmarks
 # 测试模式直接进入，无需 API Key 或访问令牌。
 ```

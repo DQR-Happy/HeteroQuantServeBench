@@ -24,18 +24,22 @@ deployments:
     context_limit: 8192
     max_output_tokens: 4096
 machines:
+  # 本文件随公开仓库发布，只保留占位符。真实主机、SSH 端口和私钥路径写在
+  # 控制端 SSH config 与运行期 `.console/machines.json`（均已忽略、不入库）。
+  # 这些条目只在首次创建 registry 时作为种子；已有 registry 以持久化文件为准。
   - id: jetson-http
     name: Jetson · HTTP（经 Mac 隧道）
     transport: http
     base_url: http://127.0.0.1:18878
   - id: 4090d-ssh
-    name: 4090D · SSH
+    name: 4090D · SSH（占位示例）
     transport: ssh
-    ssh_host: connect.westb.seetacloud.com
-    ssh_user: root
-    ssh_port: 44116
+    ssh_host: ssh-node.example.internal
+    ssh_user: deploy
+    ssh_port: 22
     remote_port: 8768
-    identity_file: /root/.ssh/hqsb_nodes
+    identity_file: ~/.ssh/<identity-file>
 privileged_worker: false
+# 仅本机回环的测试实例。对任何可达网络暴露前必须改为 true 并配置令牌。
 auth_required: false
 request_deadline_ms: 120000

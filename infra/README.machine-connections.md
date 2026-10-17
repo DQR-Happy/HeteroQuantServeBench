@@ -47,16 +47,19 @@
 
 ```bash
 # 3090 主入口；目标端服务须已在 8768 启动。
-ssh -F /dev/null -i ~/.ssh/id_rsa -p 10011 -f -N \
+# <ssh-host> / <ssh-port> / <ssh-user> / <identity-file> 由本机 SSH config 提供，不写入仓库。
+ssh -F /dev/null -i <identity-file> -p <ssh-port> -f -N \
   -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
   -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-  -L 127.0.0.1:8878:127.0.0.1:8768 root@connect.nmb2.seetacloud.com
+  -L 127.0.0.1:8878:127.0.0.1:8768 <ssh-user>@<ssh-host>
 
 # 可选：保留 Jetson 原服务，并让 3090 控制端通过 HTTP 访问它。
 ssh -f -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:8890:127.0.0.1:8768 jetson@192.168.10.7
-ssh -F /dev/null -i ~/.ssh/id_rsa -p 10011 -f -N \
+  -L 127.0.0.1:8890:127.0.0.1:8768 <jetson-user>@<jetson-lan-ip>
+ssh -F /dev/null -i <identity-file> -p <ssh-port> -f -N \
   -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
   -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-  -R 127.0.0.1:18878:127.0.0.1:8890 root@connect.nmb2.seetacloud.com
+  -R 127.0.0.1:18878:127.0.0.1:8890 <ssh-user>@<ssh-host>
 ```
+
+真实端点只存在于本机 SSH config 与运行期 `.console/machines.json`；请勿把实际地址、端口或私钥路径写回仓库文档。
