@@ -136,3 +136,32 @@ def test_route_is_read_only_and_does_not_load_a_worker(tmp_path):
         assert response.json()['runtime']['state'] == 'unloaded'
         assert client.get(PREFIX+'/runs').json()['items'] == []
         assert client.get(PREFIX+'/deployments/missing/architecture').status_code == 404
+        response=client.post(PREFIX+'/requests',headers={'X-HQSB-Client':'console','Idempotency-Key':'capture-limit'},
+            json={'deployment_id':'model','expected_epoch':'none','messages':[{'role':'user','content':'Hello'}],
+                'max_output_tokens':2,'capture_architecture':True,'optimization':{'changes':{'output_budget':16}}})
+        assert response.status_code==422 and 'ARCHITECTURE_CAPTURE_OUTPUT_LIMIT' in response.text
+
+
+def test_execution_route_checks_owner_publication_and_integrity(tmp_path):
+    from hqsb.experiments.artifacts import seal
+    artifact(tmp_path)
+    app = create_app(Settings(data_dir=tmp_path/'state', evidence_root=tmp_path, web_dist=tmp_path/'dist',
+        deployments=[DeploymentConfig(id='model',name='test',model_path=str(tmp_path))]), monitor=False)
+    with TestClient(app) as client:
+        store=app.state.service.store
+        run,_=store.create('generate',{'deployment':{'id':'model'},'epoch':'epoch'},'capture','digest')
+        endpoint=PREFIX+f'/deployments/model/architecture/execution/{run["id"]}'
+        assert client.get(endpoint).status_code==409  # Not terminal/public yet.
+        store.update(run['id'],{'state':'completed','metrics':{'architecture_capture':{'status':'captured'}}})
+        directory=tmp_path/'state'/'captures'/run['id']
+        directory.mkdir(parents=True)
+        document={'run_id':run['id'],'nodes':[],'edges':[]}
+        (directory/'architecture-capture.json').write_text(json.dumps(document))
+        (directory/'execution-receipt.json').write_text(json.dumps({'run_id':run['id']}))
+        assert client.get(endpoint).status_code==409  # Worker file alone is not evidence.
+        seal(directory,run_id=run['id'])
+        assert client.get(endpoint).json()['publication']=='supervisor_acknowledged'
+        assert client.get(endpoint.replace('/model/','/other/')).status_code==409
+        (directory/'architecture-capture.json').write_text('{}')
+        response=client.get(endpoint)
+        assert response.status_code==409 and 'INTEGRITY' in response.text

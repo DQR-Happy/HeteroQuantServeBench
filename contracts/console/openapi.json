@@ -2334,6 +2334,55 @@
         }
       }
     },
+    "/api/console/v1/deployments/{deployment_id}/architecture/execution/{run_id}": {
+      "get": {
+        "tags": [
+          "model-architecture"
+        ],
+        "summary": "Execution",
+        "operationId": "execution_api_console_v1_deployments__deployment_id__architecture_execution__run_id__get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/optimization-catalog": {
       "get": {
         "tags": [
@@ -3142,6 +3191,11 @@
           "save_input": {
             "type": "boolean",
             "title": "Save Input",
+            "default": false
+          },
+          "capture_architecture": {
+            "type": "boolean",
+            "title": "Capture Architecture",
             "default": false
           },
           "observation_mode": {

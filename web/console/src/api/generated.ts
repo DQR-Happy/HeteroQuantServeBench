@@ -992,6 +992,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/deployments/{deployment_id}/architecture/execution/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Execution */
+        get: operations["execution_api_console_v1_deployments__deployment_id__architecture_execution__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/console/v1/optimization-catalog": {
         parameters: {
             query?: never;
@@ -1298,6 +1315,11 @@ export interface components {
              * @default false
              */
             save_input: boolean;
+            /**
+             * Capture Architecture
+             * @default false
+             */
+            capture_architecture: boolean;
             /**
              * Observation Mode
              * @default basic
@@ -3208,6 +3230,38 @@ export interface operations {
             header?: never;
             path: {
                 deployment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execution_api_console_v1_deployments__deployment_id__architecture_execution__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deployment_id: string;
+                run_id: string;
             };
             cookie?: never;
         };

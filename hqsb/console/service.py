@@ -87,7 +87,7 @@ class ConsoleService:
                 row["detail"] = {
                     key: value
                     for key, value in state["detail"].items()
-                    if key != "parameter_inventory"
+                    if key not in {"parameter_inventory", "module_inventory"}
                 }
                 rows.append(row)
             return json.loads(json.dumps(rows))
@@ -123,7 +123,7 @@ class ConsoleService:
         mode = payload.get("observation_mode", "basic")
         if mode not in {"off", "basic", "operators", "memory", "pages"}:
             raise ServiceError("INVALID_OBSERVATION", "Unknown observation mode", 422)
-        if kind == "quantize" or payload.get("experiment_role") == "quality" or mode in {"operators", "memory", "pages"} or (mode == "basic" and cfg.provider == "pytorch"):
+        if kind == "quantize" or payload.get("capture_architecture") or payload.get("experiment_role") == "quality" or mode in {"operators", "memory", "pages"} or (mode == "basic" and cfg.provider == "pytorch"):
             if cfg.provider != "pytorch":
                 raise ServiceError(
                     "UNSUPPORTED_PROVIDER",
@@ -259,6 +259,8 @@ class ConsoleService:
             self._reserve()
             state, cfg = self.states[deployment_id], self.configs[deployment_id]
             if kind == "generate":
+                if payload.get("capture_architecture") and (cfg.provider != "pytorch" or payload["max_output_tokens"] > 4 or payload.get("experiment_role")):
+                    raise ServiceError("ARCHITECTURE_CAPTURE", "运行架构采集需要本地模型，输出预算最多 4 tokens，且单独作为诊断任务执行。", 422)
                 completion = payload.get("prompt") is not None
                 if completion:
                     if cfg.provider != "pytorch" or payload.get("messages") or not isinstance(payload["prompt"], str) or not payload["prompt"].strip() or len(payload["prompt"]) > 32768:
@@ -281,6 +283,8 @@ class ConsoleService:
                         if resolved["resolved"]["output_budget"] > 32:
                             raise ValueError("QUALITY_GENERATION_LIMIT")
                     payload = {**payload, "max_output_tokens": resolved["resolved"]["output_budget"]}
+                    if payload.get("capture_architecture") and payload["max_output_tokens"] > 4:
+                        raise ValueError("ARCHITECTURE_CAPTURE_OUTPUT_LIMIT")
                 except (ValueError, KeyError) as exc:
                     raise ServiceError("INVALID_EXPERIMENT_PLAN", str(exc), 422) from exc
             if kind in {"generate", "quantize"}:
@@ -401,7 +405,7 @@ class ConsoleService:
                         {
                             key: value
                             for key, value in state["detail"].items()
-                            if key not in {"observation", "parameter_inventory"}
+                            if key not in {"observation", "parameter_inventory", "module_inventory"}
                         }
                     )
                 )
@@ -530,7 +534,7 @@ class ConsoleService:
                 directory = safe_directory(self.settings.data_dir / "artifacts", run_id)
                 directory.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 worker_payload.update(artifact_dir=str(directory), artifact_id=run_id)
-            elif kind == "generate" and self.configs[deployment_id].provider == "pytorch" and (payload.get("observation_mode", "basic") != "off" or payload.get("optimization") is not None or payload.get("experiment_role") is not None):
+            elif kind == "generate" and self.configs[deployment_id].provider == "pytorch" and (payload.get("capture_architecture") or payload.get("observation_mode", "basic") != "off" or payload.get("optimization") is not None or payload.get("experiment_role") is not None):
                 directory = safe_directory(self.settings.data_dir / "captures", run_id)
                 directory.mkdir(parents=True, exist_ok=False, mode=0o700)
                 worker_payload.update(capture_dir=str(directory), capture_id=run_id)

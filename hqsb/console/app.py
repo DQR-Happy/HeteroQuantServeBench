@@ -47,6 +47,7 @@ class InferenceRequest(BaseModel):
     max_output_tokens: int = Field(128, ge=1, le=4096)
     deadline_ms: int = Field(120000, ge=1000, le=600000)
     save_input: bool = False
+    capture_architecture: bool = False
     observation_mode: Literal["off", "basic", "operators", "memory", "pages"] = "basic"
     optimization: dict | None = None
     observation_plan: dict | None = None
@@ -379,7 +380,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         return svc.submit(
             "generate",
             body.deployment_id,
-            body.model_dump(exclude={"deployment_id"}, exclude_none=True),
+            body.model_dump(exclude={"deployment_id"} if body.capture_architecture else {"deployment_id", "capture_architecture"}, exclude_none=True),
             idempotency_key,
         )
 
