@@ -52,7 +52,8 @@ case "${TARGET}" in
     ;;
   jetson)
     JETSON_USER="${JETSON_USER:-jetson}"
-    JETSON_HOST="${JETSON_HOST:-192.168.10.7}"
+    # 主机地址不入库，由调用方显式提供。
+    JETSON_HOST="${JETSON_HOST:?请先设置 JETSON_HOST（目标机地址不入库）}"
     DEFAULT_HOST="${JETSON_USER}@${JETSON_HOST}"
     DEFAULT_DIR="/home/jetson/work/HeteroQuantServeBench"
     ;;
