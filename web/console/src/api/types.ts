@@ -15,6 +15,7 @@ export type Deployment = {
   precision: string;
   kernel: string;
   kernel_profile?: string;
+  input_mode?: 'chat' | 'completion';
   state: string;
   epoch: string | null;
   load_run_id?: string | null;
@@ -31,6 +32,8 @@ export type Deployment = {
   };
 };
 export type Metrics = {
+  input_mode?: 'chat' | 'completion';
+  input_policy?: { mode: string; add_special_tokens: boolean; chat_template_sha256: string | null };
   experiment_bundle?: { status: string; publication: string };
   optimization_receipt?: Receipt;
   quality_evaluation?: { status: string; perplexity?: number; task_accuracy?: number | null };
@@ -81,6 +84,8 @@ export type Run = {
     epoch: string | null;
     input_sha256?: string;
     messages?: Message[];
+    prompt?: string;
+    input_mode?: 'chat' | 'completion';
     max_output_tokens?: number;
     deadline_ms?: number;
     observation_mode?: ObservationMode;

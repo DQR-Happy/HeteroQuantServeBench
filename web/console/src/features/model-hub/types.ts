@@ -42,6 +42,9 @@ export interface Inspection {
   plan: {
     model_id: string;
     revision: string;
+    input_mode?: 'chat' | 'completion';
+    chat_template_available?: boolean;
+    runtime_precision?: 'float16' | 'bfloat16';
     download_bytes: number;
     weight_bytes: number;
     runtime_reasons: string[];

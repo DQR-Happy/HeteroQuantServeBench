@@ -253,6 +253,11 @@ export default function Benchmarks() {
             </div>
           </div>
           <Space wrap className="section-gap">
+            <Tag>
+              {catalog.data?.input_mode === 'completion'
+                ? '原始文本续写用例 · 无聊天模板'
+                : '聊天用例 · 官方模板'}
+            </Tag>
             <Checkbox
               checked={diagnostics}
               disabled={locked}
@@ -277,9 +282,11 @@ export default function Benchmarks() {
               expandedRowRender: (item) => (
                 <>
                   <pre className="benchmark-prompt">
-                    {item.messages
-                      .map((message) => `${message.role}: ${message.content}`)
-                      .join('\n\n')}
+                    {item.input_mode === 'completion'
+                      ? item.prompt
+                      : item.messages
+                          .map((message) => `${message.role}: ${message.content}`)
+                          .join('\n\n')}
                   </pre>
                   <div className="help-text mono">固定输入 SHA-256：{item.input_sha256}</div>
                 </>

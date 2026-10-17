@@ -34,9 +34,16 @@ export default function Results({ benchmark }: { benchmark: Benchmark }) {
         column={{ xs: 1, md: 3 }}
         items={[
           {
+            key: 'input-mode',
+            label: '输入方式',
+            children:
+              benchmark.plan.input_mode === 'completion' ? '原始文本续写' : '聊天 · 官方模板',
+          },
+          {
             key: 'model',
             label: '冻结模型',
-            children: benchmark.plan.deployment?.name ?? benchmark.plan.deployment_id ?? '历史计划未记录',
+            children:
+              benchmark.plan.deployment?.name ?? benchmark.plan.deployment_id ?? '历史计划未记录',
           },
           {
             key: 'runtime',

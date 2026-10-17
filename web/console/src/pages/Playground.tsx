@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -8,7 +8,6 @@ import {
   Collapse,
   Descriptions,
   Input,
-  InputNumber,
   Select,
   Space,
   Tag,
@@ -22,6 +21,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { Link, useSearchParams } from 'react-router-dom';
+import OutputTokenBudget from '../features/inference/OutputTokenBudget';
 import { api, fmt, gib, terminal } from '../api/client';
 import type { Deployment, InferenceRequest, Run, Session } from '../api/types';
 import { PageHead, Panel, Stat, Status, QueryState } from '../components';
@@ -29,6 +29,7 @@ import { useRun } from '../hooks';
 import ObservationControl from '../features/observability/ObservationControl';
 import type { ObservationMode } from '../features/observability/types';
 import KernelControl from '../features/kernels/KernelControl';
+import { applyKernelProfile } from '../features/kernels/lifecycle';
 import RunEvidence from '../features/experiments/RunEvidence';
 import ModelOutput from '../features/inference/ModelOutput';
 
@@ -56,9 +57,16 @@ export default function Playground() {
   const [observationMode, setObservationMode] = useState<ObservationMode>('basic');
   const [submitted, setSubmitted] = useState<{ id: string; time: number }>();
   const [sending, setSending] = useState(false);
+  const recovery = useRef<AbortController | null>(null);
+  useEffect(() => () => recovery.current?.abort(), []);
   const run = useRun(submitted?.id, submitted?.time);
   const observed = run.data?.metrics.observation;
   const localProvider = deployment?.provider === 'pytorch';
+  const [inputDrafts, setInputDrafts] = useState<Record<string, 'chat' | 'completion'>>({});
+  const inputMode =
+    localProvider && deployment?.input_mode === 'completion'
+      ? 'completion'
+      : ((deployment && inputDrafts[deployment.id]) ?? 'chat');
   const kernelProfile =
     (deployment && kernelDrafts[deployment.id]) ?? deployment?.kernel_profile ?? 'framework-native';
   const kernelPending =
@@ -66,20 +74,66 @@ export default function Playground() {
   const deadlineLimit = client.getQueryData<Session>(['session'])?.limits.max_deadline_ms ?? 120000;
   const active = sending || (!!run.data && !terminal(run.data.state));
   const configLocked = active || lifecycleBusy;
+  const inputKey = JSON.stringify({
+    deployment_id: deployment?.id,
+    expected_epoch: deployment?.epoch,
+    ...(inputMode === 'completion'
+      ? { prompt }
+      : {
+          messages: [
+            ...(system.trim() ? [{ role: 'system', content: system }] : []),
+            { role: 'user', content: prompt },
+          ],
+        }),
+  });
+  const [checkedInput, setCheckedInput] = useState(inputKey);
+  useEffect(() => {
+    const timer = setTimeout(() => setCheckedInput(inputKey), 350);
+    return () => clearTimeout(timer);
+  }, [inputKey]);
+  const budget = useQuery({
+    queryKey: ['input-budget', checkedInput],
+    queryFn: ({ signal }) =>
+      api<{ input_tokens: number; context_limit: number; max_output_tokens: number }>(
+        '/requests/token-budget',
+        { ...JSON.parse(checkedInput), max_output_tokens: 1 },
+        signal,
+      ),
+    enabled: !!(
+      localProvider &&
+      deployment?.state === 'ready' &&
+      prompt.trim() &&
+      inputKey === checkedInput &&
+      !configLocked
+    ),
+    retry: 1,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+  const budgetReady =
+    !localProvider || (inputKey === checkedInput && !!budget.data && !budget.isError);
   const outputLimit = deployment?.max_output_tokens;
+  const maximumBudget = localProvider
+    ? budgetReady
+      ? budget.data?.max_output_tokens
+      : undefined
+    : deployment && Math.min(deployment.max_output_tokens, deployment.context_limit - 1, 4096);
   const outputError =
     tokens == null || !Number.isInteger(tokens) || tokens < 1
       ? '请输入大于等于 1 的整数。'
       : outputLimit != null && tokens > outputLimit
         ? `当前部署最多输出 ${outputLimit} tokens；请修改输出预算，输入值不会自动截断。`
-        : deployment && tokens >= deployment.context_limit
-          ? '输出预算必须小于部署总窗口，为输入和聊天模板留出空间。'
-          : '';
+        : maximumBudget != null && tokens > maximumBudget
+          ? `当前输入占 ${budget.data?.input_tokens ?? '—'} tokens，可用输出额度为 ${maximumBudget} tokens；请降低输出预算或缩短输入。`
+          : deployment && tokens >= deployment.context_limit
+            ? '输出预算必须小于部署总窗口，为输入和聊天模板留出空间。'
+            : '';
   const start = async () => {
     if (
       !deployment?.epoch ||
       !prompt.trim() ||
       outputError ||
+      !budgetReady ||
       tokens == null ||
       configLocked ||
       kernelPending ||
@@ -92,10 +146,14 @@ export default function Playground() {
       const body: InferenceRequest = {
         deployment_id: deployment.id,
         expected_epoch: deployment.epoch,
-        messages: [
-          ...(system.trim() ? [{ role: 'system' as const, content: system }] : []),
-          { role: 'user', content: prompt },
-        ],
+        ...(inputMode === 'completion'
+          ? { prompt }
+          : {
+              messages: [
+                ...(system.trim() ? [{ role: 'system' as const, content: system }] : []),
+                { role: 'user', content: prompt },
+              ],
+            }),
         max_output_tokens: tokens,
         deadline_ms: Math.min(120000, deadlineLimit),
         save_input: save,
@@ -164,6 +222,33 @@ export default function Playground() {
               {deployment?.provider === 'pytorch' ? 'HQSB PyTorch Reference' : 'OpenAI-compatible'}
             </strong>
           </div>
+          {localProvider && deployment && (
+            <>
+              <label className="field-label" htmlFor="input-mode">
+                输入方式
+              </label>
+              <Select
+                id="input-mode"
+                value={inputMode}
+                className="wide-select"
+                disabled={configLocked}
+                onChange={(value) => setInputDrafts((old) => ({ ...old, [deployment.id]: value }))}
+                options={[
+                  {
+                    value: 'chat',
+                    label: '聊天 · 官方模板',
+                    disabled: deployment.input_mode === 'completion',
+                  },
+                  { value: 'completion', label: '原始文本续写' },
+                ]}
+              />
+              <div className="help-text">
+                {inputMode === 'completion'
+                  ? '直接对原文分词并续写，不添加聊天角色或 System prompt；保留 tokenizer 自带的特殊 Token。'
+                  : '使用仓库自带的聊天模板；模板文件随权重校验，不使用其他模型的模板。'}
+              </div>
+            </>
+          )}
           {localProvider && (
             <>
               <label className="field-label" htmlFor="cleanup-policy">
@@ -223,14 +308,13 @@ export default function Playground() {
           <label className="field-label" htmlFor="max-tokens">
             最大输出 token（仅生成部分）
           </label>
-          <InputNumber
+          <OutputTokenBudget
             id="max-tokens"
             value={tokens}
             onChange={setTokens}
-            status={outputError ? 'error' : undefined}
-            aria-describedby="token-budget-help"
-            aria-invalid={!!outputError}
-            style={{ width: '100%' }}
+            maximum={maximumBudget}
+            invalid={!!outputError}
+            describedBy="token-budget-help"
             disabled={configLocked}
           />
           <div
@@ -238,8 +322,22 @@ export default function Playground() {
             className="help-text"
             role={outputError ? 'alert' : undefined}
           >
-            {outputError || `本部署输出范围：1–${outputLimit ?? '—'} tokens。`}
+            {outputError || `当前可用输出范围：1–${maximumBudget ?? '待检查'} tokens。`}
           </div>
+          {localProvider && deployment?.state === 'ready' && (
+            <div className="help-text" aria-live="polite">
+              {budgetReady
+                ? `实际输入：${budget.data?.input_tokens} tokens（含模板与特殊 Token）；总窗口 ${deployment.context_limit} tokens。`
+                : budget.isError
+                  ? `输入额度检查失败：${(budget.error as Error).message}`
+                  : '正在检查实际输入 Token 数…'}
+              {budget.isError && (
+                <Button size="small" disabled={configLocked} onClick={() => void budget.refetch()}>
+                  重试检查
+                </Button>
+              )}
+            </div>
+          )}
           <div className="config-meta">
             <span>采样策略</span>
             <strong>Greedy · temperature 0</strong>
@@ -253,7 +351,10 @@ export default function Playground() {
             )}
           </div>
           <div className="help-text">
-            总窗口包含 System prompt、聊天模板、输入和输出预算；以分词后的 token 数校验，
+            {inputMode === 'completion'
+              ? '总窗口包含原始输入、原生特殊 Token 和输出预算'
+              : '总窗口包含 System prompt、聊天模板、输入和输出预算'}
+            ；以分词后的 token 数校验，
             不按字符计数。部署上限是当前服务配置，不等于模型理论极限；增大窗口仍受显存与截止时间约束。
           </div>
           <ObservationControl
@@ -277,6 +378,7 @@ export default function Playground() {
                     <label className="field-label">System prompt</label>
                     <Input.TextArea
                       aria-label="System prompt"
+                      disabled={inputMode === 'completion'}
                       rows={4}
                       value={system}
                       onChange={(e) => setSystem(e.target.value)}
@@ -335,7 +437,8 @@ export default function Playground() {
                     configLocked ||
                     kernelPending ||
                     !prompt.trim() ||
-                    !!outputError
+                    !!outputError ||
+                    !budgetReady
                   }
                   loading={sending}
                   onClick={() => void start()}
@@ -416,6 +519,11 @@ export default function Playground() {
                 size="small"
                 column={{ xs: 1, md: 2 }}
                 items={[
+                  {
+                    key: 'input-mode',
+                    label: '实际输入方式',
+                    children: run.data.metrics.input_mode ?? run.data.config.input_mode ?? 'chat',
+                  },
                   { key: 'mode', label: '观测模式', children: observed?.mode ?? '尚无详细观测' },
                   { key: 'phases', label: '阶段记录', children: observed?.phases.length ?? '—' },
                   {

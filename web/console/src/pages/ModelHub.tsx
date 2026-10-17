@@ -130,6 +130,27 @@ function VersionDrawer({ modelId, onClose }: { modelId: string; onClose: () => v
             items={[
               { key: 'type', label: '模型架构', children: inspection.plan.config.model_type },
               {
+                key: 'precision',
+                label: '加载精度',
+                children: inspection.plan.runtime_precision ?? 'float16',
+              },
+              {
+                key: 'input',
+                label: '默认输入方式',
+                children:
+                  inspection.plan.input_mode === 'completion'
+                    ? '原始文本续写 · 不需要聊天模板'
+                    : '聊天 · 使用仓库自带模板',
+              },
+              {
+                key: 'template',
+                label: '聊天模板',
+                children:
+                  inspection.plan.chat_template_available === false
+                    ? '仓库未提供；可通过原始文本续写推理'
+                    : '随 tokenizer 配置或 .jinja 文件一起下载并校验',
+              },
+              {
                 key: 'download',
                 label: '需下载文件 / 大小',
                 children: `${inspection.plan.files.length} 个 / ${size(inspection.plan.download_bytes)}`,

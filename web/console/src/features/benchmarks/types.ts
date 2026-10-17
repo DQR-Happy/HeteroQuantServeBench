@@ -1,4 +1,5 @@
 export type FixedCase = {
+  input_mode?: 'chat' | 'completion';
   id: string;
   name: string;
   category: string;
@@ -16,6 +17,7 @@ export type Scheme = {
   availability: { loadable: boolean; reason: string | null };
 };
 export type BenchmarkCatalogue = {
+  input_mode?: 'chat' | 'completion';
   version: string;
   suite_sha256: string;
   cases: FixedCase[];
@@ -71,6 +73,7 @@ export type Benchmark = {
   error: string | null;
   restore_error: string | null;
   plan: {
+    input_mode?: 'chat' | 'completion';
     deployment_id?: string;
     deployment?: { name: string; model: string; precision: string; attention: string };
     baseline_id: string;

@@ -1263,7 +1263,9 @@ export interface components {
             /** Expected Epoch */
             expected_epoch: string;
             /** Messages */
-            messages: components["schemas"]["Message"][];
+            messages?: components["schemas"]["Message"][];
+            /** Prompt */
+            prompt?: string | null;
             /**
              * Max Output Tokens
              * @default 128
