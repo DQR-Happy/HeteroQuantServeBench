@@ -848,6 +848,42 @@
         }
       }
     },
+    "/api/console/v1/requests/token-budget": {
+      "post": {
+        "summary": "Token Budget",
+        "operationId": "token_budget_api_console_v1_requests_token_budget_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/requests": {
       "post": {
         "summary": "Inference",

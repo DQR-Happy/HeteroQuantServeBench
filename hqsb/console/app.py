@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hqsb.console.config import Settings
 from hqsb.console import __version__
@@ -42,7 +42,8 @@ class InferenceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     deployment_id: str
     expected_epoch: str
-    messages: list[Message] = Field(min_length=1, max_length=32)
+    messages: list[Message] = Field(default_factory=list, max_length=32)
+    prompt: str | None = Field(None, min_length=1, max_length=32768)
     max_output_tokens: int = Field(128, ge=1, le=4096)
     deadline_ms: int = Field(120000, ge=1000, le=600000)
     save_input: bool = False
@@ -356,6 +357,12 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             raise HTTPException(422, "Kernel selection is only valid on load")
         return svc.submit(action, deployment_id, body.model_dump(exclude_none=True) if body else {}, idempotency_key)
 
+    @app.post(PREFIX + "/requests/token-budget")
+    def token_budget(body: InferenceRequest):
+        if body.prompt is None and not any(m.role == "user" for m in body.messages):
+            raise ServiceError("MISSING_USER_MESSAGE", "At least one user message is required", 422)
+        return svc.token_budget(body.deployment_id, body.model_dump(exclude={"deployment_id"}, exclude_none=True))
+
     @app.post(PREFIX + "/requests", status_code=202, response_model=RunRecord)
     def inference(
         body: InferenceRequest,
@@ -365,14 +372,14 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             raise ServiceError(
                 "DEADLINE_LIMIT", "Requested deadline exceeds server policy", 422
             )
-        if not any(m.role == "user" for m in body.messages):
+        if body.prompt is None and not any(m.role == "user" for m in body.messages):
             raise ServiceError(
                 "MISSING_USER_MESSAGE", "At least one user message is required", 422
             )
         return svc.submit(
             "generate",
             body.deployment_id,
-            body.model_dump(exclude={"deployment_id"}),
+            body.model_dump(exclude={"deployment_id"}, exclude_none=True),
             idempotency_key,
         )
 

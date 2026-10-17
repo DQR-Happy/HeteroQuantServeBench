@@ -180,6 +180,20 @@ class InteractivePyTorch:
             "scope": "worker_allocator",
         }
 
+    def token_budget(self, request: dict, cancel):
+        """CPU-only formatting using the resident tokenizer, serialized by owner."""
+        from hqsb.backends.prompting import prepare_prompt
+        from jinja2.exceptions import TemplateError
+        if self.model is None:
+            raise RuntimeError("Model is not loaded")
+        try:
+            prompt, special = prepare_prompt(self.tokenizer, request, self.model.config.model_type)
+            count = len(self.tokenizer.encode(prompt, add_special_tokens=special))
+        except (ValueError, TemplateError) as exc:
+            return {"request_error": str(exc)[:800]}
+        return {"input_tokens": count, "context_limit": self.config["context_limit"],
+                "max_output_tokens": max(0, min(self.config["max_output_tokens"], 4096, self.config["context_limit"] - count))}
+
     def generate(self, request: dict, cancel):
         if request.get("experiment_role") == "quality":
             from hqsb.backends.quality_evaluation import evaluate
@@ -440,6 +454,11 @@ class InteractivePyTorch:
                     "kv_inventory": cache_inventory(cache),
                 },
             }
+        except ContextLimitExceeded as exc:
+            result = {"kind": "result", "finish_reason": "rejected", "text": "",
+                      "request_error": {"code": "CONTEXT_LIMIT", "message": str(exc)},
+                      "metrics": {**exc.budget, "output_tokens": 0, "input_mode": request.get("input_mode", "chat"),
+                                  "input_token_sha256": input_token_sha256, "observation": observation.data}}
         finally:
             with observation.phase("profiler_finalize"):
                 capture.finish(total_tokens=len(ids))
@@ -463,7 +482,7 @@ class InteractivePyTorch:
                     proof={"generated_tokens": len(ids), "requested_token_limit": limit,
                            "output_tokens": len(ids),
                            "input_token_sha256": input_token_sha256 if result is not None else None,
-                           "runtime_e2e_ms": result["metrics"]["runtime_e2e_ms"] if result is not None else None,
+                           "runtime_e2e_ms": result["metrics"].get("runtime_e2e_ms") if result is not None else None,
                            "cleanup_call": "torch.cuda.empty_cache" if request["cleanup_policy"] == "empty_cache" else "empty_cache_not_called",
                            "after_cleanup_allocator": self.memory()})
                 if result is not None:

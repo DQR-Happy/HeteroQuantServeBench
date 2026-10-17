@@ -17,7 +17,7 @@ import threading
 from pathlib import Path
 
 MAX_MESSAGE_BYTES = 8 * 1024 * 1024
-OPERATIONS = frozenset({"load", "generate", "quantize", "unload"})
+OPERATIONS = frozenset({"load", "generate", "quantize", "unload", "token_budget"})
 COMMANDS = OPERATIONS | {"cancel", "close"}
 RUN_ID = re.compile(r"run_[0-9a-f]{32}\Z")
 
@@ -238,6 +238,8 @@ def serve(provider, source, writer, roots, *, owner=None, disconnected=None):
                     result = provider.load(**({"kernel_profile": selection} if selection is not None else {}))
                 elif kind == "unload":
                     provider.close()
+                elif kind == "token_budget":
+                    result = provider.token_budget(command.get("payload") or {}, cancelled)
                 else:
                     for event in getattr(provider, kind)(
                         command.get("payload") or {}, cancelled

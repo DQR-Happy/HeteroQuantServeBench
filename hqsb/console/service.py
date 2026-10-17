@@ -196,6 +196,46 @@ class ConsoleService:
             if self.benchmark_owner == owner:
                 self.benchmark_owner = None
 
+    def token_budget(self, deployment_id, payload):
+        """Ephemeral preview on the same serial worker; never starts inference."""
+        with self.lock:
+            self._reserve()
+            if self.benchmark_owner or self.pending:
+                raise ServiceError("DEVICE_BUSY", "任务正在执行，请稍后重新检查输入额度。")
+            cfg = self.configs.get(deployment_id)
+            state = self.states.get(deployment_id)
+            if cfg is None or cfg.provider != "pytorch":
+                raise ServiceError("UNSUPPORTED_PROVIDER", "输入额度检查需要本地模型。", 422)
+            if state["state"] != "ready" or payload["expected_epoch"] != state["epoch"]:
+                raise ServiceError("STALE_EPOCH", "模型尚未就绪或已变化，请刷新后重新检查。")
+            request = {**payload, "input_mode": "completion" if payload.get("prompt") is not None else "chat"}
+            if cfg.input_mode == "completion" and request["input_mode"] != "completion":
+                raise ServiceError("INPUT_MODE", "该模型需要原始文本续写。", 422)
+            self.pending += 1
+            def preview():
+                actor = self.actors[deployment_id]
+                try:
+                    result = actor.execute("token_budget", request, lambda _: None, lambda: self.closed, 15)
+                    if result.get("worker_terminated"):
+                        raise RuntimeError("输入额度检查 worker 已终止")
+                    return result
+                except Exception:
+                    try:
+                        actor.close()
+                    finally:
+                        with self.lock:
+                            state.update(state="failed", epoch=None, detail={}, load_run_id=None,
+                                         last_error="输入额度检查失败，请重新加载模型。")
+                    raise
+                finally:
+                    with self.lock:
+                        self.pending -= 1
+            future = self.executors[deployment_id].submit(preview)
+        result = future.result()
+        if result.get("request_error"):
+            raise ServiceError("INVALID_INPUT", result["request_error"], 422)
+        return result
+
     def submit(self, kind, deployment_id, payload, key, *, benchmark_owner=None):
         with self.lock:
             if deployment_id not in self.configs:
@@ -506,7 +546,7 @@ class ConsoleService:
                 from hqsb.experiments.artifacts import seal
 
                 result.setdefault("metrics", {})["experiment_bundle"] = seal(
-                    directory, run_id=run_id, status="complete" if result.get("finish_reason") not in {"cancelled", "timed_out"} else "partial")
+                    directory, run_id=run_id, status="complete" if result.get("finish_reason") not in {"cancelled", "timed_out", "rejected"} else "partial")
             if kind == "generate" and result.get("metrics", {}).get("observation_bundle"):
                 from hqsb.observation.storage import publish
 
@@ -576,8 +616,11 @@ class ConsoleService:
                 if kind != "generate"
                 else {"finish_reason": result.get("finish_reason")},
             }
+            if result.get("request_error"):
+                patch.update(state="failed", error=result["request_error"]["message"],
+                             error_code=result["request_error"]["code"])
             self.store.update(
-                run_id, patch, "completed" if not stopped else patch["state"]
+                run_id, patch, "error" if result.get("request_error") else "completed" if not stopped else patch["state"]
             )
         except Exception as exc:
             cleanup = "worker_terminated"
