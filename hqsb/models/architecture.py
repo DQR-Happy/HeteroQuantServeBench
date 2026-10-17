@@ -71,7 +71,7 @@ def inspect_architecture(model_path):
     if type(count) is not int or not 1 <= count <= 1024:
         count = 0
         issues.append("层数缺失或超过视图预算")
-    if model_type in {"qwen2", "qwen3", "gemma3_text"} and count:
+    if model_type in {"llama", "qwen2", "qwen3", "gemma3_text"} and count:
         hidden = config.get("hidden_size")
         heads, kv_heads = config.get("num_attention_heads"), config.get("num_key_value_heads")
         dim = config.get("head_dim") or (hidden // heads if type(hidden) is int and type(heads) is int and heads > 0 else None)

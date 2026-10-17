@@ -4,6 +4,7 @@ import hashlib
 
 # Whole implementation files inspected on the target, not merely model names.
 IMPLEMENTATIONS = {
+    "llama": ("llama", "46d313ec0f1116bcc1bb7f2379467ab249c140415c64fb758e2d5915cd8b89a5"),
     "qwen2": ("qwen2", "99fa98c5676604cf6ef505892b70fda5c1c4cd835971459f38d61090cccab1e4"),
     "qwen3": ("qwen3", "fbdcfeeb1b54135ca67ba7df924da92f4b264e1252b517eea2de989289ebaeab"),
     "gemma3_text": ("gemma3", "5c3dab4bdd834084649c0cdbc0d03aa4090ddf5471649c3ee6b72b7feca2d6eb"),
