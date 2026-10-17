@@ -95,6 +95,11 @@ AGENTS.md
 # S05 experiment run directories (raw execution data; local / archive separately)
 /experiment_results/
 
+# Docs: the published tree is limited to the documentation already tracked here.
+# The internal audit / manual / working-architecture set (including validation
+# screenshots and raw run output) stays local and must not be published.
+# Do not link to ignored documents from tracked README files; assume any new
+# file under docs/ is private until it is explicitly added.
 /docs
 
 # Private console state and frontend generated files

@@ -5,10 +5,7 @@ HQSB 是面向 NVIDIA CUDA 与 Ascend/CANN 的推理优化实验项目：从模�
 **当前状态：可运行的 CUDA/模型基线 + 多阶段契约与研究脚手架，尚未完成 S00–S15 全部实验验收。** 后期模块中的 `smoke`、接口解析通过、配置审计通过，均不代表模型级优化或生产部署已验证。S03/S04 的部分原始实验还有 FAIL，S04.5 未闭环，S05-02/03/04 仍为 BLOCKED。
 
 - [项目现状总览](docs/project_status.md)：逐阶段状态、已修复问题、剩余缺口。
-- [使用说明书](docs/manual/使用说明书.md)：环境、入口、数据流、常用操作、扩展方式。
-- [逐文件/API 索引](docs/manual/generated/README.md)：源码、脚本、配置、测试、文档的作用、接口、依赖和调用者。
-- [全仓库审查报告](docs/audit/全项目审查报告_20260920.md)：发现依据、修改边界和测试证据。
-- [独立功能测试报告](docs/audit/全项目功能测试报告_20260920.md)：新增 36 条用例的场景、预期/实际结果，完整回归与真实模型 smoke。
+- 内部工作文档不随公开仓库发布：使用说明书、逐文件/API 索引、全仓库审查报告与独立功能测试报告仅在本地保留。
 - [阶段设计](docs/stages/) / [模块边界](docs/architecture/module_ownership.md)：设计目标与依赖规则。
 
 ## 本项目的执行方式
@@ -62,11 +59,11 @@ flowchart LR
 
 `web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认开发服务运行在 `3090-inf`，可在界面通过 SSH / HTTP 选择其他 HQSB 节点；未验证的量化与自定义算子模型回接不会在页面中假装可用。
 
-Console v0.2 增加阶段与逐 token 观测、有限窗口 CPU/CUDA profiler、trace 查询/下载、内存归因与张量账本、历史 kernel 证据钻取，以及真实 RTN-W4/W8 制品任务。量化制品与在线低比特部署分开，优化导出保留为待验证假设。测试范围见 [v0.2 验收报告](docs/audit/HQSB_Console_v0.2_验收报告_20260921.md)。
+Console v0.2 增加阶段与逐 token 观测、有限窗口 CPU/CUDA profiler、trace 查询/下载、内存归因与张量账本、历史 kernel 证据钻取，以及真实 RTN-W4/W8 制品任务。量化制品与在线低比特部署分开，优化导出保留为待验证假设。测试范围见内部 v0.2 验收报告（未随仓库发布）。
 
-v0.2.1 新增侧栏「内存与数据流」：共享 DRAM 与 allocator 结构、可点击权重矩形图、逐层 KV 图、请求流程与实际 CUDA copy 方向。默认回放已有真实采集，模型卸载后仍可查看绑定加载记录；显式 memcpy 字节不等于全部内存读写。验证见 [可视化验收报告](docs/audit/HQSB_Console_v0.2.1_可视化验收报告_20260921.md)。
+v0.2.1 新增侧栏「内存与数据流」：共享 DRAM 与 allocator 结构、可点击权重矩形图、逐层 KV 图、请求流程与实际 CUDA copy 方向。默认回放已有真实采集，模型卸载后仍可查看绑定加载记录；显式 memcpy 字节不等于全部内存读写。验证见内部可视化验收报告（未随仓库发布）。
 
-启动与开发见 [Console 入口说明](web/console/README.md)，逐页操作与指标口径见 [前端使用说明书](docs/manual/前端使用说明书.md)。Console 使用独立版本的交互计时，不改变既有 C4/C6/C7 基准契约。
+启动与开发见 [Console 入口说明](web/console/README.md)，逐页操作与指标口径见内部前端使用说明书（未随仓库发布）。Console 使用独立版本的交互计时，不改变既有 C4/C6/C7 基准契约。
 
 ## 单机真实模型机制观测
 
@@ -109,7 +106,7 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-observation-20261014
 
 原始 JSONL、SHA-256 和冻结 manifest 存在 `experiment_results/OBS/` 或 Console 私有 `captures/<run_id>/observations/`；高频数据不写入 SQLite 或 SSE。采集失败、工具缺失、权限不足和记录丢失均保留状态。Tegra 的计数器权限使用既有管理员运行方式，不修改系统全局权限。
 
-内存口径不能相加；CPU 页样本不是 GPU 页表；allocator 虚拟地址不是物理地址。Nsight 计数器属于单独诊断运行的选定 kernel。当前机制比较始终保留质量 `not_evaluated` 与采用决策 `hold`，模型优化是否更好还需要质量门和独立性能实验。模块接口、已执行验收和剩余边界见 [实现与验收记录](docs/architecture/HQSB_观测闭环实现与验收_20261014.md)。
+内存口径不能相加；CPU 页样本不是 GPU 页表；allocator 虚拟地址不是物理地址。Nsight 计数器属于单独诊断运行的选定 kernel。当前机制比较始终保留质量 `not_evaluated` 与采用决策 `hold`，模型优化是否更好还需要质量门和独立性能实验。模块接口、已执行验收和剩余边界见内部实现与验收记录（未随仓库发布）。
 
 ## 优化实验：计划、生效凭据与质量对照（G01–G08）
 
@@ -130,7 +127,7 @@ CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存�
 
 `ObservationPlan.sources` 可以组合 allocator/pages/operators；保留旧五种模式默认行为。详细数据走有界文件，SQLite/SSE 只保留任务和摘要。优化凭据与质量原件通过监督者封存、fsync 和 SHA-256 核验后提供认证下载；取消/错误保留 partial。来源缺失不是零，生成上下文分叉后的机制仅作描述。源码补丁、模型身份、dtype/kernel 的比较必须精确预先声明；它们的比较支持不表示对应优化执行器已接入。
 
-接口和边界详见 [G01–G08 实施与验证记录](docs/architecture/HQSB_G01_G08_实施与验证_20261014.md)。
+接口和边界详见内部 G01–G08 实施与验证记录（未随仓库发布）。
 
 ### 前端与 G01–G08 服务联通
 
