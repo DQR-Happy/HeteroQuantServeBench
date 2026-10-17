@@ -141,6 +141,7 @@ class InteractivePyTorch:
 
         self.tokenizer_identity = fingerprint({key: value for key, value in identity.items() if key.startswith("tokenizer") or key == "chat_template.jinja"})
         self.load_inventory = parameter_inventory(self.model)
+        from hqsb.backends.architecture_capture import module_inventory
         return {
             "load_seconds": seconds,
             "parameter_devices": devices,
@@ -163,6 +164,7 @@ class InteractivePyTorch:
             ),
             "observation": observation.data,
             "parameter_inventory": self.load_inventory,
+            "module_inventory": module_inventory(self.model),
             "source_environment": self.source_environment,
             "kernel_plan": self.kernel_session.plan,
             "kernel_bindings": self.kernel_session.binding,
@@ -280,6 +282,10 @@ class InteractivePyTorch:
         execution_status, cleanup_status = "failed", "unknown"
         result = None
         input_token_sha256 = None
+        architecture = None
+        if request.get("capture_architecture"):
+            from hqsb.backends.architecture_capture import ArchitectureCapture
+            architecture = ArchitectureCapture(self.model)
         try:
             with observation.phase("chat_template"):
                 from hqsb.backends.prompting import prepare_prompt
@@ -348,12 +354,13 @@ class InteractivePyTorch:
                         torch.cuda.nvtx.range(f"hqsb.{phase}") if request.get("tool_ranges") else nullcontext(),
                     ):
                         model_start = time.monotonic()
-                        out = self.model(
-                            input_ids=current,
-                            attention_mask=attention,
-                            past_key_values=cache,
-                            use_cache=True,
-                        )
+                        with architecture.forward(phase) if architecture and index < 2 else nullcontext():
+                            out = self.model(
+                                input_ids=current,
+                                attention_mask=attention,
+                                past_key_values=cache,
+                                use_cache=True,
+                            )
                         model_end = time.monotonic()
                         # This existing .item() waits for selection; host timings
                         # intentionally expose the wait instead of calling it GPU time.
@@ -477,7 +484,7 @@ class InteractivePyTorch:
             finally:
                 observation.snapshot("after_cleanup", self.memory)
                 execution_receipt = receipt(self, request, optimization,
-                    role="diagnostic" if mode != "off" else "performance",
+                    role="diagnostic" if mode != "off" or architecture else "performance",
                     output_hash=digest(ids), status=execution_status, cleanup=cleanup_status,
                     proof={"generated_tokens": len(ids), "requested_token_limit": limit,
                            "output_tokens": len(ids),
@@ -502,6 +509,33 @@ class InteractivePyTorch:
                     except (OSError, ValueError, RuntimeError) as exc:
                         capture_errors.append(f"capture_finish:{type(exc).__name__}:{exc}"[:400])
                 observation.data["limitations"].extend(capture_errors)
+                if architecture and request.get("capture_dir"):
+                    import json
+                    from hqsb.backends.architecture_capture import module_inventory
+                    from hqsb.observation.storage import atomic_json, sha256
+                    document = {**architecture.document(), "run_id": request.get("capture_id"),
+                                "epoch": request.get("expected_epoch"), "input_token_sha256": input_token_sha256,
+                                "model_identity": self.source_identity, "tokenizer_identity": self.tokenizer_identity,
+                                "source_digest": self.source_environment["source_digest"],
+                                "modules": module_inventory(self.model), "execution_status": execution_status}
+                    while len(json.dumps(document).encode()) > 3 * 1024**2:
+                        document.update(status="partial", truncated=True)
+                        document["warnings"] = sorted(set(document["warnings"]) | {"ARTIFACT_BYTE_BUDGET"})
+                        if len(document["modules"]["modules"]) > 1:
+                            document["modules"]["modules"] = document["modules"]["modules"][:len(document["modules"]["modules"])//2]
+                            document["modules"]["status"] = "partial"
+                        elif len(document["nodes"]) > 1:
+                            document["nodes"] = document["nodes"][:len(document["nodes"])//2]
+                            kept = {node["id"] for node in document["nodes"]}
+                            document["edges"] = [edge for edge in document["edges"] if edge["source"] in kept and edge["target"] in kept]
+                        else:
+                            raise ValueError("ARCHITECTURE_MINIMUM_ARTIFACT_EXCEEDS_BUDGET")
+                    target = Path(request["capture_dir"]) / "architecture-capture.json"
+                    atomic_json(target, document)
+                    if result is not None:
+                        result["metrics"]["architecture_capture"] = {"status": document["status"], "nodes": len(document["nodes"]),
+                            "edges": len(document["edges"]), "phases": document["phases"], "sha256": sha256(target),
+                            "scope": "diagnostic_executed_forward_paths_not_performance_sample"}
         if result is not None:
             result["metrics"]["worker_request_total_ms"] = (time.monotonic() - start) * 1000
             result["metrics"]["worker_request_cpu_ms"] = (time.process_time() - cpu_start) * 1000
