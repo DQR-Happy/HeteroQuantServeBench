@@ -155,6 +155,7 @@ export default function Playground() {
               ],
             }),
         max_output_tokens: tokens,
+        capture_architecture: false,
         deadline_ms: Math.min(120000, deadlineLimit),
         save_input: save,
         observation_mode: localProvider ? observationMode : 'off',

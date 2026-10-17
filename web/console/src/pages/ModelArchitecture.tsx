@@ -6,10 +6,12 @@ import { api, fmt, gib } from '../api/client';
 import type { Deployment } from '../api/types';
 import { JsonView, PageHead, Panel, QueryState } from '../components';
 import DependencyGraph from '../features/architecture/DependencyGraph';
+import StructureExplorer from '../features/architecture/StructureExplorer';
+import ExecutionExplorer from '../features/architecture/ExecutionExplorer';
 import type { Architecture, ArchitectureNode } from '../features/architecture/types';
 import '../features/architecture/styles.css';
 
-function ArchitectureView({ data }: { data: Architecture }) {
+function ArchitectureView({ data, deployment }: { data: Architecture; deployment?: Deployment }) {
   const [layer, setLayer] = useState(0);
   const [view, setView] = useState('block');
   const [selected, setSelected] = useState<ArchitectureNode>();
@@ -60,6 +62,8 @@ function ArchitectureView({ data }: { data: Architecture }) {
           },
         ]}
       />
+      <StructureExplorer data={data} />
+      <ExecutionExplorer data={data} deployment={deployment} />
       {data.graphs && (
         <div className="architecture-sequence" aria-label="模型总体串行数据流">
           <div className="architecture-stage">
@@ -89,9 +93,15 @@ function ArchitectureView({ data }: { data: Architecture }) {
       {!data.graphs ? (
         <Alert
           showIcon
-          type="warning"
-          message="已读取制品，计算依赖图暂不可确认"
-          description={[data.implementation.reason, ...data.issues].filter(Boolean).join('；')}
+          type="info"
+          message="通用结构已读取；暂无经过核对的模型族语义示意图"
+          description={[
+            '可使用上方通用结构与实际算子采集；模型族识别不限制这些功能。',
+            data.implementation.reason,
+            ...data.issues,
+          ]
+            .filter(Boolean)
+            .join('；')}
         />
       ) : (
         <>
@@ -213,12 +223,22 @@ function ArchitectureView({ data }: { data: Architecture }) {
       </Panel>
       <Panel title="证据与能力边界" subtitle="制品静态结构、安装实现与当前加载状态分别记录">
         <p>
-          结构状态：
+          静态语义示意图状态：
           <Tag>
-            {data.status === 'verified_static' ? '制品关键结构与已核对实现匹配' : '仅制品元数据'}
+            {data.status === 'verified_static'
+              ? '制品关键结构与已核对实现匹配'
+              : '暂无专用示意图；通用结构可用'}
           </Tag>
           实现：Transformers {data.implementation.version ?? '未识别'}
         </p>
+        <p>
+          模型族整理：<Tag>{data.semantic?.family ?? sizes.model_type}</Tag>
+          依据配置声明与模块名称辅助标注；不代表模型执行或 kernel 已通过认证。
+        </p>
+        <details>
+          <summary>已覆盖的模型族与配置声明</summary>
+          <JsonView value={data.semantic} />
+        </details>
         <p>
           当前驻留模型的 config 与本次制品匹配：
           {data.runtime.loaded_config_matches == null
@@ -259,12 +279,17 @@ export default function ModelArchitecture() {
   const deployments = useQuery({
     queryKey: ['deployments'],
     queryFn: () => api<{ items: Deployment[] }>('/deployments'),
+    refetchInterval: 3000,
   });
   const id =
     params.get('deployment') ??
     deployments.data?.items.find((item) => item.provider === 'pytorch')?.id;
   const query = useQuery({
-    queryKey: ['model-architecture', id],
+    queryKey: [
+      'model-architecture',
+      id,
+      deployments.data?.items.find((item) => item.id === id)?.epoch,
+    ],
     queryFn: () => api<Architecture>(`/deployments/${encodeURIComponent(id!)}/architecture`),
     enabled: !!id,
     staleTime: 60000,
@@ -323,8 +348,9 @@ export default function ModelArchitecture() {
       <QueryState loading={query.isPending && !!id} error={query.error ?? deployments.error} />
       {query.data ? (
         <ArchitectureView
-          key={query.data.deployment_id + query.data.snapshot_sha256}
+          key={query.data.deployment_id + query.data.snapshot_sha256 + query.data.runtime.epoch}
           data={query.data}
+          deployment={deployments.data?.items.find((item) => item.id === id)}
         />
       ) : !query.isPending && !query.error ? (
         <Empty description="当前节点尚无可读取的本地模型制品" />

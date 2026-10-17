@@ -28,8 +28,13 @@ test('artifact architecture supports layer selection, graph drilldown and eviden
   await page.getByText('Layer 1 · 全局 Attention', { exact: true }).click();
   await page.getByRole('button', { name: 'Q Linear，self_attn.q_proj', exact: true }).click();
   await expect(page.getByText('model.layers.1.self_attn.q_proj', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '适应宽度', exact: true }).click();
-  await page.locator('.architecture-canvas').scrollIntoViewIfNeeded();
+  await page
+    .locator('[data-architecture-kind="static"]')
+    .getByRole('button', { name: '适应宽度', exact: true })
+    .click();
+  await page
+    .locator('[data-architecture-kind="static"] .architecture-canvas')
+    .scrollIntoViewIfNeeded();
   await page.screenshot({
     path: '../../reports/console/model-architecture/qwen3-attention-desktop.png',
   });
@@ -68,8 +73,13 @@ test('Gemma distinguishes local and global attention and its additional norms', 
   await page.getByText('Layer 5 · 全局 Attention', { exact: true }).click();
   await expect(page.getByText(/本层 full_attention/)).toBeVisible();
   await page.getByRole('tab', { name: 'Decoder Block', exact: true }).click();
-  await page.getByRole('button', { name: '适应宽度', exact: true }).click();
-  await page.locator('.architecture-canvas').scrollIntoViewIfNeeded();
+  await page
+    .locator('[data-architecture-kind="static"]')
+    .getByRole('button', { name: '适应宽度', exact: true })
+    .click();
+  await page
+    .locator('[data-architecture-kind="static"] .architecture-canvas')
+    .scrollIntoViewIfNeeded();
   await page.screenshot({
     path: '../../reports/console/model-architecture/gemma3-block-desktop.png',
   });
@@ -83,4 +93,50 @@ test('architecture remains contained at narrow width', async ({ page }) => {
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2),
   ).toBe(true);
   await page.screenshot({ path: '../../reports/console/model-architecture/mobile.png' });
+});
+
+test('unrecognized family retains generic structure without starting inference', async ({
+  page,
+  request,
+}) => {
+  const deployments = (await (await request.get('/api/console/v1/deployments')).json()).items;
+  const local = deployments.find((row: { provider: string }) => row.provider === 'pytorch');
+  test.skip(!local, 'requires a registered local artifact');
+  const data = await (
+    await request.get(`/api/console/v1/deployments/${local.id}/architecture`)
+  ).json();
+  await page.route(`**/api/console/v1/deployments/${local.id}/architecture`, (route) =>
+    route.fulfill({
+      json: {
+        ...data,
+        status: 'metadata_only',
+        graphs: null,
+        execution: null,
+        config: { ...data.config, model_type: 'unknown_vendor' },
+        semantic: { ...data.semantic, family: 'unknown_vendor', recognized: false },
+        runtime: { ...data.runtime, modules: null, loaded_config_matches: null },
+      },
+    }),
+  );
+  const submitted: string[] = [];
+  page.on('request', (row) => {
+    if (row.method() === 'POST' && row.url().endsWith('/requests')) submitted.push(row.url());
+  });
+  await page.goto(`/model-architecture?deployment=${local.id}`);
+  await expect(
+    page.getByText('通用结构已读取；暂无经过核对的模型族语义示意图', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('tree', { name: '通用模块树', exact: true })).toBeVisible();
+  await page.getByLabel('筛选模块路径', { exact: true }).fill('q_proj');
+  const panel = page
+    .locator('.panel')
+    .filter({ has: page.getByText('通用模块与权重结构', { exact: true }) });
+  await expect(
+    panel.getByRole('row').filter({ hasText: 'model.layers.0.self_attn.q_proj' }),
+  ).toBeVisible();
+  await panel.getByRole('row').filter({ hasText: 'model.layers.0.self_attn.q_proj' }).click();
+  await expect(
+    panel.getByText('model.layers.0.self_attn.q_proj.weight', { exact: true }),
+  ).toBeVisible();
+  expect(submitted).toEqual([]);
 });

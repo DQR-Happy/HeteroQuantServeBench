@@ -22,7 +22,7 @@ export default function DependencyGraph({
   const width = Math.max(...graph.nodes.map((n) => position(n).x)) + W + 30;
   const height = Math.max(...graph.nodes.map((n) => position(n).y)) + H + 40;
   return (
-    <>
+    <div data-architecture-kind={identity === 'observed' ? 'execution' : 'static'}>
       <div className="architecture-graph-tools">
         <Button size="small" onClick={() => setFit((value) => !value)}>
           {fit ? '原始尺寸' : '适应宽度'}
@@ -31,7 +31,7 @@ export default function DependencyGraph({
       <div
         className="architecture-canvas"
         tabIndex={0}
-        aria-label="逻辑计算依赖图，可横向滚动，节点可用 Tab 选择"
+        aria-label={`${identity === 'observed' ? '实际算子' : '逻辑计算'}依赖图，可横向滚动，节点可用 Tab 选择`}
       >
         <svg
           width={fit ? '100%' : width}
@@ -93,19 +93,27 @@ export default function DependencyGraph({
                   {node.label}
                 </text>
                 <text className="architecture-node-caption" x={W / 2} y="47" textAnchor="middle">
-                  {node.kind === 'state'
-                    ? '逻辑状态'
-                    : node.kind === 'residual'
-                      ? '恒等依赖'
-                      : node.module
-                        ? '模型模块'
-                        : '数学操作'}
+                  {identity === 'observed'
+                    ? node.kind === 'parameter'
+                      ? '参数来源'
+                      : node.kind === 'buffer'
+                        ? '缓冲区来源'
+                        : node.kind === 'external_tensor'
+                          ? '边界 Tensor'
+                          : '实际算子'
+                    : node.kind === 'state'
+                      ? '逻辑状态'
+                      : node.kind === 'residual'
+                        ? '恒等依赖'
+                        : node.module
+                          ? '模型模块'
+                          : '数学操作'}
                 </text>
               </g>
             );
           })}
         </svg>
       </div>
-    </>
+    </div>
   );
 }

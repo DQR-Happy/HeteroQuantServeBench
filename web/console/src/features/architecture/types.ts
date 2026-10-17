@@ -12,6 +12,22 @@ export interface ArchitectureGraph {
   edges: { source: string; target: string; kind: string }[];
 }
 export interface Architecture {
+  structure: { status: string; source: string; scope: string; modules: StructureModule[] };
+  semantic: {
+    family: string;
+    recognized: boolean;
+    source: string;
+    scope: string;
+    coverage: { family: string; model_types: string[] }[];
+  };
+  execution: {
+    run_id: string;
+    state: string;
+    status: string;
+    epoch_matches: boolean;
+    nodes: number;
+    edges: number;
+  } | null;
   snapshot_sha256: string;
   observed_at: number;
   deployment_id: string;
@@ -28,6 +44,7 @@ export interface Architecture {
     reason: string | null;
   };
   runtime: {
+    modules?: { source: string; status: string; modules: StructureModule[] } | null;
     state: string;
     epoch: string | null;
     load_run_id: string | null;
@@ -53,4 +70,39 @@ export interface Architecture {
   issues: string[];
   limitations: string[];
   evidence_scope: string;
+}
+
+export interface StructureModule {
+  path: string;
+  parent: string | null;
+  role: string;
+  class?: string;
+  tensor_count?: number;
+  stored_bytes?: number;
+  parameters?: { name: string; shape: number[]; dtype: string; device: string }[];
+  buffers?: { name: string; shape: number[]; dtype: string }[];
+}
+export interface ExecutionArchitecture {
+  run_id: string;
+  epoch: string;
+  status: string;
+  source: string;
+  publication: string;
+  nodes: {
+    id: string;
+    kind: string;
+    op: string | null;
+    module: string;
+    phase: string;
+    names?: string[];
+    outputs: { shape: number[]; dtype: string; device: string }[];
+  }[];
+  edges: { source: string; target: string; kind: string }[];
+  phases: { name: string; completed: boolean; node_start: number; node_end: number }[];
+  modules: { source: string; status: string; modules: StructureModule[] };
+  truncated: boolean;
+  warnings: string[];
+  limitations: string[];
+  source_digest: string;
+  input_token_sha256: string;
 }
