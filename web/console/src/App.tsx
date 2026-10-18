@@ -10,6 +10,7 @@ import WorkbenchShell from './shell/WorkbenchShell';
 const Overview = lazy(() => import('./pages/Overview'));
 const Benchmarks = lazy(() => import('./pages/Benchmarks'));
 const Scheduling = lazy(() => import('./pages/Scheduling'));
+const Precision = lazy(() => import('./pages/Precision'));
 const Observations = lazy(() => import('./pages/Observations'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Devices = lazy(() => import('./pages/Devices'));
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/" element={<Overview />} />
           <Route path="/benchmarks" element={<Benchmarks />} />
           <Route path="/scheduling" element={<Scheduling />} />
+          <Route path="/precision" element={<Precision />} />
           <Route path="/playground" element={<Playground />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/machines" element={<Machines />} />

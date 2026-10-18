@@ -64,6 +64,7 @@ export async function applyKernelProfile(
   profileId: string,
   signal: AbortSignal,
   onProgress: (run: Run) => void,
+  loadOptions?: { precision: string; quantization: Record<string, unknown> },
 ): Promise<Deployment> {
   const checkAbort = () => signal.throwIfAborted();
   const wait = (run: Run) => waitForLifecycleRun(run, signal, onProgress);
@@ -103,7 +104,7 @@ export async function applyKernelProfile(
   const loaded = await wait(
     await api<Run>(
       `/deployments/${deployment.id}/load`,
-      deployment.provider === 'pytorch' ? { kernel_profile: profileId } : {},
+      deployment.provider === 'pytorch' ? { kernel_profile: profileId, ...loadOptions } : {},
       signal,
     ),
   );
@@ -114,7 +115,10 @@ export async function applyKernelProfile(
     actual.epoch === deployment.epoch ||
     actual.load_run_id !== loaded.id ||
     (deployment.provider === 'pytorch' &&
-      (actual.kernel_profile ?? 'framework-native') !== profileId)
+      (actual.kernel_profile ?? 'framework-native') !== profileId) ||
+    (loadOptions &&
+      (actual.precision !== loadOptions.precision ||
+        actual.quantization?.method !== (loadOptions.quantization.method ?? 'none')))
   )
     throw new Error('当前部署与本次加载结果不一致，请重新核对，尚不能确认应用成功。');
   return actual;

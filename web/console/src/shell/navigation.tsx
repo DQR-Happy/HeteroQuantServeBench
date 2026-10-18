@@ -64,6 +64,11 @@ export const navigation = [
     path: '/optimization',
     pages: [
       { path: '/optimization', label: '优化实验', detail: '冻结计划、执行凭据与质量门' },
+      {
+        path: '/precision',
+        label: '表示精度与量化',
+        detail: 'L4 主流方法、在线执行、制品与独立质量评测',
+      },
       { path: '/compare', label: '运行对比', detail: '基线 A 与候选 B 的受控对照' },
       { path: '/quantization', label: '量化与质量', detail: '制品、实际执行路径和质量证据' },
       { path: '/efficiency', label: '性能与能效', detail: '历史性能和能量计量范围' },

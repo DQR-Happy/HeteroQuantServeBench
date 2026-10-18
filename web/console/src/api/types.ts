@@ -15,6 +15,7 @@ export type Deployment = {
   precision: string;
   kernel: string;
   kernel_profile?: string;
+  quantization?: { method: string; artifact_id?: string | null };
   input_mode?: 'chat' | 'completion';
   state: string;
   epoch: string | null;
@@ -113,6 +114,7 @@ export type Run = {
     metrics?: Metrics;
     load_seconds?: number;
     parameter_bytes?: number;
+    model_storage_bytes?: number | null;
     parameter_devices?: string[];
     device_name?: string;
     model_type?: string;

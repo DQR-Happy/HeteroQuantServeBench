@@ -25,6 +25,52 @@ const loaded = {
 };
 beforeEach(() => request.mockReset());
 describe('kernel lifecycle owns unload, load and confirmation in order', () => {
+  it('applies L4 load options and verifies the effective method and compute dtype', async () => {
+    const start = { ...initial, state: 'unloaded', epoch: null };
+    const actual = {
+      ...loaded,
+      kernel_profile: 'framework-native',
+      precision: 'bfloat16',
+      quantization: { method: 'bnb_nf4' },
+    };
+    request
+      .mockResolvedValueOnce({ items: [start] })
+      .mockResolvedValueOnce(done('load'))
+      .mockResolvedValueOnce({ items: [actual] });
+    expect(
+      await applyKernelProfile(start, 'framework-native', new AbortController().signal, vi.fn(), {
+        precision: 'bfloat16',
+        quantization: { method: 'bnb_nf4' },
+      }),
+    ).toEqual(actual);
+    expect(request.mock.calls[1][1]).toEqual({
+      kernel_profile: 'framework-native',
+      precision: 'bfloat16',
+      quantization: { method: 'bnb_nf4' },
+    });
+  });
+  it('does not accept a precision reload that reports the wrong method', async () => {
+    const start = { ...initial, state: 'unloaded', epoch: null };
+    request
+      .mockResolvedValueOnce({ items: [start] })
+      .mockResolvedValueOnce(done('load'))
+      .mockResolvedValueOnce({
+        items: [
+          {
+            ...loaded,
+            kernel_profile: 'framework-native',
+            precision: 'float16',
+            quantization: { method: 'none' },
+          },
+        ],
+      });
+    await expect(
+      applyKernelProfile(start, 'framework-native', new AbortController().signal, vi.fn(), {
+        precision: 'float16',
+        quantization: { method: 'bnb_nf4' },
+      }),
+    ).rejects.toThrow('尚不能确认应用成功');
+  });
   it('drains the other local model before loading the selected model', async () => {
     const start = { ...initial, state: 'unloaded', epoch: null };
     request

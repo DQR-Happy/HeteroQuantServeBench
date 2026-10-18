@@ -30,6 +30,7 @@ export default function LifecycleResult({ run }: { run: Run }) {
             <Link to={`/playground?deployment=${encodeURIComponent(run.config.deployment.id)}`}>
               前往交互推理
             </Link>
+            <Link to="/precision">前往精度与量化</Link>
           </Space>
         }
       />
@@ -38,7 +39,16 @@ export default function LifecycleResult({ run }: { run: Run }) {
         {loading && (
           <>
             <Stat label="权重加载" value={result?.load_seconds} unit="s" hint="loader 内部计时" />
-            <Stat label="参数存储" value={fmt(gib(result?.parameter_bytes), 3)} unit="GiB" />
+            <Stat
+              label={result?.model_storage_bytes != null ? '已观测模型张量存储' : '参数存储'}
+              value={fmt(gib(result?.model_storage_bytes ?? result?.parameter_bytes), 3)}
+              unit="GiB"
+              hint={
+                result?.model_storage_bytes != null
+                  ? '参数、buffer 与已知量化状态去重；不含 workspace / allocator 余量'
+                  : '旧记录：仅参数字节'
+              }
+            />
             <Stat
               label="加载峰值分配"
               value={fmt(gib(result?.memory?.peak_allocated_bytes), 3)}
