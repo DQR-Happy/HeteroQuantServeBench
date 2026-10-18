@@ -25,6 +25,7 @@ real kernel symbol, not a peak-performance kernel.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Dict, Optional
 
 from hqsb.core.errors import CapabilityError, ConfigError
@@ -55,6 +56,7 @@ def _require_torch_triton():
         )
 
 
+@lru_cache(maxsize=1)
 def _kernel_source():
     """Build the Triton kernel (deferred so importing this module is free)."""
     import triton
