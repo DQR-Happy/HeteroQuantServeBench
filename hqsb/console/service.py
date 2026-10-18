@@ -94,6 +94,26 @@ class ConsoleService:
                 rows.append(row)
             return json.loads(json.dumps(rows))
 
+    def precision_capabilities(self, deployment_id):
+        with self.lock:
+            if deployment_id not in self.configs:
+                raise ServiceError("NOT_FOUND", "Unknown deployment", 404)
+            if self.configs[deployment_id].provider != "pytorch" or self.settings.privileged_worker:
+                raise ServiceError("L4_WORKER_UNSUPPORTED", "L4 requires an unprivileged local PyTorch worker")
+            if self.states[deployment_id]["state"] != "ready":
+                from hqsb.core.precision import catalogue
+                return {**catalogue(), "availability": "load_model_to_probe_actual_target"}
+            if self.pending or self.benchmark_owner:
+                raise ServiceError("DEVICE_BUSY", "Wait for the current task before probing precision capabilities")
+            self.pending += 1
+            future = self.executors[deployment_id].submit(self.actors[deployment_id].execute,
+                "precision_capabilities", {}, lambda _: None, lambda: self.closed, 15)
+        try:
+            return future.result(timeout=20)
+        finally:
+            with self.lock:
+                self.pending -= 1
+
     def memory_inventory(self, deployment_id):
         with self.lock:
             row = self.states[deployment_id]
@@ -383,6 +403,12 @@ class ConsoleService:
                     "UNSUPPORTED_JOB", "This job kind is not implemented", 422
                 )
             safe_payload = dict(payload)
+            if "quantization" in safe_payload:
+                recipe = safe_payload["quantization"]
+                safe_payload["quantization"] = {k: v for k, v in recipe.items() if k != "calibration"}
+                if recipe.get("calibration"):
+                    from hqsb.core.optimization import fingerprint
+                    safe_payload["quantization"].update(calibration_sha256=fingerprint(recipe["calibration"]), calibration_count=len(recipe["calibration"]))
             if benchmark_owner is not None:
                 # Accepted lifecycle jobs remain traceable even if the manager
                 # exits between SQLite acceptance and its journal update.

@@ -1186,6 +1186,75 @@
         }
       }
     },
+    "/api/console/v1/precision/catalog": {
+      "get": {
+        "summary": "Precision Catalog",
+        "operationId": "precision_catalog_api_console_v1_precision_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/deployments/{deployment_id}/precision-capabilities": {
+      "get": {
+        "summary": "Precision Capabilities",
+        "operationId": "precision_capabilities_api_console_v1_deployments__deployment_id__precision_capabilities_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/precision/artifacts": {
+      "get": {
+        "summary": "Precision Artifacts",
+        "operationId": "precision_artifacts_api_console_v1_precision_artifacts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/deployments/{deployment_id}/{action}": {
       "post": {
         "summary": "Deployment Action",
@@ -2712,6 +2781,139 @@
         }
       }
     },
+    "/api/console/v1/precision/quality-jobs": {
+      "post": {
+        "tags": [
+          "precision"
+        ],
+        "summary": "Quality Job",
+        "operationId": "quality_job_api_console_v1_precision_quality_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrecisionQualityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/precision/comparisons": {
+      "post": {
+        "tags": [
+          "precision"
+        ],
+        "summary": "Compare",
+        "operationId": "compare_api_console_v1_precision_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrecisionComparison"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/precision/comparisons/{identity}": {
+      "get": {
+        "tags": [
+          "precision"
+        ],
+        "summary": "Comparison",
+        "operationId": "comparison_api_console_v1_precision_comparisons__identity__get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/deployments/{deployment_id}/architecture": {
       "get": {
         "tags": [
@@ -3718,6 +3920,32 @@
               }
             ],
             "title": "Kernel Profile"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "float32",
+                  "float16",
+                  "bfloat16"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "quantization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrecisionPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4013,6 +4241,261 @@
           "spec"
         ],
         "title": "PlanRequest"
+      },
+      "PrecisionComparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Candidate Run Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_ids"
+        ],
+        "title": "PrecisionComparison"
+      },
+      "PrecisionPlan": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "l4-v1",
+            "title": "Schema Version",
+            "default": "l4-v1"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "none",
+              "rtn",
+              "gptq",
+              "awq",
+              "smoothquant",
+              "bnb_int8",
+              "bnb_nf4",
+              "bnb_fp4",
+              "fp8"
+            ],
+            "title": "Method",
+            "default": "none"
+          },
+          "allow_tf32": {
+            "type": "boolean",
+            "title": "Allow Tf32",
+            "default": false
+          },
+          "bits": {
+            "type": "integer",
+            "enum": [
+              4,
+              8
+            ],
+            "title": "Bits",
+            "default": 4
+          },
+          "group_size": {
+            "type": "integer",
+            "enum": [
+              32,
+              64,
+              128
+            ],
+            "title": "Group Size",
+            "default": 128
+          },
+          "exclude_modules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Exclude Modules"
+          },
+          "calibration": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "title": "Calibration"
+          },
+          "calibration_tokens": {
+            "type": "integer",
+            "maximum": 512.0,
+            "minimum": 16.0,
+            "title": "Calibration Tokens",
+            "default": 128
+          },
+          "smooth_alpha": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Smooth Alpha",
+            "default": 0.5
+          },
+          "damping_fraction": {
+            "type": "number",
+            "maximum": 0.2,
+            "exclusiveMinimum": 0.0,
+            "title": "Damping Fraction",
+            "default": 0.01
+          },
+          "awq_grid": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 2.0,
+            "title": "Awq Grid",
+            "default": 20
+          },
+          "double_quant": {
+            "type": "boolean",
+            "title": "Double Quant",
+            "default": true
+          },
+          "outlier_threshold": {
+            "type": "number",
+            "maximum": 64.0,
+            "minimum": 0.0,
+            "title": "Outlier Threshold",
+            "default": 6.0
+          },
+          "kv_bits": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  2,
+                  4
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kv Bits"
+          },
+          "kv_group_size": {
+            "type": "integer",
+            "enum": [
+              32,
+              64,
+              128
+            ],
+            "title": "Kv Group Size",
+            "default": 64
+          },
+          "kv_residual_length": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Kv Residual Length",
+            "default": 128
+          },
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PrecisionPlan"
+      },
+      "PrecisionQualityRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          },
+          "quality_plan": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Quality Plan"
+          },
+          "quality_limits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualityLimits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "expected_epoch",
+          "quality_plan"
+        ],
+        "title": "PrecisionQualityRequest"
+      },
+      "QualityLimits": {
+        "properties": {
+          "max_logit_abs_error": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Logit Abs Error"
+          },
+          "max_kl": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Kl"
+          },
+          "max_nll_increase": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Nll Increase"
+          },
+          "max_accuracy_drop": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Accuracy Drop"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "max_logit_abs_error",
+          "max_kl",
+          "max_nll_increase"
+        ],
+        "title": "QualityLimits"
       },
       "QuantizationRequest": {
         "properties": {

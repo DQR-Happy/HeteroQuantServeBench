@@ -214,7 +214,9 @@ class MachineConnections:
             if key in request.headers:
                 headers[key] = request.headers[key]
         client = httpx.AsyncClient(
-            timeout=httpx.Timeout(35, connect=8),
+            # Full-vocabulary L4 comparisons are CPU work over sealed files,
+            # independently of GPU inference/request deadlines.
+            timeout=httpx.Timeout(180 if path == "/api/console/v1/precision/comparisons" else 35, connect=8),
             trust_env=False,
             follow_redirects=False,
         )

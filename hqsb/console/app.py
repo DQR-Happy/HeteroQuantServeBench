@@ -353,6 +353,26 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             return deployment_catalogue(config)
         return catalogue()
 
+    @app.get(PREFIX + "/precision/catalog")
+    def precision_catalog():
+        return precision_catalogue()
+
+    @app.get(PREFIX + "/deployments/{deployment_id}/precision-capabilities")
+    def precision_capabilities(deployment_id: str):
+        return svc.precision_capabilities(deployment_id)
+
+    @app.get(PREFIX + "/precision/artifacts")
+    def precision_artifacts():
+        import json
+        root = settings.data_dir / "l4-artifacts"
+        items = []
+        for path in sorted(root.glob("*/l4-manifest.json")):
+            if len(path.parent.name) != 64 or path.is_symlink() or path.stat().st_size > 4 * 1024**2:
+                continue
+            manifest = json.loads(path.read_text())
+            items.append({k: manifest.get(k) for k in ("artifact_id", "method", "source_model", "source_model_hash", "compute_dtype", "disk_bytes", "recipe", "calibration_versions")})
+        return {"items": items, "integrity": "verified_again_before_load"}
+
     @app.post(
         PREFIX + "/deployments/{deployment_id}/{action}",
         status_code=202,
@@ -579,6 +599,8 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         }
 
     app.include_router(analysis_router(settings, svc), prefix=PREFIX)
+    from hqsb.console.precision_routes import precision_router
+    app.include_router(precision_router(settings, svc), prefix=PREFIX)
     app.include_router(architecture_router(svc), prefix=PREFIX)
     app.include_router(experiment_router(settings, svc), prefix=PREFIX)
     app.include_router(benchmark_router(benchmarks), prefix=PREFIX)

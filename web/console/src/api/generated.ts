@@ -483,6 +483,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/precision/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Precision Catalog */
+        get: operations["precision_catalog_api_console_v1_precision_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/deployments/{deployment_id}/precision-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Precision Capabilities */
+        get: operations["precision_capabilities_api_console_v1_deployments__deployment_id__precision_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/precision/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Precision Artifacts */
+        get: operations["precision_artifacts_api_console_v1_precision_artifacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/console/v1/deployments/{deployment_id}/{action}": {
         parameters: {
             query?: never;
@@ -1112,6 +1163,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/precision/quality-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Quality Job */
+        post: operations["quality_job_api_console_v1_precision_quality_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/precision/comparisons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare */
+        post: operations["compare_api_console_v1_precision_comparisons_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/precision/comparisons/{identity}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Comparison */
+        get: operations["comparison_api_console_v1_precision_comparisons__identity__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/console/v1/deployments/{deployment_id}/architecture": {
         parameters: {
             query?: never;
@@ -1498,6 +1600,9 @@ export interface components {
         KernelSelection: {
             /** Kernel Profile */
             kernel_profile?: string | null;
+            /** Precision */
+            precision?: ("float32" | "float16" | "bfloat16") | null;
+            quantization?: components["schemas"]["PrecisionPlan"] | null;
         };
         /** Login */
         Login: {
@@ -1581,6 +1686,117 @@ export interface components {
             spec: {
                 [key: string]: unknown;
             };
+        };
+        /** PrecisionComparison */
+        PrecisionComparison: {
+            /** Baseline Run Id */
+            baseline_run_id: string;
+            /** Candidate Run Ids */
+            candidate_run_ids: string[];
+        };
+        /** PrecisionPlan */
+        PrecisionPlan: {
+            /**
+             * Schema Version
+             * @default l4-v1
+             * @constant
+             */
+            schema_version: "l4-v1";
+            /**
+             * Method
+             * @default none
+             * @enum {string}
+             */
+            method: "none" | "rtn" | "gptq" | "awq" | "smoothquant" | "bnb_int8" | "bnb_nf4" | "bnb_fp4" | "fp8";
+            /**
+             * Allow Tf32
+             * @default false
+             */
+            allow_tf32: boolean;
+            /**
+             * Bits
+             * @default 4
+             * @enum {integer}
+             */
+            bits: 4 | 8;
+            /**
+             * Group Size
+             * @default 128
+             * @enum {integer}
+             */
+            group_size: 32 | 64 | 128;
+            /** Exclude Modules */
+            exclude_modules?: string[];
+            /** Calibration */
+            calibration?: string[];
+            /**
+             * Calibration Tokens
+             * @default 128
+             */
+            calibration_tokens: number;
+            /**
+             * Smooth Alpha
+             * @default 0.5
+             */
+            smooth_alpha: number;
+            /**
+             * Damping Fraction
+             * @default 0.01
+             */
+            damping_fraction: number;
+            /**
+             * Awq Grid
+             * @default 20
+             */
+            awq_grid: number;
+            /**
+             * Double Quant
+             * @default true
+             */
+            double_quant: boolean;
+            /**
+             * Outlier Threshold
+             * @default 6
+             */
+            outlier_threshold: number;
+            /** Kv Bits */
+            kv_bits?: (2 | 4) | null;
+            /**
+             * Kv Group Size
+             * @default 64
+             * @enum {integer}
+             */
+            kv_group_size: 32 | 64 | 128;
+            /**
+             * Kv Residual Length
+             * @default 128
+             */
+            kv_residual_length: number;
+            /** Artifact Id */
+            artifact_id?: string | null;
+        };
+        /** PrecisionQualityRequest */
+        PrecisionQualityRequest: {
+            /** Deployment Id */
+            deployment_id: string;
+            /** Expected Epoch */
+            expected_epoch: string;
+            /** Quality Plan */
+            quality_plan: {
+                [key: string]: unknown;
+            };
+            quality_limits?: components["schemas"]["QualityLimits"] | null;
+        };
+        /** QualityLimits */
+        QualityLimits: {
+            /** Max Logit Abs Error */
+            max_logit_abs_error: number;
+            /** Max Kl */
+            max_kl: number;
+            /** Max Nll Increase */
+            max_nll_increase: number;
+            /** Max Accuracy Drop */
+            max_accuracy_drop?: number | null;
         };
         /** QuantizationRequest */
         QuantizationRequest: {
@@ -2724,6 +2940,77 @@ export interface operations {
             };
         };
     };
+    precision_catalog_api_console_v1_precision_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    precision_capabilities_api_console_v1_deployments__deployment_id__precision_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deployment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    precision_artifacts_api_console_v1_precision_artifacts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     deployment_action_api_console_v1_deployments__deployment_id___action__post: {
         parameters: {
             query?: never;
@@ -3791,6 +4078,105 @@ export interface operations {
             header?: never;
             path: {
                 artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quality_job_api_console_v1_precision_quality_jobs_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrecisionQualityRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_api_console_v1_precision_comparisons_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrecisionComparison"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    comparison_api_console_v1_precision_comparisons__identity__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
             };
             cookie?: never;
         };

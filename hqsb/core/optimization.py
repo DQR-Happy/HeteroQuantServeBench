@@ -45,9 +45,11 @@ def catalogue(provider="pytorch"):
                       "proof_required": True})
     for name, layers in PENDING.items():
         session = name in {"continuous_batching", "chunked_prefill"}
+        precision = name in {"weight_quantization", "activation_quantization", "kv_quantization"}
         items.append({"id": name, "layers": layers,
-                      "implementation_status": "session_api_only" if session else "not_integrated",
-                      "runtime_capability": "requires_scheduling_capabilities" if session and provider == "pytorch" else "unavailable",
+                      "implementation_status": "session_api_only" if session else "load_api_only" if precision else "not_integrated",
+                      "runtime_capability": "requires_scheduling_capabilities" if session and provider == "pytorch" else "requires_precision_capabilities" if precision and provider == "pytorch" else "unavailable",
+                      **({"api": "/deployments/{id}/load", "catalogue": "/precision/catalog", "scope": "deployment_reload"} if precision else {}),
                       **({"entrypoint": "/scheduling", "api": "/scheduling-benchmarks",
                           "scope": "exclusive_multi_request_session"} if session else {}),
                       "proof_required": True})
