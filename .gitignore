@@ -115,3 +115,7 @@ test-results/
 
 # Local snapshots taken before an explicitly requested redesign.
 /.backups/
+
+# Internal Notion sync dumps: private workspace page IDs, full page text and
+# local absolute paths. Working notes only; never published.
+/work/notion-sync/
