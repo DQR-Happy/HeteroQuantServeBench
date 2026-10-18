@@ -64,7 +64,9 @@ class _Inventory:
                 "kind": kind,
                 "shape": shape,
                 "stride": list(tensor.stride()) if hasattr(tensor, "stride") else None,
-                "contiguous": bool(tensor.is_contiguous()) if hasattr(tensor, "is_contiguous") else None,
+                "contiguous": bool(tensor.is_contiguous())
+                if hasattr(tensor, "is_contiguous")
+                else None,
                 "dtype": str(tensor.dtype),
                 "device": device,
                 "logical_bytes": logical_bytes,
@@ -151,18 +153,51 @@ class _Inventory:
             + [
                 "logical_total_bytes 按已列出的名称求和，别名可重复；unique_storage_bytes 按已观察底层 storage 去重。",
                 "view 保留完整 storage；storage 字节可能包含视图未使用区域，不能与 logical 字节相加。",
-                ("私有证据包含 storage 虚拟地址；仅用于同一进程快照关联，不是物理地址或跨进程分配身份。"
-                 if self.include_addresses else
-                 "storage_key 仅在此进程内可关联；不暴露裸指针，不是物理地址或跨进程分配身份。"),
+                (
+                    "私有证据包含 storage 虚拟地址；仅用于同一进程快照关联，不是物理地址或跨进程分配身份。"
+                    if self.include_addresses
+                    else "storage_key 仅在此进程内可关联；不暴露裸指针，不是物理地址或跨进程分配身份。"
+                ),
                 "未采集 tensor 值；不覆盖激活、临时 workspace、allocator 余量、驱动或其他进程内存。",
                 "partial 时总量只覆盖已观察条目，不能当作完整模型或设备内存。",
             ],
         }
 
 
+def quantization_auxiliaries(module):
+    """Known bitsandbytes 0.50 state leaves outside registered buffers.
+
+    Metadata only: no tensor reads/copies, device imports or vendor mutations.
+    Aliases are retained and deduplicated by the consuming storage inventory.
+    """
+    if not type(module).__module__.startswith("bitsandbytes.nn") or type(
+        module
+    ).__name__ not in {"Linear4bit", "Linear8bitLt"}:
+        return
+    state = getattr(getattr(module, "weight", None), "quant_state", None)
+    for prefix, owner in (
+        ("quant_state", state),
+        ("quant_state.state2", getattr(state, "state2", None)),
+    ):
+        for key in ("absmax", "code", "offset"):
+            tensor = getattr(owner, key, None)
+            if tensor is not None:
+                yield prefix + "." + key, tensor
+    for prefix, owner in (
+        ("weight", getattr(module, "weight", None)),
+        ("runtime_state", getattr(module, "state", None)),
+    ):
+        for key in ("CB", "SCB"):
+            tensor = getattr(owner, key, None)
+            if tensor is not None:
+                yield prefix + "." + key, tensor
+
+
 def parameter_inventory(model: Any, *, include_addresses=False) -> dict:
     """Inventory named parameters and buffers, retaining tied-name aliases."""
-    inventory = _Inventory("model_parameters_and_buffers", include_addresses=include_addresses)
+    inventory = _Inventory(
+        "model_parameters_and_buffers", include_addresses=include_addresses
+    )
     for accessor, kind in (
         ("named_parameters", "parameter"),
         ("named_buffers", "buffer"),
@@ -189,7 +224,29 @@ def parameter_inventory(model: Any, *, include_addresses=False) -> dict:
             inventory.unknown(
                 accessor, "Named tensor enumeration unavailable: " + str(exc)
             )
-    return inventory.result(layout="named_parameters_and_buffers")
+    if not inventory.truncated:
+        try:
+            modules = getattr(model, "named_modules", None)
+            if callable(modules):
+                for name, module in modules():
+                    for key, tensor in quantization_auxiliaries(module):
+                        if not inventory.add(
+                            name + "." + key, tensor, "quantization_auxiliary"
+                        ):
+                            break
+                    if inventory.truncated:
+                        break
+        except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+            inventory.unknown(
+                "quantization_state",
+                "Auxiliary state enumeration unavailable: " + str(exc),
+            )
+    enriched = any(row["kind"] == "quantization_auxiliary" for row in inventory.entries)
+    return inventory.result(
+        layout="named_parameters_buffers_and_known_quantization_state"
+        if enriched
+        else "named_parameters_and_buffers"
+    )
 
 
 def cache_inventory(past_key_values: Any, *, include_addresses=False) -> dict:

@@ -23,6 +23,7 @@ def percentile(values, p):
 
 
 def execute(provider, payload, cancel, controls):
+    from hqsb.backends.precision_runtime import receipt as precision_receipt, reset_calls
     spec = SchedulingExperiment.model_validate(payload["experiment"])
     capability = capabilities(provider)
     if not capability["supported"]:
@@ -51,6 +52,7 @@ def execute(provider, payload, cancel, controls):
             "capability": capability, "model_identity": provider.source_identity,
             "tokenizer_identity": provider.tokenizer_identity,
             "attention": provider.config["attention"], "precision": provider.config["precision"],
+            "precision_receipt": precision_receipt(provider),
             "kernel_profile": provider.kernel_session.profile if provider.kernel_session else None,
             "sampling": "greedy", "cleanup_policy": "session_empty_cache", "paged_kv": False})
         for repeat in range(spec.repeats):
@@ -58,6 +60,7 @@ def execute(provider, payload, cancel, controls):
                 if cancel.is_set():
                     break
                 current_session = f"{identity}:{repeat}:{mode}"
+                reset_calls(provider)
                 executor = StepExecutor(provider, spec.limits.max_padded_positions, spec.limits.max_temporary_bytes)
                 receipts = []
 
@@ -193,6 +196,7 @@ def execute(provider, payload, cancel, controls):
                         "max_rss_kib_process_lifetime": usage_after.ru_maxrss,
                         "before": system_before, "after": sample_process(process)},
                     "loadgen": fidelity, "requests": summaries,
+                    "precision_receipt": precision_receipt(provider),
                     "outcome": "invalid" if fidelity["validity"] != "VALID" else "rejected_requests" if failed else "completed"}
                 writer.offer("session.result", variant)
                 variants.append(variant)

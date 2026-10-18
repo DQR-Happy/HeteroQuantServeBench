@@ -30,6 +30,7 @@ def receipt(provider, request, plan, *, role, output_hash, status, cleanup, proo
         kernels.save(request.get("capture_dir"))
         applied = applied and kernel_summary["status"] in {"invoked", "reference"}
     kernel_id = kernel_summary["profile_id"] if kernel_summary else "framework-native"
+    from hqsb.backends.precision_runtime import receipt as precision_receipt
     document = {**plan, "status": "applied" if applied else "not_fully_applied",
                 "run_id": request.get("capture_id"), "measurement_role": role,
                 "request_id": request.get("capture_id"),
@@ -41,6 +42,7 @@ def receipt(provider, request, plan, *, role, output_hash, status, cleanup, proo
                             "chat_template_sha256": (getattr(provider, "chat_template_policy", None) or {}).get("template_sha256")
                             if request.get("input_mode", "chat") == "chat" else None},
                 "kernel_receipt": kernel_summary,
+                "precision_receipt": precision_receipt(provider),
                 "experiment_links": request.get("experiment_links", {}),
                 "effective": {**plan["resolved"], "attention_backend": attention},
                 "output_token_hash": output_hash, "execution_status": status,

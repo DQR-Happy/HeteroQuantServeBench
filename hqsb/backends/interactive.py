@@ -30,9 +30,12 @@ class InteractivePyTorch:
         self.device_lease = None
         self.tokenizer_identity = None
         self.kernel_session = None
+        from hqsb.core.precision import PrecisionPlan
+        self.precision_plan = PrecisionPlan()
+        self.precision_load = {}
         self.chat_template_policy = None
 
-    def load(self, *, kernel_profile=None) -> dict:
+    def load(self, *, kernel_profile=None, precision=None, quantization=None) -> dict:
         if self.model is not None:
             raise RuntimeError("KERNEL_PROFILE_REQUIRES_UNLOAD")
         if kernel_profile is not None:
@@ -40,6 +43,11 @@ class InteractivePyTorch:
 
             profile(kernel_profile)
             self.config = {**self.config, "kernel_profile": kernel_profile}
+        from hqsb.core.precision import PrecisionPlan
+        self.precision_plan = PrecisionPlan.model_validate(quantization or {})
+        self.config = {**self.config, **({"precision": precision} if precision else {})}
+        if self.precision_plan.method != "none" and self.config.get("kernel_profile", "framework-native") != "framework-native":
+            raise ValueError("L4_CUSTOM_L2_KERNEL_NOT_QUANTIZATION_VERIFIED")
         try:
             return self._load()
         except Exception as error:
@@ -62,23 +70,31 @@ class InteractivePyTorch:
             self.device_lease.acquire()
 
         precision = self.config.get("precision", "float16")
-        if precision not in {"float16", "bfloat16"}:
+        torch.backends.cuda.matmul.allow_tf32 = self.precision_plan.allow_tf32
+        if precision not in {"float32", "float16", "bfloat16"}:
             raise ValueError("MODEL_PRECISION_UNSUPPORTED")
         if precision == "bfloat16" and not torch.cuda.is_bf16_supported():
             raise ValueError("MODEL_BFLOAT16_DEVICE_UNSUPPORTED")
-        if precision == "bfloat16" and self.config.get("kernel_profile", "framework-native") != "framework-native":
+        if precision != "float16" and self.config.get("kernel_profile", "framework-native") != "framework-native":
             raise ValueError("KERNEL_PRECISION_UNSUPPORTED")
         observation = ObservationRecorder()
         observation.snapshot("before_model_load", self.memory)
         with observation.phase("model_load"):
-            self.tokenizer, self.model, seconds = load_causal_lm(
-                self.config["model_path"],
-                attention_backend=self.config["attention"],
-                dtype={"float16": torch.float16, "bfloat16": torch.bfloat16}[precision],
-                cpu_staging=True,
-                verify_manifest=self.config.get("manifest"),
-                allow_extra=tuple(self.config.get("manifest_allow_extra", [])),
-            )
+            if self.precision_plan.method != "none":
+                from hqsb.backends.precision_runtime import load
+                self.tokenizer, self.model, seconds, self.precision_load = load(
+                    self.config, self.precision_plan.model_dump(), getattr(torch, precision))
+                self.precision_plan = self.model._hqsb_l4_plan
+            else:
+                self.precision_load = {}
+                self.tokenizer, self.model, seconds = load_causal_lm(
+                    self.config["model_path"],
+                    attention_backend=self.config["attention"],
+                    dtype=getattr(torch, precision),
+                    cpu_staging=True,
+                    verify_manifest=self.config.get("manifest"),
+                    allow_extra=tuple(self.config.get("manifest_allow_extra", [])),
+                )
         observation.snapshot("after_model_load", self.memory)
         native_context = getattr(self.model.config, "max_position_embeddings", None)
         if type(native_context) is int and native_context > 0 and self.config["context_limit"] > native_context:
@@ -118,6 +134,22 @@ class InteractivePyTorch:
         from hqsb.backends.kernel_session import KernelSession
 
         self.kernel_session = KernelSession(self.model, self.config)
+        if self.precision_plan.method != "none":
+            from hqsb.core.optimization import fingerprint
+            self.kernel_session.binding.update(parameter_layout="l4_quantized_model",
+                                                state_dict_preserved=False)
+            self.kernel_session.binding_hash = fingerprint(self.kernel_session.binding)
+        from hqsb.backends.precision_runtime import new_cache
+        new_cache(self)  # reject unsupported KV/model combinations before ready
+        # Official BNB modules execute their own kernels. Bounded Python counters
+        # establish invocation without tensor reads or synchronization per token.
+        self.precision_handles = []
+        for module in self.model.modules():
+            if type(module).__name__ in {"Linear4bit", "Linear8bitLt"} and type(module).__module__.startswith("bitsandbytes"):
+                module.calls = 0
+                def count(owner, _args, _output):
+                    owner.calls += 1
+                self.precision_handles.append(module.register_forward_hook(count))
         self.chat_template_policy = {
             "default_input_mode": self.config.get("input_mode", "chat"),
             "template_sha256": hashlib.sha256(self.tokenizer.get_chat_template().encode()).hexdigest()
@@ -162,12 +194,15 @@ class InteractivePyTorch:
                 parameter.numel() * parameter.element_size()
                 for parameter in self.model.parameters()
             ),
+            "model_storage_bytes": self.load_inventory["unique_storage_bytes"],
             "observation": observation.data,
             "parameter_inventory": self.load_inventory,
             "module_inventory": module_inventory(self.model),
             "source_environment": self.source_environment,
             "kernel_plan": self.kernel_session.plan,
             "kernel_bindings": self.kernel_session.binding,
+            "precision_receipt": __import__("hqsb.backends.precision_runtime", fromlist=["receipt"]).receipt(self),
+            "precision_artifact": {k: v for k, v in self.precision_load.items() if k not in {"manifest", "capability"}},
         }
 
     def memory(self) -> dict:
@@ -211,6 +246,8 @@ class InteractivePyTorch:
         request, optimization = resolve_request(self.config, request)
         if self.kernel_session:
             self.kernel_session.reset()
+        from hqsb.backends.precision_runtime import reset_calls
+        reset_calls(self)
         plan = resolve_observation(request.get("observation_plan"), request.get("observation_mode", "basic"))
 
         if self.model is None:
@@ -255,7 +292,7 @@ class InteractivePyTorch:
                 "provider": "pytorch",
                 "device": "cuda:0",
                 "dtype": self.config.get("precision", "float16"),
-                "quant_execution_path": "bf16_reference" if self.config.get("precision") == "bfloat16" else "fp16_reference",
+                "quant_execution_path": self.precision_plan.method if self.precision_plan.method != "none" else self.config.get("precision", "float16") + "_reference",
                 "attention_backend": self.kernel_session.profile["operators"].get("attention", self.config["attention"])
                 if self.kernel_session else self.config["attention"],
                 "attention_config": self.config["attention"],
@@ -275,7 +312,9 @@ class InteractivePyTorch:
         )
         observation.data["profile"] = capture.summary
         ids, times, text = [], [], ""
-        cache = current = attention = inputs = out = None
+        current = attention = inputs = out = None
+        from hqsb.backends.precision_runtime import new_cache
+        cache = new_cache(self)
         torch.cuda.reset_peak_memory_stats()
         observation.snapshot("before_request", self.memory)
         finish = "length"
@@ -459,6 +498,7 @@ class InteractivePyTorch:
                     "quality": "not_evaluated",
                     "observation": observation.data,
                     "kv_inventory": cache_inventory(cache),
+                    "quantized_kv_inventory": __import__("hqsb.backends.precision_runtime", fromlist=["cache_receipt"]).cache_receipt(cache),
                 },
             }
         except ContextLimitExceeded as exc:
@@ -561,6 +601,9 @@ class InteractivePyTorch:
     def close(self):
         import torch
 
+        for handle in getattr(self, "precision_handles", []):
+            handle.remove()
+        self.precision_handles = []
         if self.kernel_session:
             if torch.cuda.is_initialized():
                 torch.cuda.synchronize()

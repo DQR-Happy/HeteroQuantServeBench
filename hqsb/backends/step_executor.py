@@ -10,6 +10,8 @@ from hqsb.backends.device_kv import DenseKV
 def capabilities(provider):
     cfg = provider.model.config.get_text_config(decoder=True)
     reasons = []
+    if getattr(getattr(provider, "precision_plan", None), "kv_bits", None):
+        reasons.append("QUANTIZED_KV_STEP_ADAPTER_NOT_VERIFIED")
     types = getattr(cfg, "layer_types", None)
     if getattr(cfg, "sliding_window", None) or getattr(cfg, "attention_chunk_size", None) or (types and any(x != "full_attention" for x in types)):
         reasons.append("SLIDING_OR_HYBRID_CACHE_NOT_ADAPTED")

@@ -28,6 +28,8 @@ def evaluate(provider, request, cancel):
     kernels = getattr(provider, "kernel_session", None)
     if kernels:
         kernels.reset()
+    from hqsb.backends.precision_runtime import reset_calls
+    reset_calls(provider)
     mode = plan.get("forward_mode", "incremental_decode")
     generation_limit = optimization["resolved"]["output_budget"]
     if not 1 <= generation_limit <= 32:
@@ -58,7 +60,8 @@ def evaluate(provider, request, cancel):
     try:
         with torch.inference_mode():
             for sample_index, (sample, tokens) in enumerate(zip(plan["samples"], encoded)):
-                cache = None
+                from hqsb.backends.precision_runtime import new_cache
+                cache = new_cache(provider)
                 sample_id = sample.get("id", str(sample_index))
                 if mode == "full_prefill":
                     check()
@@ -94,7 +97,7 @@ def evaluate(provider, request, cancel):
                     bytes_written += len(raw)
                     output = row = raw = None
                 # A fresh cache makes free generation independent of teacher forcing.
-                cache = None
+                cache = new_cache(provider)
                 full_output = None
                 generated = []
                 current = torch.tensor([tokens], dtype=torch.long, device="cuda:0")
@@ -118,6 +121,7 @@ def evaluate(provider, request, cancel):
                     mask = torch.cat((mask, mask.new_ones((1, 1))), dim=1)
                 text = provider.tokenizer.decode(generated, skip_special_tokens=True)
                 result["samples"].append({"id": sample_id, "slice": sample.get("slice", "all"),
+                                           "text_sha256": fingerprint(" ".join(sample["text"].split())),
                                            "input_sha256": fingerprint(tokens), "input_tokens": len(tokens),
                                            "output_tokens": len(generated), "output_token_sha256": fingerprint(generated),
                                            "exact_match": text.strip() == sample["expected"].strip() if "expected" in sample else None})
