@@ -53,6 +53,12 @@ console-model = [
     "accelerate>=1.0,<2",
     "psutil>=5.9",
 ]
+# L4 serving codecs. Official PTQ calibration has a separate pinned environment;
+# see scripts/setup/install_l4.sh so its Transformers cannot replace serving.
+precision = [
+    "bitsandbytes==0.50.2",
+    "optimum-quanto==0.2.7",
+]
 # Ascend/CANN backend (S09).
 ascend = [
     "torch-npu",
