@@ -22,6 +22,7 @@ away, and a confidence interval crossing the pre-registered margin yields
 from __future__ import annotations
 
 import math
+import heapq
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -94,7 +95,10 @@ def jensen_shannon(p: Sequence[float], q: Sequence[float]) -> float:
     log_p = _log_softmax(list(p))
     log_q = _log_softmax(list(q))
     log_m = [
-        math.log(0.5 * (math.exp(lp) + math.exp(lq))) for lp, lq in zip(log_p, log_q)
+        max(lp, lq)
+        + math.log(math.exp(lp - max(lp, lq)) + math.exp(lq - max(lp, lq)))
+        - math.log(2)
+        for lp, lq in zip(log_p, log_q)
     ]
     left = 0.0
     right = 0.0
@@ -112,7 +116,7 @@ def topk_indices(row: Sequence[float], k: int) -> List[int]:
     """Indices of the ``k`` largest values (ties broken by lower index)."""
     if k <= 0:
         raise ConfigError(f"k must be positive, got {k}")
-    return sorted(range(len(row)), key=lambda index: (-row[index], index))[:k]
+    return heapq.nsmallest(k, range(len(row)), key=lambda index: (-row[index], index))
 
 
 def overlap(left: Sequence[int], right: Sequence[int]) -> float:
@@ -127,7 +131,7 @@ def margin(row: Sequence[float]) -> float:
     """Top-1 minus top-2 logit (decision margin)."""
     if len(row) < 2:
         return float("nan")
-    ordered = sorted(row, reverse=True)
+    ordered = heapq.nlargest(2, row)
     return ordered[0] - ordered[1]
 
 
@@ -192,8 +196,9 @@ def position_metrics(
     summary = numerical_diff_summary(base, cand)
     base_topk = topk_indices(base, top_k)
     cand_topk = topk_indices(cand, top_k)
-    base_top1 = topk_indices(base, 1)[0]
-    cand_top1 = topk_indices(cand, 1)[0]
+    base_top1 = base_topk[0]
+    cand_top1 = cand_topk[0]
+    base_margin, cand_margin = margin(base), margin(cand)
     norm = math.sqrt(math.fsum(value * value for value in base)) or 1.0
     return PositionMetrics(
         position=position,
@@ -206,9 +211,9 @@ def position_metrics(
         js_divergence=jensen_shannon(base, cand),
         top1_overlap=1.0 if base_top1 == cand_top1 else 0.0,
         topk_overlap=overlap(base_topk, cand_topk),
-        margin_baseline=margin(base),
-        margin_candidate=margin(cand),
-        margin_delta=abs(margin(cand) - margin(base)),
+        margin_baseline=base_margin,
+        margin_candidate=cand_margin,
+        margin_delta=abs(cand_margin - base_margin),
         top1_flipped=base_top1 != cand_top1,
         slice=slice_name,
     )
@@ -248,11 +253,7 @@ def teacher_forcing_report(
             )
         )
     first_divergence = next(
-        (
-            record.position
-            for record in records
-            if record.top1_flipped
-        ),
+        (record.position for record in records if record.top1_flipped),
         -1,
     )
     numeric_fields = [
@@ -267,7 +268,9 @@ def teacher_forcing_report(
     for field_name in numeric_fields:
         values = [getattr(record, field_name) for record in records]
         values = [value for value in values if not math.isnan(value)]
-        means[field_name] = (math.fsum(values) / len(values)) if values else float("nan")
+        means[field_name] = (
+            (math.fsum(values) / len(values)) if values else float("nan")
+        )
     return {
         "sample_id": sample_id,
         "slice": slice_name,
@@ -343,7 +346,9 @@ def generation_report(
     kl_values = [
         step.kl_fp16_quant for step in steps if not math.isnan(step.kl_fp16_quant)
     ]
-    tokens = list(candidate_tokens) if candidate_tokens else [step.token for step in steps]
+    tokens = (
+        list(candidate_tokens) if candidate_tokens else [step.token for step in steps]
+    )
     degeneration = False
     if len(tokens) >= 8:
         tail = tokens[-32:]
@@ -352,7 +357,9 @@ def generation_report(
     return {
         "steps": len(steps),
         "first_divergence_step": first_divergence,
-        "mean_kl": (math.fsum(kl_values) / len(kl_values)) if kl_values else float("nan"),
+        "mean_kl": (math.fsum(kl_values) / len(kl_values))
+        if kl_values
+        else float("nan"),
         "max_kl": max(kl_values) if kl_values else float("nan"),
         "nan_count": sum(1 for step in steps if step.nan_seen),
         "inf_count": sum(1 for step in steps if step.inf_seen),
@@ -419,9 +426,7 @@ def evaluate_quality_gate(
     if nothing failed but something is inconclusive, otherwise ``PASS``.
     """
     safety = dict(safety or {})
-    missing_safety = [
-        check for check in budget.hard_safety if check not in safety
-    ]
+    missing_safety = [check for check in budget.hard_safety if check not in safety]
     metric_results: Dict[str, Any] = {}
     verdicts: List[str] = []
     for metric, (baseline, candidate) in sorted(paired_metrics.items()):
