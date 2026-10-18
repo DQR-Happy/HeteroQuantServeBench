@@ -57,6 +57,8 @@ flowchart LR
 
 ## Web Console
 
+L4 在线精度与量化入口为 `/precision`，支持浮点基线、RTN、GPTQ、AWQ、SmoothQuant、bitsandbytes INT8/NF4/FP4、能力门禁下的 FP8，以及单请求 KV INT2/INT4。实际执行语义、接口、质量对照与未验收边界见 [L4 使用与模块说明](infra/README.l4-precision.md)。
+
 `web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认开发服务运行在 `3090-inf`，可在界面通过 SSH / HTTP 选择其他 HQSB 节点；未验证的量化与自定义算子模型回接不会在页面中假装可用。
 
 Console v0.2 增加阶段与逐 token 观测、有限窗口 CPU/CUDA profiler、trace 查询/下载、内存归因与张量账本、历史 kernel 证据钻取，以及真实 RTN-W4/W8 制品任务。量化制品与在线低比特部署分开，优化导出保留为待验证假设。测试范围见内部 v0.2 验收报告（未随仓库发布）。

@@ -635,10 +635,10 @@ export default function UserGuide() {
                 [
                   '4 · 数值精度与量化',
                   <>
-                    <Link to="/quantization">量化与质量</Link> 可对已加载 FP16 模型创建 RTN-W4 / W8
-                    存储制品
+                    <Link to="/precision">表示精度与量化</Link> 选择
+                    FP32/FP16/BF16、RTN、GPTQ、AWQ、SmoothQuant、INT8/NF4/FP4，加载紧凑制品并独立评测。
                   </>,
-                  '转换不会自动替换驻留 FP16 权重；packed 低比特在线执行与模型质量仍需单独验证。',
+                  '先应用方案并重载，再核对实际凭据。GPTQ/AWQ/SmoothQuant 需要独立校准数据；质量任务的 run ID 可生成对照。3090 不支持 FP8；历史 RTN 存储制品入口继续保留。',
                 ],
                 [
                   '5 · 模型结构',
@@ -647,8 +647,8 @@ export default function UserGuide() {
                 ],
                 [
                   '6 · 内存与 KV',
-                  '切换请求后 allocator 清理策略；查看 KV 与内存生命周期',
-                  '没有通用 PagedAttention、KV 量化、卸载 / 迁移 / 淘汰策略的完整切换。allocator 缓存不是 prefix cache。',
+                  '切换请求后 allocator 清理策略；在 L4 选择单请求 Quanto INT2/INT4 KV；查看 KV 与内存生命周期',
+                  '量化 KV 仅支持完整 attention，暂不能与 L8 组合。没有通用 PagedAttention 或 KV 卸载 / 迁移 / 淘汰策略切换。allocator 缓存不是 prefix cache。',
                 ],
                 [
                   '7 · 解码算法',
