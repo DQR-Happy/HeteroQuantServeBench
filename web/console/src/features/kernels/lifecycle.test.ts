@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../../api/client';
 import type { Deployment, Run } from '../../api/types';
-import { applyKernelProfile } from './lifecycle';
+import { applyKernelProfile, unloadDeployment } from './lifecycle';
 
 vi.mock('../../api/client', async (original) => ({
   ...(await original<typeof import('../../api/client')>()),
@@ -34,7 +34,10 @@ describe('kernel lifecycle owns unload, load and confirmation in order', () => {
       .mockResolvedValueOnce({ items: [loaded] });
     await applyKernelProfile(start, loaded.kernel_profile, new AbortController().signal, vi.fn());
     expect(request.mock.calls.map(([path]) => path)).toEqual([
-      '/deployments', '/deployments/other-model/unload', '/deployments/model/load', '/deployments',
+      '/deployments',
+      '/deployments/other-model/unload',
+      '/deployments/model/load',
+      '/deployments',
     ]);
   });
   it('never loads a new model if the previous owner did not release the device', async () => {
@@ -42,8 +45,9 @@ describe('kernel lifecycle owns unload, load and confirmation in order', () => {
     request
       .mockResolvedValueOnce({ items: [start, { ...initial, id: 'other-model' }] })
       .mockResolvedValueOnce({ ...done('unload', 'failed'), error: 'device retained' });
-    await expect(applyKernelProfile(start, 'framework-native', new AbortController().signal, vi.fn()))
-      .rejects.toThrow('device retained');
+    await expect(
+      applyKernelProfile(start, 'framework-native', new AbortController().signal, vi.fn()),
+    ).rejects.toThrow('device retained');
     expect(request).toHaveBeenCalledTimes(2);
   });
   it('reloads with the exact selected version and verifies the new epoch', async () => {
@@ -111,5 +115,46 @@ describe('kernel lifecycle owns unload, load and confirmation in order', () => {
     await expect(
       applyKernelProfile(initial, loaded.kernel_profile, new AbortController().signal, vi.fn()),
     ).rejects.toThrow('尚不能确认应用成功');
+  });
+});
+
+describe('standalone unload confirms model resource release', () => {
+  it('waits for a successful unload and checks the actual deployment', async () => {
+    const unloaded = { ...initial, state: 'unloaded', epoch: null };
+    request
+      .mockResolvedValueOnce({ items: [initial] })
+      .mockResolvedValueOnce(done('unload'))
+      .mockResolvedValueOnce({ items: [unloaded] });
+    expect(await unloadDeployment(initial, new AbortController().signal, vi.fn())).toEqual(
+      unloaded,
+    );
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      '/deployments',
+      '/deployments/model/unload',
+      '/deployments',
+    ]);
+  });
+  it('rejects stale epochs without submitting an unload', async () => {
+    request.mockResolvedValueOnce({ items: [{ ...initial, epoch: 'another-load' }] });
+    await expect(unloadDeployment(initial, new AbortController().signal, vi.fn())).rejects.toThrow(
+      '部署状态已变化',
+    );
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('does not report success when cleanup or observed release is unconfirmed', async () => {
+    request
+      .mockResolvedValueOnce({ items: [initial] })
+      .mockResolvedValueOnce({ ...done('unload'), cleanup: 'unknown' });
+    await expect(unloadDeployment(initial, new AbortController().signal, vi.fn())).rejects.toThrow(
+      '卸载未成功',
+    );
+    request.mockReset();
+    request
+      .mockResolvedValueOnce({ items: [initial] })
+      .mockResolvedValueOnce(done('unload'))
+      .mockResolvedValueOnce({ items: [initial] });
+    await expect(unloadDeployment(initial, new AbortController().signal, vi.fn())).rejects.toThrow(
+      '尚不能确认模型已卸载',
+    );
   });
 });

@@ -9,6 +9,7 @@ import Login from './shell/Login';
 import WorkbenchShell from './shell/WorkbenchShell';
 const Overview = lazy(() => import('./pages/Overview'));
 const Benchmarks = lazy(() => import('./pages/Benchmarks'));
+const Scheduling = lazy(() => import('./pages/Scheduling'));
 const Observations = lazy(() => import('./pages/Observations'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Devices = lazy(() => import('./pages/Devices'));
@@ -86,6 +87,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/benchmarks" element={<Benchmarks />} />
+          <Route path="/scheduling" element={<Scheduling />} />
           <Route path="/playground" element={<Playground />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/machines" element={<Machines />} />

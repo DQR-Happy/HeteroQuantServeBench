@@ -79,7 +79,7 @@ export default function RunDirectory() {
           </nav>
           <h2>任务类型</h2>
           <nav>
-            {['all', 'generate', 'load', 'unload', 'quantize'].map((value) => (
+            {['all', 'generate', 'load', 'unload', 'quantize', 'scheduling'].map((value) => (
               <button
                 key={value}
                 aria-pressed={kind === value}
@@ -141,7 +141,15 @@ export default function RunDirectory() {
                 width: 300,
                 render: (_, run) => (
                   <div className="table-object">
-                    <Link to={`/runs/${run.id}`}>{run.config.deployment.name}</Link>
+                    <Link
+                      to={
+                        run.kind === 'scheduling'
+                          ? `/scheduling?experiment=${run.id}`
+                          : `/runs/${run.id}`
+                      }
+                    >
+                      {run.config.deployment.name}
+                    </Link>
                     <span>
                       <Tag>{runKindLabel(run.kind)}</Tag>
                       <code>{run.id.slice(0, 20)}</code>

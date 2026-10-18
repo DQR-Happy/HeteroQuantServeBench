@@ -16,6 +16,47 @@ function pause(signal: AbortSignal) {
   });
 }
 
+async function waitForLifecycleRun(run: Run, signal: AbortSignal, onProgress: (run: Run) => void) {
+  const deadline = Date.now() + 360000;
+  while (true) {
+    signal.throwIfAborted();
+    onProgress(run);
+    if (terminal(run.state)) {
+      if (run.state !== 'completed' || run.cleanup !== 'succeeded')
+        throw new Error(
+          run.error ?? `模型${run.kind === 'load' ? '加载' : '卸载'}未成功：${run.state}`,
+        );
+      return run;
+    }
+    if (Date.now() > deadline) throw new Error('等待模型任务超时，请在运行记录中检查原任务。');
+    await pause(signal);
+    run = await api<Run>(`/runs/${run.id}`, undefined, signal);
+  }
+}
+
+export async function unloadDeployment(
+  deployment: Deployment,
+  signal: AbortSignal,
+  onProgress: (run: Run) => void,
+): Promise<Deployment> {
+  signal.throwIfAborted();
+  const before = await api<{ items: Deployment[] }>('/deployments', undefined, signal);
+  const current = before.items.find((item) => item.id === deployment.id);
+  if (!current || current.state !== 'ready' || current.epoch !== deployment.epoch)
+    throw new Error('部署状态已变化，请核对当前模型后重新操作。');
+  signal.throwIfAborted();
+  await waitForLifecycleRun(
+    await api<Run>(`/deployments/${deployment.id}/unload`, {}, signal),
+    signal,
+    onProgress,
+  );
+  const after = await api<{ items: Deployment[] }>('/deployments', undefined, signal);
+  const actual = after.items.find((item) => item.id === deployment.id);
+  if (!actual || actual.state !== 'unloaded')
+    throw new Error('任务已结束，但尚不能确认模型已卸载，请核对运行记录与当前部署。');
+  return actual;
+}
+
 // One explicit user action owns this sequence. Leaving the page stops follow-up
 // submissions; accepted jobs remain in the server store and are never resubmitted.
 export async function applyKernelProfile(
@@ -25,23 +66,7 @@ export async function applyKernelProfile(
   onProgress: (run: Run) => void,
 ): Promise<Deployment> {
   const checkAbort = () => signal.throwIfAborted();
-  const wait = async (run: Run) => {
-    const deadline = Date.now() + 360000;
-    while (true) {
-      checkAbort();
-      onProgress(run);
-      if (terminal(run.state)) {
-        if (run.state !== 'completed' || run.cleanup !== 'succeeded')
-          throw new Error(
-            run.error ?? `模型${run.kind === 'load' ? '加载' : '卸载'}未成功：${run.state}`,
-          );
-        return run;
-      }
-      if (Date.now() > deadline) throw new Error('等待模型任务超时，请在运行记录中检查原任务。');
-      await pause(signal);
-      run = await api<Run>(`/runs/${run.id}`, undefined, signal);
-    }
-  };
+  const wait = (run: Run) => waitForLifecycleRun(run, signal, onProgress);
   let items: Deployment[] = [];
   const current = async () => {
     const data = await api<{ items: Deployment[] }>('/deployments', undefined, signal);
@@ -56,7 +81,9 @@ export async function applyKernelProfile(
     throw new Error('部署状态已变化，请核对当前方案后重新操作。');
   if (deployment.provider === 'pytorch') {
     const owners = items.filter(
-      (item) => item.id !== deployment.id && item.provider === 'pytorch' &&
+      (item) =>
+        item.id !== deployment.id &&
+        item.provider === 'pytorch' &&
         !['unloaded', 'failed'].includes(item.state),
     );
     if (owners.some((item) => item.state !== 'ready'))

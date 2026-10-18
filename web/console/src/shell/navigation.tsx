@@ -29,6 +29,11 @@ export const navigation = [
         label: '性能与质量对照',
         detail: '固定典型输入，多方案输出与性能比较',
       },
+      {
+        path: '/scheduling',
+        label: '多请求调度实验',
+        detail: 'L8 连续合批、KV 生命周期与质量对照',
+      },
     ],
   },
   {
