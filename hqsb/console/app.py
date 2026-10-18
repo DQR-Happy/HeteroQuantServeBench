@@ -89,6 +89,10 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     from hqsb.console.benchmark_routes import benchmark_router
 
     benchmarks = BenchmarkCampaigns(settings, svc)
+    from hqsb.console.scheduling_campaigns import SchedulingCampaigns
+    from hqsb.console.scheduling_routes import scheduling_router
+
+    scheduling = SchedulingCampaigns(settings, svc)
     login_attempts: dict[str, list[float]] = {}
 
     @asynccontextmanager
@@ -99,6 +103,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         telemetry.close()
         await asyncio.to_thread(connections.close)
         await asyncio.to_thread(benchmarks.close)
+        await asyncio.to_thread(scheduling.close)
         await asyncio.to_thread(model_hub.close)
         await asyncio.to_thread(svc.close)
 
@@ -112,11 +117,13 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     )
     app.state.service = svc
     app.state.benchmarks = benchmarks
+    app.state.scheduling = scheduling
     app.state.machines = machines
     app.state.machine_connections = connections
     app.state.model_hub = model_hub
     app.include_router(machine_router(machines, connections), prefix=PREFIX)
     app.include_router(model_hub_router(model_hub), prefix=PREFIX)
+    app.include_router(scheduling_router(scheduling), prefix=PREFIX)
 
     def valid_session(cookie):
         try:

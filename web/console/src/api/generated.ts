@@ -227,6 +227,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/deployments/{deployment_id}/scheduling-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capabilities */
+        get: operations["capabilities_api_console_v1_deployments__deployment_id__scheduling_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/scheduling-benchmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listing */
+        get: operations["listing_api_console_v1_scheduling_benchmarks_get"];
+        put?: never;
+        /** Start */
+        post: operations["start_api_console_v1_scheduling_benchmarks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/scheduling-benchmarks/{identity}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["detail_api_console_v1_scheduling_benchmarks__identity__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/scheduling-benchmarks/{identity}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel */
+        post: operations["cancel_api_console_v1_scheduling_benchmarks__identity__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/scheduling-benchmarks/{identity}/requests/{request_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Request */
+        post: operations["cancel_request_api_console_v1_scheduling_benchmarks__identity__requests__request_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/scheduling-benchmarks/{identity}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Request */
+        post: operations["submit_request_api_console_v1_scheduling_benchmarks__identity__requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/scheduling-benchmarks/{identity}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replay */
+        post: operations["replay_api_console_v1_scheduling_benchmarks__identity__replay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/scheduling-benchmarks/{identity}/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Records */
+        get: operations["records_api_console_v1_scheduling_benchmarks__identity__records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1476,7 +1613,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "load" | "unload" | "generate" | "quantize";
+            kind: "load" | "unload" | "generate" | "quantize" | "scheduling";
             /**
              * State
              * @enum {string}
@@ -1504,6 +1641,139 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** SchedulingExperiment */
+        SchedulingExperiment: {
+            /** Deployment Id */
+            deployment_id: string;
+            /** Expected Epoch */
+            expected_epoch: string;
+            /** Requests */
+            requests: components["schemas"]["WorkItem"][];
+            /** Modes */
+            modes?: ("serial" | "static" | "continuous")[];
+            limits?: components["schemas"]["SchedulingLimits"];
+            /**
+             * Repeats
+             * @default 1
+             */
+            repeats: number;
+            /**
+             * Arrival Mode
+             * @default open_loop
+             * @enum {string}
+             */
+            arrival_mode: "open_loop" | "closed_loop";
+            /**
+             * Concurrency
+             * @default 4
+             */
+            concurrency: number;
+            /**
+             * Save Input
+             * @default false
+             */
+            save_input: boolean;
+            /**
+             * Session Deadline S
+             * @default 120
+             */
+            session_deadline_s: number;
+            /**
+             * Sender Lag Limit Ms
+             * @default 20
+             */
+            sender_lag_limit_ms: number;
+            /**
+             * Ttft Slo Ms
+             * @default 2000
+             */
+            ttft_slo_ms: number;
+            /**
+             * Itl Slo Ms
+             * @default 200
+             */
+            itl_slo_ms: number;
+        };
+        /** SchedulingLimits */
+        SchedulingLimits: {
+            /**
+             * Max Active Sequences
+             * @default 4
+             */
+            max_active_sequences: number;
+            /**
+             * Max Batch Sequences
+             * @default 4
+             */
+            max_batch_sequences: number;
+            /**
+             * Max Batched Tokens
+             * @default 256
+             */
+            max_batched_tokens: number;
+            /**
+             * Max Padded Positions
+             * @default 16384
+             */
+            max_padded_positions: number;
+            /**
+             * Max Temporary Bytes
+             * @default 536870912
+             */
+            max_temporary_bytes: number;
+            /**
+             * Kv Capacity Tokens
+             * @default 8192
+             */
+            kv_capacity_tokens: number;
+            /**
+             * Prefill Chunk Tokens
+             * @default 64
+             */
+            prefill_chunk_tokens: number;
+            /**
+             * Chunked Prefill
+             * @default true
+             */
+            chunked_prefill: boolean;
+            /**
+             * Policy
+             * @default fcfs
+             * @enum {string}
+             */
+            policy: "fcfs" | "priority_aging" | "tenant_fair";
+            /** Tenant Weights */
+            tenant_weights?: {
+                [key: string]: number;
+            };
+            /**
+             * Phase Policy
+             * @default balanced
+             * @enum {string}
+             */
+            phase_policy: "balanced" | "decode_first";
+            /**
+             * Prefill Quota Tokens
+             * @default 16
+             */
+            prefill_quota_tokens: number;
+            /**
+             * Aging Ms
+             * @default 100
+             */
+            aging_ms: number;
+            /**
+             * Preemption
+             * @default off
+             * @enum {string}
+             */
+            preemption: "off" | "recompute";
+            /**
+             * Max Preemptions
+             * @default 4
+             */
+            max_preemptions: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1512,6 +1782,45 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WorkItem */
+        WorkItem: {
+            /** Id */
+            id: string;
+            /** Prompt */
+            prompt: string;
+            /**
+             * Arrival Ms
+             * @default 0
+             */
+            arrival_ms: number;
+            /**
+             * Output Tokens
+             * @default 32
+             */
+            output_tokens: number;
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /**
+             * Tenant
+             * @default default
+             */
+            tenant: string;
+            /** Cancel After Ms */
+            cancel_after_ms?: number | null;
+            /**
+             * Deadline Ms
+             * @default 60000
+             */
+            deadline_ms: number;
+            /**
+             * Fixed Output Length
+             * @default true
+             */
+            fixed_output_length: boolean;
         };
     };
     responses: never;
@@ -1940,6 +2249,289 @@ export interface operations {
     register_api_console_v1_model_hub_downloads__identity__register_post: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    capabilities_api_console_v1_deployments__deployment_id__scheduling_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deployment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listing_api_console_v1_scheduling_benchmarks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    start_api_console_v1_scheduling_benchmarks_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchedulingExperiment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detail_api_console_v1_scheduling_benchmarks__identity__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_api_console_v1_scheduling_benchmarks__identity__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_request_api_console_v1_scheduling_benchmarks__identity__requests__request_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_request_api_console_v1_scheduling_benchmarks__identity__requests_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkItem"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replay_api_console_v1_scheduling_benchmarks__identity__replay_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    records_api_console_v1_scheduling_benchmarks__identity__records_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                after?: number;
+                limit?: number;
+            };
             header?: never;
             path: {
                 identity: string;

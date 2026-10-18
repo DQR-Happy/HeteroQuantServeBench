@@ -18,6 +18,8 @@ LIST_DETAIL_PATHS = (
     "$.result",
     "$.config.messages",
     "$.config.prompt",
+    "$.config.requests",
+    "$.config.external_requests",
     "$.config.actual_runtime.parameter_inventory",
     "$.config.actual_runtime.source_environment.source_files",
     "$.metrics.observation",

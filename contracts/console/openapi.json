@@ -608,6 +608,424 @@
         }
       }
     },
+    "/api/console/v1/deployments/{deployment_id}/scheduling-capabilities": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Capabilities",
+        "operationId": "capabilities_api_console_v1_deployments__deployment_id__scheduling_capabilities_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/scheduling-benchmarks": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Start",
+        "operationId": "start_api_console_v1_scheduling_benchmarks_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchedulingExperiment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_scheduling_benchmarks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/scheduling-benchmarks/{identity}": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Detail",
+        "operationId": "detail_api_console_v1_scheduling_benchmarks__identity__get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/scheduling-benchmarks/{identity}/cancel": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Cancel",
+        "operationId": "cancel_api_console_v1_scheduling_benchmarks__identity__cancel_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/scheduling-benchmarks/{identity}/requests/{request_id}/cancel": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Cancel Request",
+        "operationId": "cancel_request_api_console_v1_scheduling_benchmarks__identity__requests__request_id__cancel_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/scheduling-benchmarks/{identity}/requests": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Submit Request",
+        "operationId": "submit_request_api_console_v1_scheduling_benchmarks__identity__requests_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/scheduling-benchmarks/{identity}/replay": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Replay",
+        "operationId": "replay_api_console_v1_scheduling_benchmarks__identity__replay_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/scheduling-benchmarks/{identity}/records": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Records",
+        "operationId": "records_api_console_v1_scheduling_benchmarks__identity__records_get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Health",
@@ -3680,7 +4098,8 @@
               "load",
               "unload",
               "generate",
-              "quantize"
+              "quantize",
+              "scheduling"
             ],
             "title": "Kind"
           },
@@ -3760,6 +4179,226 @@
         ],
         "title": "RunRecord"
       },
+      "SchedulingExperiment": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          },
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/WorkItem"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "minItems": 1,
+            "title": "Requests"
+          },
+          "modes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "serial",
+                "static",
+                "continuous"
+              ]
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Modes"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/SchedulingLimits"
+          },
+          "repeats": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Repeats",
+            "default": 1
+          },
+          "arrival_mode": {
+            "type": "string",
+            "enum": [
+              "open_loop",
+              "closed_loop"
+            ],
+            "title": "Arrival Mode",
+            "default": "open_loop"
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "default": 4
+          },
+          "save_input": {
+            "type": "boolean",
+            "title": "Save Input",
+            "default": false
+          },
+          "session_deadline_s": {
+            "type": "integer",
+            "maximum": 600.0,
+            "minimum": 1.0,
+            "title": "Session Deadline S",
+            "default": 120
+          },
+          "sender_lag_limit_ms": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Sender Lag Limit Ms",
+            "default": 20
+          },
+          "ttft_slo_ms": {
+            "type": "integer",
+            "maximum": 60000.0,
+            "minimum": 1.0,
+            "title": "Ttft Slo Ms",
+            "default": 2000
+          },
+          "itl_slo_ms": {
+            "type": "integer",
+            "maximum": 60000.0,
+            "minimum": 1.0,
+            "title": "Itl Slo Ms",
+            "default": 200
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "expected_epoch",
+          "requests"
+        ],
+        "title": "SchedulingExperiment"
+      },
+      "SchedulingLimits": {
+        "properties": {
+          "max_active_sequences": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Max Active Sequences",
+            "default": 4
+          },
+          "max_batch_sequences": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Max Batch Sequences",
+            "default": 4
+          },
+          "max_batched_tokens": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Max Batched Tokens",
+            "default": 256
+          },
+          "max_padded_positions": {
+            "type": "integer",
+            "maximum": 131072.0,
+            "minimum": 1.0,
+            "title": "Max Padded Positions",
+            "default": 16384
+          },
+          "max_temporary_bytes": {
+            "type": "integer",
+            "maximum": 2147483648.0,
+            "minimum": 1048576.0,
+            "title": "Max Temporary Bytes",
+            "default": 536870912
+          },
+          "kv_capacity_tokens": {
+            "type": "integer",
+            "maximum": 131072.0,
+            "minimum": 1.0,
+            "title": "Kv Capacity Tokens",
+            "default": 8192
+          },
+          "prefill_chunk_tokens": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Prefill Chunk Tokens",
+            "default": 64
+          },
+          "chunked_prefill": {
+            "type": "boolean",
+            "title": "Chunked Prefill",
+            "default": true
+          },
+          "policy": {
+            "type": "string",
+            "enum": [
+              "fcfs",
+              "priority_aging",
+              "tenant_fair"
+            ],
+            "title": "Policy",
+            "default": "fcfs"
+          },
+          "tenant_weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "maxProperties": 32,
+            "title": "Tenant Weights"
+          },
+          "phase_policy": {
+            "type": "string",
+            "enum": [
+              "balanced",
+              "decode_first"
+            ],
+            "title": "Phase Policy",
+            "default": "balanced"
+          },
+          "prefill_quota_tokens": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Prefill Quota Tokens",
+            "default": 16
+          },
+          "aging_ms": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Aging Ms",
+            "default": 100
+          },
+          "preemption": {
+            "type": "string",
+            "enum": [
+              "off",
+              "recompute"
+            ],
+            "title": "Preemption",
+            "default": "off"
+          },
+          "max_preemptions": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 0.0,
+            "title": "Max Preemptions",
+            "default": 4
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SchedulingLimits"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -3792,6 +4431,81 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WorkItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+            "title": "Id"
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 8192,
+            "minLength": 1,
+            "title": "Prompt"
+          },
+          "arrival_ms": {
+            "type": "integer",
+            "maximum": 30000.0,
+            "minimum": 0.0,
+            "title": "Arrival Ms",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "maximum": 256.0,
+            "minimum": 1.0,
+            "title": "Output Tokens",
+            "default": 32
+          },
+          "priority": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": -10.0,
+            "title": "Priority",
+            "default": 0
+          },
+          "tenant": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Tenant",
+            "default": "default"
+          },
+          "cancel_after_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel After Ms"
+          },
+          "deadline_ms": {
+            "type": "integer",
+            "maximum": 120000.0,
+            "minimum": 1.0,
+            "title": "Deadline Ms",
+            "default": 60000
+          },
+          "fixed_output_length": {
+            "type": "boolean",
+            "title": "Fixed Output Length",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "prompt"
+        ],
+        "title": "WorkItem"
       }
     }
   }

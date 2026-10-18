@@ -44,8 +44,13 @@ def catalogue(provider="pytorch"):
                       "runtime_capability": "requires_executor_validation" if provider == "pytorch" else "unsupported_provider",
                       "proof_required": True})
     for name, layers in PENDING.items():
-        items.append({"id": name, "layers": layers, "implementation_status": "not_integrated",
-                      "runtime_capability": "unavailable", "proof_required": True})
+        session = name in {"continuous_batching", "chunked_prefill"}
+        items.append({"id": name, "layers": layers,
+                      "implementation_status": "session_api_only" if session else "not_integrated",
+                      "runtime_capability": "requires_scheduling_capabilities" if session and provider == "pytorch" else "unavailable",
+                      **({"entrypoint": "/scheduling", "api": "/scheduling-benchmarks",
+                          "scope": "exclusive_multi_request_session"} if session else {}),
+                      "proof_required": True})
     return {"schema_version": VERSION, "layers": LAYERS, "items": items}
 
 
