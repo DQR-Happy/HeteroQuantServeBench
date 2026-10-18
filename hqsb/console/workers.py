@@ -31,8 +31,11 @@ def worker_main(connection, cancel, config, controls=None):
             command = connection.recv()
             try:
                 if command["kind"] == "load":
-                    selection = command.get("payload", {}).get("kernel_profile")
-                    result = provider.load(**({"kernel_profile": selection} if selection is not None else {}))
+                    selection = {k: v for k, v in command.get("payload", {}).items() if k in {"kernel_profile", "precision", "quantization"}}
+                    result = provider.load(**selection)
+                elif command["kind"] == "precision_capabilities":
+                    from hqsb.backends.precision_runtime import probe, receipt
+                    result = {**probe(), "effective": receipt(provider)}
                 elif command["kind"] == "token_budget":
                     result = provider.token_budget(command["payload"], cancel)
                 elif command["kind"] == "scheduling_capabilities":

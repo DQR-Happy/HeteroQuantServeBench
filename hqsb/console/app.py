@@ -22,6 +22,7 @@ from hqsb.console.service import ConsoleService, ServiceError
 from hqsb.console.schemas import RunPage, RunRecord
 from hqsb.console.store import TERMINAL
 from hqsb.console.telemetry import Telemetry
+from hqsb.core.precision import PrecisionPlan, catalogue as precision_catalogue
 from hqsb.console.analysis_routes import analysis_router
 from hqsb.console.architecture_routes import architecture_router
 from hqsb.console.experiment_routes import experiment_router
@@ -66,6 +67,8 @@ class Login(BaseModel):
 class KernelSelection(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kernel_profile: str | None = None
+    precision: Literal["float32", "float16", "bfloat16"] | None = None
+    quantization: PrecisionPlan | None = None
 
 
 class ComparisonRequest(BaseModel):
@@ -361,8 +364,8 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         body: KernelSelection | None = None,
         idempotency_key: str = Header(min_length=1, max_length=128),
     ):
-        if body is not None and body.kernel_profile is not None and action != "load":
-            raise HTTPException(422, "Kernel selection is only valid on load")
+        if body is not None and body.model_dump(exclude_none=True) and action != "load":
+            raise HTTPException(422, "Kernel/precision selection is only valid on load")
         return svc.submit(action, deployment_id, body.model_dump(exclude_none=True) if body else {}, idempotency_key)
 
     @app.post(PREFIX + "/requests/token-budget")

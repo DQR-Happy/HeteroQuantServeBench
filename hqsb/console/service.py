@@ -44,13 +44,15 @@ class ConsoleService:
         }
 
         def make_actor(config):
+            actor_config = {**config.model_dump(), "l4_artifact_root": str(settings.data_dir / "l4-artifacts"),
+                            "l4_artifact_budget_bytes": settings.artifact_budget_bytes}
             if actor_factory is not None:
-                return actor_factory(config.model_dump())
+                return actor_factory(actor_config)
             if settings.privileged_worker and config.provider == "pytorch":
                 from hqsb.console.privileged_worker import PrivilegedActor
 
                 return PrivilegedActor(config.model_dump(), data_dir=settings.data_dir)
-            return Actor(config.model_dump())
+            return Actor(actor_config)
 
         self._make_actor = make_actor
         self.actors = {x.id: make_actor(x) for x in settings.deployments}
@@ -319,17 +321,26 @@ class ConsoleService:
                         "W4 requires group 32/64/128; W8 uses per-channel scaling",
                         422,
                     )
-                if kind == "quantize" and cfg.precision != "float16":
+                if kind == "quantize" and (state.get("precision", cfg.precision) != "float16" or state.get("quantization", {}).get("method", "none") != "none"):
                     raise ServiceError("QUANT_PRECISION_UNSUPPORTED", "当前交互量化制品通路仅验收了 FP16 源模型", 422)
                 self._preflight(kind, cfg, payload)
             elif kind == "load":
                 from hqsb.core.kernel_profiles import profile, requires_native
+                from hqsb.core.precision import PrecisionPlan
 
                 try:
                     selected = payload.get("kernel_profile", cfg.kernel_profile)
+                    precision = payload.get("precision", cfg.precision)
+                    quantization = PrecisionPlan.model_validate(payload.get("quantization", {}))
+                    if self.settings.privileged_worker and (quantization.method != "none" or quantization.kv_bits):
+                        raise ValueError("L4_WORKER_UNSUPPORTED: quantization requires an unprivileged local worker")
                     profile(selected)
-                    if set(payload) - {"kernel_profile"} or (cfg.provider != "pytorch" and payload):
+                    if set(payload) - {"kernel_profile", "precision", "quantization"} or (cfg.provider != "pytorch" and payload):
                         raise ValueError("KERNEL_PROFILE_LOAD_INVALID")
+                    if precision not in {"float32", "float16", "bfloat16"}:
+                        raise ValueError("L4_PRECISION_UNSUPPORTED")
+                    if selected != "framework-native" and (precision != "float16" or quantization.method != "none" or quantization.kv_bits):
+                        raise ValueError("L4_CUSTOM_L2_KERNEL_NOT_QUANTIZATION_VERIFIED")
                     if profile(selected)["operators"]:
                         from hqsb.console.kernel_inventory import model_kernel_compatibility
 
@@ -347,7 +358,8 @@ class ConsoleService:
                 if cfg.provider == "pytorch":
                     # A failed live worker may retain its last attempted profile.
                     # Always send the resolved selection, including the default.
-                    payload = {**payload, "kernel_profile": selected}
+                    payload = {**payload, "kernel_profile": selected,
+                               "precision": precision}
                 if state["state"] not in {"unloaded", "failed"}:
                     raise ServiceError(
                         "DEPLOYMENT_BUSY", "Unload this deployment before loading again"
@@ -572,6 +584,9 @@ class ConsoleService:
                         load_run_id=run_id,
                         loaded_at=time.time(),
                         kernel_profile=payload.get("kernel_profile", self.configs[deployment_id].kernel_profile),
+                        precision=payload.get("precision", self.configs[deployment_id].precision),
+                        quantization={k: v for k, v in result.get("precision_receipt", {"method": "none"}).items()
+                                      if k in {"method", "compute_dtype", "artifact_id", "quantized_module_count", "execution", "kv", "plan_sha256"}},
                     )
             elif kind == "unload" or result.get("worker_terminated"):
                 with self.lock:

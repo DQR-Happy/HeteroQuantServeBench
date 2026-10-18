@@ -41,12 +41,12 @@ class DeploymentConfig(BaseModel):
         if self.provider != "pytorch" and self.kernel_profile != "framework-native":
             raise ValueError("kernel profiles require a local PyTorch worker")
         if self.provider == "pytorch" and (
-            self.precision not in {"float16", "bfloat16"} or self.kernel != "framework-native"
+            self.precision not in {"float32", "float16", "bfloat16"} or self.kernel != "framework-native"
         ):
             raise ValueError(
-                "interactive reference supports FP16/BF16 framework-native only"
+                "interactive reference supports FP32/FP16/BF16 framework-native only"
             )
-        if self.provider == "pytorch" and self.precision == "bfloat16" and self.kernel_profile != "framework-native":
+        if self.provider == "pytorch" and self.precision != "float16" and self.kernel_profile != "framework-native":
             raise ValueError("Custom kernel profiles currently require FP16")
         if self.provider == "openai" and not self.base_url:
             raise ValueError("OpenAI provider requires a server-configured base_url")
