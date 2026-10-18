@@ -8,7 +8,7 @@ import signal
 import time
 
 
-def worker_main(connection, cancel, config):
+def worker_main(connection, cancel, config, controls=None):
     # On Linux an abruptly stopped API must not leave its private GPU worker alive.
     if os.name == "posix":
         try:
@@ -35,6 +35,19 @@ def worker_main(connection, cancel, config):
                     result = provider.load(**({"kernel_profile": selection} if selection is not None else {}))
                 elif command["kind"] == "token_budget":
                     result = provider.token_budget(command["payload"], cancel)
+                elif command["kind"] == "scheduling_capabilities":
+                    from hqsb.backends.step_executor import capabilities
+
+                    result = capabilities(provider)
+                elif command["kind"] == "scheduling":
+                    from hqsb.console.scheduling_worker import execute
+
+                    result = {}
+                    for event in execute(provider, command["payload"], cancel, controls):
+                        if event["kind"] == "result":
+                            result = event
+                        else:
+                            connection.send(event)
                 elif command["kind"] in {"generate", "quantize"}:
                     result = {}
                     operation = getattr(provider, command["kind"])
@@ -71,6 +84,7 @@ class Actor:
         self.process = None
         self.pipe = None
         self.cancel = None
+        self.controls = None
 
     def execute(self, kind, payload, on_output, is_cancelled, timeout_s):
         if self.process is None or not self.process.is_alive():
@@ -78,8 +92,9 @@ class Actor:
             ctx = mp.get_context("spawn")
             self.pipe, child = ctx.Pipe()
             self.cancel = ctx.Event()
+            self.controls = ctx.Queue(maxsize=256)
             self.process = ctx.Process(
-                target=worker_main, args=(child, self.cancel, self.config), daemon=True
+                target=worker_main, args=(child, self.cancel, self.config, self.controls), daemon=True
             )
             self.process.start()
             child.close()
@@ -113,6 +128,11 @@ class Actor:
             if not self.process.is_alive():
                 raise RuntimeError("Device worker exited unexpectedly")
 
+    def control(self, message):
+        if self.controls is None or self.process is None or not self.process.is_alive():
+            raise RuntimeError("WORKER_NOT_RUNNING")
+        self.controls.put_nowait(message)
+
     def close(self):
         if self.process is not None:
             if self.cancel:
@@ -129,3 +149,7 @@ class Actor:
         if self.pipe is not None:
             self.pipe.close()
             self.pipe = None
+        if self.controls is not None:
+            self.controls.close()
+            self.controls.cancel_join_thread()
+            self.controls = None

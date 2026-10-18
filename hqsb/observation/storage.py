@@ -42,6 +42,7 @@ class EvidenceWriter:
         max_records=100_000,
         max_bytes=128 * 1024 * 1024,
         chunk_bytes=8 * 1024 * 1024,
+        queue_records=256,
     ):
         self.directory = Path(directory)
         if not self.directory.is_absolute() or self.directory.is_symlink():
@@ -55,7 +56,10 @@ class EvidenceWriter:
             max_bytes,
             chunk_bytes,
         )
-        self.queue = queue.Queue(maxsize=256)
+        if type(queue_records) is not int or not 1 <= queue_records <= 4096:
+            raise ValueError("EVIDENCE_QUEUE_BUDGET_INVALID")
+        self.queue = queue.Queue(maxsize=queue_records)
+        self.queue_high_watermark = 0
         self.lock = threading.Lock()
         self.sequence = self.accepted = self.written = self.dropped = self.bytes = 0
         self.artifacts, self.error, self.closed = [], None, False
@@ -86,6 +90,7 @@ class EvidenceWriter:
                 self.dropped += 1
                 return "queue_full"
             self.accepted += 1
+            self.queue_high_watermark = max(self.queue_high_watermark, self.queue.qsize())
             return "accepted"
 
     def _drain(self):
@@ -175,6 +180,7 @@ class EvidenceWriter:
                 "accepted_not_written": self.accepted - self.written,
             },
             "error": self.error,
+            "queue": {"capacity_records": self.queue.maxsize, "high_watermark_records": self.queue_high_watermark},
             "artifacts": self.artifacts,
             "source_problems": source_problems or [],
             "publication": "awaiting_supervisor",
