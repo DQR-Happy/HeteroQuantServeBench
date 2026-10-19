@@ -24,19 +24,21 @@ export default function WorkbenchShell({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const path = location.pathname.startsWith('/runs/')
-    ? '/runs'
-    : location.pathname.startsWith('/decoding/')
-      ? '/decoding'
-      : location.pathname.startsWith('/parallel/')
-        ? '/parallel'
-        : location.pathname.startsWith('/model-structure/')
-          ? '/model-structure'
-          : location.pathname.startsWith('/memory-cache/')
-            ? '/memory-cache'
-            : location.pathname.startsWith('/model-architecture/')
-              ? '/model-architecture'
-              : location.pathname;
+  const path = location.pathname.startsWith('/system/')
+    ? '/system'
+    : location.pathname.startsWith('/runs/')
+      ? '/runs'
+      : location.pathname.startsWith('/decoding/')
+        ? '/decoding'
+        : location.pathname.startsWith('/parallel/')
+          ? '/parallel'
+          : location.pathname.startsWith('/model-structure/')
+            ? '/model-structure'
+            : location.pathname.startsWith('/memory-cache/')
+              ? '/memory-cache'
+              : location.pathname.startsWith('/model-architecture/')
+                ? '/model-architecture'
+                : location.pathname;
   const guideChapter =
     (
       {
@@ -50,6 +52,7 @@ export default function WorkbenchShell({
         '/model-structure': 'model-structure',
         '/decoding': 'decoding',
         '/parallel': 'parallel',
+        '/system': 'system',
         '/memory-cache': 'memory-cache',
         '/observations': 'observations',
         '/memory-flow': 'observations',

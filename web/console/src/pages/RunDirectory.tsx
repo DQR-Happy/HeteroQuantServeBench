@@ -85,21 +85,29 @@ export default function RunDirectory() {
           </nav>
           <h2>任务类型</h2>
           <nav>
-            {['all', 'generate', 'quality', 'load', 'unload', 'quantize', 'scheduling'].map(
-              (value) => (
-                <button
-                  key={value}
-                  aria-pressed={kind === value}
-                  onClick={() => update('kind', value)}
-                >
-                  {value === 'all'
-                    ? '全部任务'
-                    : value === 'quality'
-                      ? '独立质量评测'
-                      : runKindLabel(value)}
-                </button>
-              ),
-            )}
+            {[
+              'all',
+              'generate',
+              'quality',
+              'load',
+              'unload',
+              'quantize',
+              'scheduling',
+              'system',
+              'distributed',
+            ].map((value) => (
+              <button
+                key={value}
+                aria-pressed={kind === value}
+                onClick={() => update('kind', value)}
+              >
+                {value === 'all'
+                  ? '全部任务'
+                  : value === 'quality'
+                    ? '独立质量评测'
+                    : runKindLabel(value)}
+              </button>
+            ))}
           </nav>
           <p>筛选与计数作用于当前页的 30 条记录。</p>
         </aside>

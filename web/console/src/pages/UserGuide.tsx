@@ -10,6 +10,7 @@ const chapters = [
   ['machines', '选择执行机器'],
   ['models', '下载与接入模型'],
   ['architecture', '查看模型架构与计算依赖'],
+  ['system', 'L1 硬件与系统配置'],
   ['model-structure', 'L5 模型结构与压缩'],
   ['memory-cache', 'L6 内存与 KV 管理'],
   ['decoding', 'L7 解码与生成算法'],
@@ -403,6 +404,34 @@ export default function UserGuide() {
               和连续合批的组合需另行验收。按钮禁用时悬停可查看前置操作与链接。
             </p>
           </Section>
+          <Section id="system" title="L1 / 硬件与系统配置">
+            <p>
+              进入<Link to="/system/run">配置实验</Link>
+              ，选择当前节点已下载并校验的原始浮点模型。先在<Link to="/devices">设备与部署</Link>
+              卸载驻留模型。设置两组 CPU 亲和性、PyTorch 算子内/间线程数、NUMA 后续分配策略和 GPU
+              功耗上限，每行一个固定原始文本输入。
+            </p>
+            <p>
+              CPU 留空表示继承允许的全部 CPU；线程数不改变容器的 CPU 配额。NUMA 绑定仅在操作系统允许
+              mempolicy 时提供，在模型加载前应用，不能据此声称迁移了 GPU 显存页。GPU
+              功耗留空表示继承实验前的原值；驱动写权限在应用时检查，不能仅由 root 身份推断。
+              <Link to="/system/topology">硬件与能力</Link>列出真实允许范围、UUID、NUMA 和容器限制。
+            </p>
+            <p>
+              默认每配置两轮，按 A/B、B/A 顺序使用独立进程加载和预热；生成计时排除加载预热。在
+              <Link to="/system/results">结果与观测</Link>查看 Token/s、首
+              Token、分配器峰值、RSS、缺页、上下文切换、板卡能量和逐 Token
+              输出，并查看候选相对基线的变化。250 ms
+              遥测是设备级样本，短任务的样本可能较少。板卡能量计数器与功率积分估算分开保存。
+            </p>
+            <p>
+              结束或取消时先退出模型进程，再恢复原功耗并回读。恢复未确认会保留
+              .console/l1-power-journal.json 并阻止后续 L1 实验；请在执行节点检查原
+              UUID、原功耗和守护进程，确认恢复后归档日志并重启服务。CPU governor、GPU/EMC
+              锁频、Jetson nvpmodel、NPU
+              执行和异构图切分尚未开放，不能把硬件探测当作这些措施已实施。
+            </p>
+          </Section>
           <Section id="parallel" title="L9 / 多卡与分布式执行">
             <p>
               进入<Link to="/parallel/run">执行方案</Link>，选择已下载并校验的原始浮点源模型。先在
@@ -773,8 +802,11 @@ export default function UserGuide() {
               rows={[
                 [
                   '1 · 硬件与系统',
-                  '机器连接切换执行节点；设备页查看资源',
-                  '没有网页 NUMA、频率、功耗上限或硬件分配调优开关。',
+                  <>
+                    <Link to="/system">硬件与系统配置</Link>执行固定输入的 CPU 亲和性、线程、NUMA 和
+                    GPU 功耗对照；机器页切换节点。
+                  </>,
+                  '权限与硬件能力逐节点核验；NUMA 只影响随后分配；功耗必须恢复回读。频率仅观测，尚无锁频、NPU 执行或异构图切分。',
                 ],
                 [
                   '2 · 指令与 Kernel',

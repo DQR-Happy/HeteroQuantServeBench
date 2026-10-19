@@ -37,8 +37,20 @@ export function RunDetail() {
   const lifecycle = r?.kind === 'load' || r?.kind === 'unload';
   const quality = !!r && isQualityRun(r);
   const decoding = (r as DecodeRun | undefined)?.metrics.decoding_receipt;
+  if (r?.kind === 'system')
+    return (
+      <Navigate
+        replace
+        to={`/system/results?deployment=${encodeURIComponent(r.config.deployment.id)}&run=${r.id}`}
+      />
+    );
   if (r?.kind === 'distributed')
-    return <Navigate replace to={`/parallel/run?deployment=${encodeURIComponent(r.config.deployment.id)}&run=${r.id}`} />;
+    return (
+      <Navigate
+        replace
+        to={`/parallel/run?deployment=${encodeURIComponent(r.config.deployment.id)}&run=${r.id}`}
+      />
+    );
   if (r?.kind === 'draft_unload')
     return (
       <>

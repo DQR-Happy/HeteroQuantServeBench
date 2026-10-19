@@ -16,6 +16,7 @@ const MemoryCache = lazy(() => import('./pages/MemoryCache'));
 const ModelStructure = lazy(() => import('./pages/ModelStructure'));
 const Decoding = lazy(() => import('./pages/Decoding'));
 const Parallel = lazy(() => import('./pages/Parallel'));
+const System = lazy(() => import('./pages/System'));
 const Observations = lazy(() => import('./pages/Observations'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Devices = lazy(() => import('./pages/Devices'));
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="/model-structure/:section?" element={<ModelStructure />} />
           <Route path="/decoding/:section?" element={<Decoding />} />
           <Route path="/parallel/:section?" element={<Parallel />} />
+          <Route path="/system/:section?" element={<System />} />
           <Route path="/playground" element={<Playground />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/machines" element={<Machines />} />

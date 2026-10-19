@@ -64,6 +64,7 @@ export const navigation = [
     path: '/optimization',
     pages: [
       { path: '/optimization', label: '优化实验', detail: '冻结计划、执行凭据与质量门' },
+      { path: '/system', label: '硬件与系统配置', detail: 'L1 CPU/NUMA、线程、GPU 功耗与配置对照' },
       {
         path: '/model-structure',
         label: '模型结构与压缩',
