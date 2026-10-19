@@ -61,6 +61,8 @@ precision = [
 ]
 # Optional structure exporter; does not install/replace the target's torch.
 graph-export = ["onnx==1.19.1", "onnxscript==0.3.2", "onnx_ir==0.1.12"]
+# Optional L1 board telemetry/power control. Never replaces the target CUDA stack.
+system = ["nvidia-ml-py>=12,<14"]
 # Ascend/CANN backend (S09).
 ascend = [
     "torch-npu",
