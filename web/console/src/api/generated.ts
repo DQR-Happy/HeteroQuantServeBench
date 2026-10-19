@@ -774,6 +774,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/system/hardware": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hardware */
+        get: operations["hardware_api_console_v1_system_hardware_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/system/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalog */
+        get: operations["catalog_api_console_v1_system_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/system/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listing */
+        get: operations["listing_api_console_v1_system_jobs_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_console_v1_system_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/runs/{identity}/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Receipt */
+        get: operations["receipt_api_console_v1_runs__identity__system_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -2733,7 +2802,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "load" | "unload" | "generate" | "quantize" | "scheduling" | "compress" | "draft_unload" | "distributed";
+            kind: "load" | "unload" | "generate" | "quantize" | "scheduling" | "compress" | "draft_unload" | "distributed" | "system";
             /**
              * State
              * @enum {string}
@@ -2986,6 +3055,64 @@ export interface components {
              * @default 42
              */
             seed: number;
+        };
+        /** SystemPlan */
+        SystemPlan: {
+            baseline?: components["schemas"]["SystemProfile"];
+            candidate?: components["schemas"]["SystemProfile"];
+            /**
+             * Device
+             * @default 0
+             */
+            device: number;
+            /**
+             * Precision
+             * @default float16
+             * @enum {string}
+             */
+            precision: "float16" | "bfloat16" | "float32";
+            /** Prompts */
+            prompts?: string[];
+            /**
+             * Max Output Tokens
+             * @default 32
+             */
+            max_output_tokens: number;
+            /**
+             * Rounds
+             * @default 2
+             */
+            rounds: number;
+            /**
+             * Timeout S
+             * @default 300
+             */
+            timeout_s: number;
+        };
+        /** SystemProfile */
+        SystemProfile: {
+            /** Cpu Ids */
+            cpu_ids?: number[] | null;
+            /**
+             * Intra Threads
+             * @default 2
+             */
+            intra_threads: number;
+            /**
+             * Interop Threads
+             * @default 1
+             */
+            interop_threads: number;
+            /** Numa Node */
+            numa_node?: number | null;
+            /** Power Limit W */
+            power_limit_w?: number | null;
+        };
+        /** SystemRequest */
+        SystemRequest: {
+            /** Deployment Id */
+            deployment_id: string;
+            plan: components["schemas"]["SystemPlan"];
         };
         /** ValidationError */
         ValidationError: {
@@ -4491,6 +4618,132 @@ export interface operations {
                 "application/json": components["schemas"]["ParallelComparison"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hardware_api_console_v1_system_hardware_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    catalog_api_console_v1_system_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    listing_api_console_v1_system_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_api_console_v1_system_jobs_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    receipt_api_console_v1_runs__identity__system_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

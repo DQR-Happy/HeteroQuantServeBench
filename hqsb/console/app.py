@@ -110,6 +110,8 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     structure_jobs = StructureJobs(settings, svc)
     from hqsb.console.parallel_jobs import ParallelJobs
     parallel_jobs = ParallelJobs(settings, svc)
+    from hqsb.console.system_jobs import SystemJobs
+    system_jobs = SystemJobs(settings, svc)
     from hqsb.console.parallel_peers import PeerJobs
     parallel_peers = PeerJobs(settings, svc, parallel_jobs, machines, connections)
     login_attempts: dict[str, list[float]] = {}
@@ -127,6 +129,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         await asyncio.to_thread(model_hub.close)
         await asyncio.to_thread(structure_jobs.close)
         await asyncio.to_thread(parallel_jobs.close)
+        await asyncio.to_thread(system_jobs.close)
         await asyncio.to_thread(svc.close)
 
     app = FastAPI(
@@ -145,6 +148,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     app.state.model_hub = model_hub
     app.state.structure_jobs = structure_jobs
     app.state.parallel_jobs = parallel_jobs
+    app.state.system_jobs = system_jobs
     app.include_router(machine_router(machines, connections), prefix=PREFIX)
     app.include_router(model_hub_router(model_hub), prefix=PREFIX)
     app.include_router(scheduling_router(scheduling), prefix=PREFIX)
@@ -154,6 +158,8 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     app.include_router(decoding_router(settings, svc), prefix=PREFIX)
     from hqsb.console.parallel_routes import parallel_router
     app.include_router(parallel_router(settings, svc, parallel_jobs, parallel_peers), prefix=PREFIX)
+    from hqsb.console.system_routes import system_router
+    app.include_router(system_router(svc, system_jobs), prefix=PREFIX)
 
     def valid_session(cookie):
         try:

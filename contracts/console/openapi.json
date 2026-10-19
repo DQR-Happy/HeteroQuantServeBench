@@ -1945,6 +1945,155 @@
         }
       }
     },
+    "/api/console/v1/system/hardware": {
+      "get": {
+        "tags": [
+          "hardware-system"
+        ],
+        "summary": "Hardware",
+        "operationId": "hardware_api_console_v1_system_hardware_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/system/catalog": {
+      "get": {
+        "tags": [
+          "hardware-system"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_system_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/system/jobs": {
+      "post": {
+        "tags": [
+          "hardware-system"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_console_v1_system_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "hardware-system"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_system_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{identity}/system": {
+      "get": {
+        "tags": [
+          "hardware-system"
+        ],
+        "summary": "Receipt",
+        "operationId": "receipt_api_console_v1_runs__identity__system_get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Health",
@@ -6588,7 +6737,8 @@
               "scheduling",
               "compress",
               "draft_unload",
-              "distributed"
+              "distributed",
+              "system"
             ],
             "title": "Kind"
           },
@@ -7060,6 +7210,147 @@
           "method"
         ],
         "title": "StructurePlan"
+      },
+      "SystemPlan": {
+        "properties": {
+          "baseline": {
+            "$ref": "#/components/schemas/SystemProfile"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/SystemProfile"
+          },
+          "device": {
+            "type": "integer",
+            "maximum": 63.0,
+            "minimum": 0.0,
+            "title": "Device",
+            "default": 0
+          },
+          "precision": {
+            "type": "string",
+            "enum": [
+              "float16",
+              "bfloat16",
+              "float32"
+            ],
+            "title": "Precision",
+            "default": "float16"
+          },
+          "prompts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Prompts"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "maximum": 128.0,
+            "minimum": 2.0,
+            "title": "Max Output Tokens",
+            "default": 32
+          },
+          "rounds": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Rounds",
+            "default": 2
+          },
+          "timeout_s": {
+            "type": "integer",
+            "maximum": 1200.0,
+            "minimum": 30.0,
+            "title": "Timeout S",
+            "default": 300
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SystemPlan"
+      },
+      "SystemProfile": {
+        "properties": {
+          "cpu_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array",
+                "maxItems": 512,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu Ids"
+          },
+          "intra_threads": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Intra Threads",
+            "default": 2
+          },
+          "interop_threads": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Interop Threads",
+            "default": 1
+          },
+          "numa_node": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 63.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numa Node"
+          },
+          "power_limit_w": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power Limit W"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SystemProfile"
+      },
+      "SystemRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SystemPlan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "plan"
+        ],
+        "title": "SystemRequest"
       },
       "ValidationError": {
         "properties": {
