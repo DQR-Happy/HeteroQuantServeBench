@@ -1,21 +1,13 @@
+import Button from '../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Descriptions,
-  Input,
-  InputNumber,
-  Select,
-  Space,
-  Table,
-} from 'antd';
-import { Link } from 'react-router-dom';
-import { api, fmt, terminal } from '../api/client';
+import { Alert, Checkbox, Descriptions, Input, InputNumber, Select, Space, Table } from 'antd';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api, ApiError, fmt, terminal } from '../api/client';
 import type { Deployment, Run } from '../api/types';
 import { JsonView, PageHead, Panel, QueryState, Status } from '../components';
 import { applyKernelProfile, unloadDeployment } from '../features/kernels/lifecycle';
+import QualityBaseline from '../features/experiments/QualityBaseline';
 
 type Receipt = {
   method: string;
@@ -49,6 +41,33 @@ type Artifact = {
   source_model_hash: string;
   source_model?: string;
 };
+type QualityBenchmark = {
+  id: string;
+  name: string;
+  sample_count: number;
+  max_tokens: number;
+  dataset_sha256: string;
+  articles: string[];
+  source: { url: string; variant: string };
+};
+type QualityComparison = {
+  candidates: {
+    run_id: string;
+    quality: {
+      metric?: string;
+      status: string;
+      baseline_perplexity?: number;
+      candidate_perplexity?: number;
+      mean_nll_increase?: number;
+      ppl_ratio?: number;
+    };
+  }[];
+};
+const qualityStatuses: Record<string, string> = {
+  measured_no_acceptance_limits: '仅测量，未设阈值',
+  passed: '满足预登记阈值',
+  failed: '超出预登记阈值',
+};
 const calibrationExample = [
   'Once there was a small rabbit who lived near a river. Every morning it visited its friends.',
   'A boy found an old key in the garden. He asked his mother what the key could open.',
@@ -58,7 +77,8 @@ const calibrationExample = [
 
 export default function Precision() {
   const client = useQueryClient();
-  const [selected, setSelected] = useState('');
+  const [params] = useSearchParams();
+  const [selected, setSelected] = useState(params.get('deployment') ?? '');
   const [dtype, setDtype] = useState('float16');
   const [allowTf32, setAllowTf32] = useState(false);
   const [method, setMethod] = useState('none');
@@ -83,11 +103,13 @@ export default function Precision() {
     'A red cat sat beside the window.\nThe young girl smiled at her sister.',
   );
   const [qualityLimits, setQualityLimits] = useState('');
+  const [qualityPreset, setQualityPreset] = useState('wikitext2-mini-v1');
+  const [pplLimits, setPplLimits] = useState('');
   const [qualityJson, setQualityJson] = useState('');
   const [qualityGeneration, setQualityGeneration] = useState(4);
   const [baseline, setBaseline] = useState('');
   const [candidates, setCandidates] = useState('');
-  const [comparison, setComparison] = useState<unknown>();
+  const [comparison, setComparison] = useState<QualityComparison>();
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const deployments = useQuery({
@@ -106,24 +128,51 @@ export default function Precision() {
     queryKey: ['precision-catalog'],
     queryFn: () => api<Capabilities>('/precision/catalog'),
   });
-  const capability = useQuery({
-    queryKey: ['precision-capability', deployment?.id, deployment?.epoch],
-    queryFn: () => api<Capabilities>(`/deployments/${deployment!.id}/precision-capabilities`),
-    enabled: deployment?.state === 'ready' && !busy,
-    retry: false,
-    refetchInterval: (q) => (q.state.error ? 3000 : false),
-  });
-  const artifacts = useQuery({
-    queryKey: ['precision-artifacts'],
-    queryFn: () => api<{ items: Artifact[] }>('/precision/artifacts'),
-  });
   const job = useQuery({
     queryKey: ['run', jobId],
     queryFn: () => api<Run>(`/runs/${jobId}`),
     enabled: !!jobId,
     refetchInterval: (q) => (q.state.data && terminal(q.state.data.state) ? false : 1000),
   });
-  const running = !!job.data && !terminal(job.data.state);
+  // A successful POST only accepts the job; the worker remains busy until its
+  // terminal record is observed. Missing poll data cannot establish completion.
+  const running = !!jobId && (!job.data || !terminal(job.data.state));
+  const transitioning = deployments.data?.items.some(
+    (d) => d.provider === 'pytorch' && !['ready', 'failed', 'unloaded'].includes(d.state),
+  );
+  const blocked = busy || running || transitioning || deployments.isError;
+  const blockedReason = deployments.isError
+    ? '部署状态读取失败，请先检查当前后端连接并刷新部署列表。'
+    : running
+      ? '当前量化或质量评测任务尚未完成，请先等待完成或查看运行进度。'
+      : transitioning
+        ? '模型正在加载、卸载或量化，请等待部署状态恢复后再操作。'
+        : busy
+          ? '当前精度方案操作正在提交或切换模型，请等待完成。'
+          : '';
+
+  const capability = useQuery({
+    queryKey: ['precision-capability', deployment?.id, deployment?.epoch],
+    queryFn: ({ signal }) =>
+      api<Capabilities>(`/deployments/${deployment!.id}/precision-capabilities`, undefined, signal),
+    enabled: deployment?.state === 'ready' && !blocked,
+    // Re-enabling after any job must refresh even if that job finished inside
+    // the global stale window. Avoid a second imperative fetch racing this one.
+    staleTime: 0,
+    retry: false,
+    refetchInterval: (q) => (q.state.error ? 3000 : false),
+  });
+  const capabilityBusy =
+    capability.error instanceof ApiError && capability.error.code === 'DEVICE_BUSY';
+  const artifacts = useQuery({
+    queryKey: ['precision-artifacts'],
+    queryFn: () => api<{ items: Artifact[] }>('/precision/artifacts'),
+  });
+  const qualityBenchmarks = useQuery({
+    queryKey: ['precision-quality-benchmarks'],
+    queryFn: () => api<{ items: QualityBenchmark[] }>('/precision/quality-benchmarks'),
+  });
+  const benchmark = qualityBenchmarks.data?.items.find((b) => b.id === qualityPreset);
   const methods = capability.data?.methods ?? catalog.data?.methods ?? [];
   const chosen = methods.find((m) => m.id === method);
   const precisionError =
@@ -134,10 +183,6 @@ export default function Precision() {
         : '';
   const calibrated = chosen?.requires_calibration;
   const effective = deployment?.state === 'ready' ? capability.data?.effective : undefined;
-  const transitioning = deployments.data?.items.some(
-    (d) => d.provider === 'pytorch' && !['ready', 'failed', 'unloaded'].includes(d.state),
-  );
-  const blocked = busy || running || transitioning || deployments.isError;
   const recipe = (): Record<string, unknown> => ({
     method,
     allow_tf32: allowTf32,
@@ -181,10 +226,11 @@ export default function Precision() {
     } finally {
       if (!abort.signal.aborted) {
         controller.current = null;
-        setBusy(false);
-        void client.invalidateQueries({ queryKey: ['deployments'] });
-        void capability.refetch();
-        void artifacts.refetch();
+        // Publish the new deployment epoch before re-enabling its capability
+        // query. An imperative refetch here bypasses the query's busy guard.
+        await client.invalidateQueries({ queryKey: ['deployments'] });
+        void client.invalidateQueries({ queryKey: ['precision-artifacts'] });
+        if (!abort.signal.aborted) setBusy(false);
       }
     }
   };
@@ -196,21 +242,26 @@ export default function Precision() {
       const result = await api<Run>(quality ? '/precision/quality-jobs' : '/requests', {
         deployment_id: deployment.id,
         expected_epoch: deployment.epoch,
-        ...(quality
+        ...(quality && qualityPreset !== 'custom'
           ? {
-              quality_plan: {
-                samples: qualityJson.trim()
-                  ? JSON.parse(qualityJson)
-                  : qualityText
-                      .split('\n')
-                      .filter((s) => s.trim())
-                      .map((text, i) => ({ id: `sample-${i}`, text })),
-                max_tokens: 64,
-                generation_tokens: qualityGeneration,
-              },
-              ...(qualityLimits.trim() ? { quality_limits: JSON.parse(qualityLimits) } : {}),
+              quality_plan: { benchmark_id: qualityPreset },
+              ...(pplLimits.trim() ? { ppl_limits: JSON.parse(pplLimits) } : {}),
             }
-          : { prompt, max_output_tokens: outputTokens, observation_mode: 'basic' }),
+          : quality
+            ? {
+                quality_plan: {
+                  samples: qualityJson.trim()
+                    ? JSON.parse(qualityJson)
+                    : qualityText
+                        .split('\n')
+                        .filter((s) => s.trim())
+                        .map((text, i) => ({ id: `sample-${i}`, text })),
+                  max_tokens: 64,
+                  generation_tokens: qualityGeneration,
+                },
+                ...(qualityLimits.trim() ? { quality_limits: JSON.parse(qualityLimits) } : {}),
+              }
+            : { prompt, max_output_tokens: outputTokens, observation_mode: 'basic' }),
       });
       client.setQueryData(['run', result.id], result);
       setJobId(result.id);
@@ -242,7 +293,7 @@ export default function Precision() {
             生成对照。若要判定达标，双方运行前登记相同阈值。
           </li>
           <li>
-            制品按源权重、配方和版本保存，可复用加载。量化模块字节、其余浮点参数、分配器峰值是不同口径；位宽更小不保证更快或质量达标。
+            制品按源权重、配方和版本保存，可复用加载。量化模块字节、其余浮点参数、分配器峰值是不同口径；各位宽方案的速度与质量可通过相同负载的评测比较。
           </li>
         </ol>
       </details>
@@ -451,6 +502,17 @@ export default function Precision() {
           <Button
             type="primary"
             loading={busy}
+            disabledReason={{
+              reason: blocked
+                ? blockedReason
+                : precisionError ||
+                  (!catalog.data
+                    ? '量化目录尚未读取成功，请先刷新页面。'
+                    : chosen?.availability === 'unsupported'
+                      ? '当前方法在此环境不可用，请选择本页标记可用的方法。'
+                      : '此校准方法尚不可用，请选择已有量化制品或其他可用方法。'),
+              next: { to: '/runs', label: '查看模型切换与评测任务' },
+            }}
             disabled={
               !deployment ||
               !!blocked ||
@@ -464,6 +526,10 @@ export default function Precision() {
             应用方案并重载模型
           </Button>
           <Button
+            disabledReason={{
+              reason: blocked ? blockedReason : '所选模型尚未加载，只有就绪模型可以卸载。',
+              next: { to: '/devices', label: '查看所选模型状态' },
+            }}
             disabled={!deployment || deployment.state !== 'ready' || !!blocked}
             onClick={() => void lifecycle('unload')}
           >
@@ -491,7 +557,12 @@ export default function Precision() {
         title="实际生效与存储"
         subtitle="模块绑定和调用凭据不等同于 GPU 指令跟踪；存储字节与分配器峰值分别记录。"
       >
-        <QueryState error={capability.error} />
+        <QueryState error={capabilityBusy ? null : capability.error} />
+        {(busy || running || transitioning || capabilityBusy) && (
+          <p role="status">
+            任务执行中，精度凭据暂停刷新；设备空闲后自动更新。已有凭据为上次读取的快照。
+          </p>
+        )}
         {effective ? (
           <>
             <Descriptions
@@ -524,7 +595,15 @@ export default function Precision() {
         )}
         <Button
           size="small"
-          disabled={deployment?.state !== 'ready' || busy}
+          disabledReason={{
+            reason: capability.isFetching
+              ? '正在读取当前模型的实际精度凭据，请等待完成。'
+              : blocked
+                ? blockedReason
+                : '需要先加载模型，才能读取实际生效凭据。',
+            next: { to: '/devices', label: '加载或检查模型' },
+          }}
+          disabled={deployment?.state !== 'ready' || !!blocked || capability.isFetching}
           onClick={() => void capability.refetch()}
         >
           刷新实际凭据
@@ -532,7 +611,7 @@ export default function Precision() {
       </Panel>
       <Panel
         title="当前已加载模型：推理与独立质量评测"
-        subtitle="下列任务使用实际驻留模型；修改上方草稿需要先应用。质量任务另存逐位置 logits，不计入性能。"
+        subtitle="下列任务使用实际驻留模型；修改上方草稿需要先应用。内置评测保存逐 Token NLL，自定义评测另存 logits；质量任务不计入性能。"
       >
         <Input.TextArea
           aria-label="L4 推理输入"
@@ -551,51 +630,128 @@ export default function Precision() {
             />
           </label>
           <Button
+            disabledReason={{
+              reason: blocked
+                ? blockedReason
+                : '所选模型尚未就绪。请先点击本页“应用方案并重载模型”。',
+              next: { to: '/devices', label: '查看模型加载状态' },
+            }}
             disabled={deployment?.state !== 'ready' || !!blocked}
             onClick={() => void submit(false)}
           >
             测试当前已加载模型
           </Button>
         </Space>
-        <p>独立质量文本，每行一个样本，最多 4 条；与校准文本分开。没有阈值时只报告测量结果。</p>
-        <Input.TextArea
-          aria-label="独立质量文本"
-          rows={3}
-          value={qualityText}
-          onChange={(e) => setQualityText(e.target.value)}
-        />
-        <details>
-          <summary>带标准答案的质量样本（可选）</summary>
-          <p>
-            填写 JSON 数组后使用这些样本替代上方文本。expected 是原始 prompt
-            续写的标准答案，按去除首尾空白后的完全匹配计算准确率。
-          </p>
+        <p>
+          质量评测数据集{' '}
+          <Select
+            aria-label="质量评测数据集"
+            value={qualityPreset}
+            disabled={!!blocked}
+            style={{ minWidth: 300 }}
+            onChange={setQualityPreset}
+            options={[
+              ...(qualityBenchmarks.data?.items ?? []).map((b) => ({ value: b.id, label: b.name })),
+              { value: 'custom', label: '自定义短文本 · logits / 标准答案' },
+            ]}
+          />
+        </p>
+        {qualityPreset !== 'custom' && (
+          <>
+            <QueryState loading={qualityBenchmarks.isPending} error={qualityBenchmarks.error} />
+            <p>
+              WikiText-2 英文测试集固定子集，{benchmark?.sample_count ?? 8} 段，每段最多{' '}
+              {benchmark?.max_tokens ?? 64} Token。使用当前模型与 KV 逐 Token 计算 NLL 和 Token 加权
+              PPL， 不生成回答、不保存全词表 logits。PPL
+              越低越好，只有同一模型和分词器的同协议结果可直接比较。
+            </p>
+            <p className="help-text">
+              用于快速检查量化对英文语料预测的影响；中文、数学、代码等能力可使用各自的任务数据集评测。
+              上下文在每段重置，首 Token 不计分；没有阈值只报告测量值。
+            </p>
+            {benchmark && (
+              <details>
+                <summary>固定样本来源与版本</summary>
+                <p>
+                  <a href={benchmark.source.url} target="_blank" rel="noreferrer">
+                    上游数据
+                  </a>{' '}
+                  · {benchmark.source.variant}
+                </p>
+                <p>
+                  子集 SHA256：<code>{benchmark.dataset_sha256}</code>
+                </p>
+                <ol>
+                  {benchmark.articles.map((article) => (
+                    <li key={article}>{article}</li>
+                  ))}
+                </ol>
+              </details>
+            )}
+            <Input
+              aria-label="预登记 PPL 阈值"
+              placeholder={'可选：{"max_mean_nll_increase":0.1}，基线和候选须提前填写相同阈值'}
+              value={pplLimits}
+              onChange={(e) => setPplLimits(e.target.value)}
+            />
+          </>
+        )}
+        <div hidden={qualityPreset !== 'custom'}>
+          <p>独立质量文本，每行一个样本，最多 4 条；与校准文本分开。没有阈值时只报告测量结果。</p>
           <Input.TextArea
-            aria-label="带标签质量样本 JSON"
+            aria-label="独立质量文本"
             rows={3}
-            value={qualityJson}
-            onChange={(e) => setQualityJson(e.target.value)}
-            placeholder={'[{"id":"arithmetic","text":"1 + 1 =","expected":"2"}]'}
+            value={qualityText}
+            onChange={(e) => setQualityText(e.target.value)}
           />
-        </details>
-        <label>
-          质量评测生成 Token 上限{' '}
-          <InputNumber
-            min={1}
-            max={32}
-            value={qualityGeneration}
-            onChange={(v) => setQualityGeneration(v ?? 4)}
+          <details>
+            <summary>带标准答案的质量样本（可选）</summary>
+            <p>
+              填写 JSON 数组后使用这些样本替代上方文本。expected 是原始 prompt
+              续写的标准答案，按去除首尾空白后的完全匹配计算准确率。
+            </p>
+            <Input.TextArea
+              aria-label="带标签质量样本 JSON"
+              rows={3}
+              value={qualityJson}
+              onChange={(e) => setQualityJson(e.target.value)}
+              placeholder={'[{"id":"arithmetic","text":"1 + 1 =","expected":"2"}]'}
+            />
+          </details>
+          <label>
+            质量评测生成 Token 上限{' '}
+            <InputNumber
+              min={1}
+              max={32}
+              value={qualityGeneration}
+              onChange={(v) => setQualityGeneration(v ?? 4)}
+            />
+          </label>
+          <Input
+            aria-label="预登记质量阈值"
+            placeholder="可选：预登记 max_logit_abs_error / max_kl / max_nll_increase / max_accuracy_drop 的 JSON"
+            value={qualityLimits}
+            onChange={(e) => setQualityLimits(e.target.value)}
           />
-        </label>
-        <Input
-          aria-label="预登记质量阈值"
-          placeholder="可选：预登记 max_logit_abs_error / max_kl / max_nll_increase / max_accuracy_drop 的 JSON"
-          value={qualityLimits}
-          onChange={(e) => setQualityLimits(e.target.value)}
-        />
+        </div>
         <p>
           <Button
-            disabled={deployment?.state !== 'ready' || !!blocked}
+            disabledReason={{
+              reason: blocked
+                ? blockedReason
+                : deployment?.state !== 'ready'
+                  ? '所选模型尚未就绪，请先点击本页“应用方案并重载模型”。'
+                  : '质量 benchmark 尚未读取成功，请先选择可用 benchmark 或重试读取。',
+              next: {
+                to: deployment?.state !== 'ready' ? '/devices' : '/runs',
+                label: deployment?.state !== 'ready' ? '查看模型加载状态' : '查看当前评测任务',
+              },
+            }}
+            disabled={
+              deployment?.state !== 'ready' ||
+              !!blocked ||
+              (qualityPreset !== 'custom' && !benchmark)
+            }
             onClick={() => void submit(true)}
           >
             运行独立质量评测
@@ -609,6 +765,15 @@ export default function Precision() {
               {fmt(job.data.metrics.output_tokens_per_s)} · PPL{' '}
               {fmt(job.data.metrics.quality_evaluation?.perplexity, 3)}
             </p>
+            {job.data.metrics.quality_evaluation?.score_mode === 'corpus_nll' && (
+              <p>
+                WikiText-2 Mini · 平均 NLL {fmt(job.data.metrics.quality_evaluation.mean_nll, 4)} ·{' '}
+                {job.data.metrics.quality_evaluation.scored_tokens ?? '—'} 个计分 Token ·{' '}
+                {job.data.metrics.quality_evaluation.document_count ?? '—'}{' '}
+                段。质量任务不计入推理吞吐。
+              </p>
+            )}
+            {job.data.metrics.quality_evaluation && <QualityBaseline run={job.data} />}
             {job.data.error && <Alert type="error" message={job.data.error} />}
             <details>
               <summary>任务输出、内存与观测</summary>
@@ -637,6 +802,13 @@ export default function Precision() {
             style={{ width: 400, maxWidth: '100%' }}
           />
           <Button
+            aria-label="生成质量对照"
+            disabledReason={{
+              reason: blocked
+                ? blockedReason
+                : '请先填写基线 run ID 和至少一个候选 run ID；两者都需要完成独立质量评测。',
+              next: { to: '/runs', label: '选择质量评测记录' },
+            }}
             disabled={!baseline || !candidates || !!blocked}
             loading={busy}
             onClick={async () => {
@@ -644,7 +816,7 @@ export default function Precision() {
               setBusy(true);
               try {
                 setComparison(
-                  await api('/precision/comparisons', {
+                  await api<QualityComparison>('/precision/comparisons', {
                     baseline_run_id: baseline,
                     candidate_run_ids: candidates
                       .split(',')
@@ -662,6 +834,29 @@ export default function Precision() {
             生成质量对照
           </Button>
         </Space>
+        {comparison?.candidates.some((c) => c.quality.metric === 'token_perplexity') && (
+          <Table
+            rowKey="run_id"
+            dataSource={comparison.candidates}
+            pagination={false}
+            scroll={{ x: 760 }}
+            columns={[
+              {
+                title: '候选运行',
+                dataIndex: 'run_id',
+                render: (id: string) => <Link to={`/runs/${id}`}>{id}</Link>,
+              },
+              { title: '基线 PPL ↓', render: (_, c) => fmt(c.quality.baseline_perplexity, 3) },
+              { title: '候选 PPL ↓', render: (_, c) => fmt(c.quality.candidate_perplexity, 3) },
+              { title: '平均 NLL 增量 ↓', render: (_, c) => fmt(c.quality.mean_nll_increase, 4) },
+              { title: 'PPL 倍率 ↓', render: (_, c) => fmt(c.quality.ppl_ratio, 3) },
+              {
+                title: '判定',
+                render: (_, c) => qualityStatuses[c.quality.status] ?? c.quality.status,
+              },
+            ]}
+          />
+        )}
         {comparison != null && <JsonView value={comparison} />}
       </Panel>
       <Panel title="已保存的独立量化制品">

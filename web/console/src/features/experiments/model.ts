@@ -1,4 +1,9 @@
 import type { Job, Plan, Slot } from './types';
+import type { Run } from '../../api/types';
+
+export function isQualityRun(run: Pick<Run, 'config' | 'metrics'>) {
+  return run.config.experiment_role === 'quality' || !!run.metrics.quality_evaluation;
+}
 export const roleLabel = { performance: '性能', diagnostic: '机制诊断', quality: '质量' };
 export const armLabel = { baseline: '基线', candidate: '候选' };
 export const layerLabels = [

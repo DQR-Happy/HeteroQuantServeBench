@@ -1,11 +1,13 @@
+import Button from '../../components/ActionButton';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Collapse, Table, Tag } from 'antd';
+import { Alert, Collapse, Table, Tag } from 'antd';
 import { Link } from 'react-router-dom';
 import { api, base, fmt, terminal } from '../../api/client';
 import type { Run } from '../../api/types';
 import { JsonView, QueryState } from '../../components';
 import type { Bundle, Receipt } from './types';
 import KernelReceiptView from '../kernels/KernelReceiptView';
+import QualityBaseline from './QualityBaseline';
 
 export function ReceiptView({ receipt }: { receipt: Receipt }) {
   const keys = Array.from(
@@ -21,8 +23,32 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
         type={receipt.status === 'applied' ? 'info' : 'warning'}
         showIcon
         message={`执行凭据：${receipt.status}`}
-        description="凭据核对执行控制流与实际模型配置；不等于指令级追踪，也不代表优化已通过质量或性能验收。"
+        description="凭据展示执行控制流与实际模型配置；质量与性能结果见对应评测记录。"
       />
+      {receipt.runtime_receipt && (
+        <details>
+          <summary>L3 实际执行与编译凭据</summary>
+          <JsonView value={receipt.runtime_receipt} />
+        </details>
+      )}
+      {receipt.memory_receipt != null && (
+        <details>
+          <summary>L6 实际缓存、前缀与传输凭据</summary>
+          <JsonView value={receipt.memory_receipt} />
+        </details>
+      )}
+      {receipt.structure_receipt?.artifact_id != null && (
+        <details>
+          <summary>L5 实际结构、制品来源与调用凭据</summary>
+          <JsonView value={receipt.structure_receipt} />
+        </details>
+      )}
+      {receipt.decoding_receipt && (
+        <details>
+          <summary>L7 实际生成、验证与回滚凭据</summary>
+          <JsonView value={receipt.decoding_receipt} />
+        </details>
+      )}
       <Table
         rowKey="key"
         size="small"
@@ -99,10 +125,11 @@ export default function RunEvidence({ run }: { run: Run }) {
           <div className="help-text mono">Manifest SHA-256：{query.data.manifest_sha256}</div>
           {query.data.quality && (
             <>
+              <QualityBaseline run={run} />
               <Alert
                 type="info"
                 message={`限定质量评测：${query.data.quality.status}`}
-                description={`PPL ${fmt(query.data.quality.perplexity, 6)} · exact-match ${fmt(query.data.quality.task_accuracy, 6)} · 计分 token ${fmt(query.data.quality.scored_tokens, 0)}。口径只覆盖注册样本，不是通用任务质量结论；质量任务不参与推理性能比较。`}
+                description={`PPL ${fmt(query.data.quality.perplexity, 6)} · 平均 NLL ${fmt(query.data.quality.mean_nll, 6)} · 计分 token ${fmt(query.data.quality.scored_tokens, 0)}${query.data.quality.task_accuracy != null ? ` · exact-match ${fmt(query.data.quality.task_accuracy, 6)}` : ' · 不含标准答案匹配率'}。结果覆盖本次注册样本；生成性能在推理评测中单独统计。`}
               />
               <Collapse
                 items={[

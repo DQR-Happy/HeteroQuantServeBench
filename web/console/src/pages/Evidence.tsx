@@ -1,6 +1,7 @@
+import Button from '../components/ActionButton';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Drawer, Input, Select, Space, Table, Tag } from 'antd';
+import { Alert, Drawer, Input, Select, Space, Table, Tag } from 'antd';
 import { DownloadOutlined, FileSearchOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { api, base, date, fmt } from '../api/client';
@@ -89,7 +90,7 @@ export default function EvidencePage({
           className="section-gap"
           type="warning"
           showIcon
-          message="W8 / W4 不等于原生低比特推理已接通"
+          message="W8 / W4 制品与执行后端"
           description="历史模型级路径含全权重 FP16 反量化控制实验；请同时阅读 verdict、质量门和实际 kernel 路径。当前交互工作台只开放经过接线的部署。"
         />
       )}
@@ -205,7 +206,7 @@ export function KernelCatalog() {
         className="section-gap"
         type="info"
         showIcon
-        message="这里是源码与配置索引，不是可点击生效的算子切换器"
+        message="源码与配置索引；算子切换请进入推理工作台"
         description="当前推理执行路径使用 framework-native。Triton / CUDA 自定义实现的模型级激活，需要独立的正确性与性能验证。"
       />
       <Panel

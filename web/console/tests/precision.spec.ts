@@ -60,6 +60,8 @@ test('L4 exposes recipe, calibration and actual proof without claiming FP8 suppo
     route.fulfill({ json: { items: [] } }),
   );
   await page.goto('/precision');
+  await page.getByLabel('质量评测数据集', { exact: true }).first().click();
+  await page.getByTitle('自定义短文本 · logits / 标准答案', { exact: true }).click();
   await expect(page.getByRole('heading', { name: '表示精度与量化', exact: true })).toBeVisible();
   await expect(page.getByText('torch.float16', { exact: true })).toBeVisible();
   await page.getByLabel('量化方法', { exact: true }).first().click();

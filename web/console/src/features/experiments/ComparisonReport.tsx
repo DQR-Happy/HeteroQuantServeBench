@@ -36,7 +36,7 @@ export default function ComparisonReport({ report }: { report: Report }) {
               <>
                 <Tag>数值合同 {report.quality_status}</Tag>
                 <span className="help-text">
-                  只覆盖注册数据与阈值；数值一致不能证明任务准确率足够。
+                  按注册数据与阈值评分，任务准确率使用参考答案单独评估。
                 </span>
                 {report.quality.map((item, i) => (
                   <div key={i} className="help-text">
@@ -134,8 +134,8 @@ export default function ComparisonReport({ report }: { report: Report }) {
                   onChange={(event) => setMechanismSearch(event.target.value)}
                 />
                 <p className="help-text">
-                  allocator、进程与整机内存口径不能相加；CPU 页不是 GPU
-                  页表。上下文分叉的比较仅作描述，来源序号对应两侧原始观测记录。
+                  allocator、进程与整机内存分别统计，页状态来自 CPU pagemap。
+                  上下文分叉时展示两侧观测变化，来源序号对应原始记录。
                 </p>
                 <Table
                   size="small"

@@ -54,6 +54,8 @@ test('real L4 UI loads a compact model, evaluates, compares and restores', async
   };
   try {
     await page.goto('/precision');
+    await page.getByLabel('质量评测数据集', { exact: true }).first().click();
+    await page.getByTitle('自定义短文本 · logits / 标准答案', { exact: true }).click();
     await page.getByLabel('L4 实验模型', { exact: true }).first().click();
     await page.getByTitle(`${target.name} · ${target.state}`, { exact: true }).click();
     await apply();

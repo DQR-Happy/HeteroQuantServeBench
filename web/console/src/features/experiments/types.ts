@@ -4,6 +4,15 @@ export type Arm = 'baseline' | 'candidate';
 export type Role = 'performance' | 'diagnostic' | 'quality';
 export type ExperimentJobRequest = components['schemas']['JobRequest'];
 export type Receipt = {
+  decoding_receipt?: import('../decoding/types').DecodeReceipt | null;
+  structure_receipt?: Record<string, unknown>;
+  memory_receipt?: unknown;
+  runtime_receipt?: Record<string, unknown>;
+  precision_receipt?: {
+    method?: string;
+    compute_dtype?: string;
+    kv?: { bits?: number | null; backend?: string; residual_length?: number | null };
+  };
   runtime?: { kernel: string; dtype: string; executor: string };
   kernel_receipt?: KernelSummary | null;
   status: string;
@@ -81,6 +90,31 @@ export type Report = {
   failed_pairs: { role: Role; pair: number; states: string[] }[];
   observer_cost: unknown;
 };
+export type QualityResult = {
+  status: string;
+  score_mode?: string;
+  benchmark_id?: string;
+  dataset_sha256?: string;
+  perplexity?: number | null;
+  perplexity_overflow?: boolean;
+  mean_nll?: number | null;
+  task_accuracy?: number | null;
+  scored_tokens?: number | null;
+  document_count?: number | null;
+  protocol?: Record<string, unknown>;
+  samples: {
+    id: string;
+    slice?: string;
+    input_tokens?: number;
+    original_tokens?: number;
+    output_tokens?: number;
+    scored_tokens?: number;
+    nll_sum?: number;
+    token_nll?: number[];
+    exact_match?: boolean | null;
+    input_sha256?: string;
+  }[];
+};
 export type Bundle = {
   manifest_sha256: string;
   manifest: {
@@ -89,14 +123,7 @@ export type Bundle = {
     artifacts: { path: string; bytes: number; sha256: string }[];
   };
   receipt: Receipt | null;
-  quality: {
-    status: string;
-    perplexity?: number;
-    task_accuracy?: number | null;
-    scored_tokens?: number;
-    samples: unknown[];
-    protocol: unknown;
-  } | null;
+  quality: QualityResult | null;
 };
 export type Catalogue = {
   layers: Record<string, string>;
