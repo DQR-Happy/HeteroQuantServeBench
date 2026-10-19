@@ -58,7 +58,7 @@ def graphs(model_type, config):
         node("v", "V Linear", 1, 2, "self_attn.v_proj"),
         node("qr", "Q RoPE / reshape", 3, 0), node("kr", "K RoPE / reshape", 3, 1),
         node("kv", "K/V Cache 更新或读取", 4, 2, kind="state",
-             note="use_cache 时的逻辑状态依赖；不表示实测缓存命中或物理分页"),
+             note="use_cache 时的逻辑状态依赖；命中率与页状态见对应观测"),
         node("scores", "Q·Kᵀ / scaling", 5, 0, note="GQA 按 KV 组关联 Query heads；具体融合取决于 attention 后端"),
         node("mask", "Causal / 局部 mask", 6, 0), node("softmax", "Softmax", 7, 0),
         node("pv", "P·V / 合并 heads", 8, 1), node("o", "输出 Linear", 9, 1, "self_attn.o_proj")]

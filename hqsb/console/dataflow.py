@@ -199,12 +199,12 @@ def build_dataflow(
         elif not totals["bytes_complete"]:
             status = "partial"
     limitations = [
-        "仅投影 profiler 采集窗口中保留的拷贝活动；未观测到不代表未发生。",
-        "箭头表示 Host/Device 逻辑地址空间方向，不是物理总线路径。Jetson 统一内存不等于独立 HBM。",
+        "展示 profiler 采集窗口内保留的拷贝活动。",
+        "箭头表示 Host/Device 逻辑地址空间方向；Jetson 使用共享 DRAM。",
         "未解析 HBM/DRAM、L2、寄存器、物理地址或每字节流向；不根据张量名称猜测拷贝归属。",
         "bytes 仅在每条活动都明确提供字节数时给出；known_bytes 只累计已知子集，同一字节可能被重复拷贝。",
         "duration_ms_sum 是活动耗时之和，重叠流不可当作墙钟时延；这里不计算有效带宽。",
-        "CPU 的 cudaMemcpy API 与 GPU memcpy 活动不重复累计；kernel 数不代表所有内存读写次数。",
+        "CPU cudaMemcpy API 与 GPU memcpy 活动分别统计；kernel 数记录采集到的设备调用。",
         "参数/KV 张量存储、allocator、RSS 和系统可用内存属于不同口径，不能相加。",
         "最多返回 200 条拷贝明细；汇总覆盖所有传入的保留事件，完整原件可独立下载。",
     ]

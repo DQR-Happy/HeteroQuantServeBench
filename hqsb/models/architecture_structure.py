@@ -1,7 +1,7 @@
 """Family-independent artifact containment and optional semantic annotations.
 
-Containment is derived from actual tensor paths, never presented as forward edges.
-Family names annotate evidence; they never admit or reject structural inspection.
+Containment is derived from actual tensor paths. Forward edges use runtime capture.
+Family names provide optional annotations alongside generic structural inspection.
 """
 
 FAMILIES = {

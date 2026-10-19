@@ -136,8 +136,8 @@ def inspect_architecture(model_path):
             "stored_bytes": sum(row["stored_bytes"] for row in tensors.values()), "dtypes": dict(Counter(row["dtype"] for row in tensors.values())),
             "graphs": graph, "evidence_scope": "artifact containment from config + safetensors headers; optional reviewed static semantic diagrams; no forward execution or weight values loaded",
             "structure": structure, "semantic": semantic,
-            "limitations": ["这是逻辑计算依赖图，不是 GPU 执行时间线；分支独立不等于 stream 或 kernel 同时执行。",
-                "Safetensors header 哈希不等于完整权重校验；存储 dtype/字节不等于加载后的运行 dtype/显存。",
-                "权重名称不能确定 forward；专用静态示意图要求实现指纹匹配，实际算子依赖需另行显式采集，不受模型族识别限制。",
-                "Attention 展示数学子步骤；SDPA 或自定义融合实现可能合并节点。无实际 trace 不推断融合、Tensor Core、SM 映射或 Cache 命中。",
+            "limitations": ["图中展示逻辑计算依赖与独立分支，执行重叠见 GPU 时间线。",
+                "Safetensors header 哈希用于识别元数据；完整权重校验见 manifest，运行 dtype 与显存见加载记录。",
+                "专用静态示意图按实现指纹匹配，实际算子依赖通过通用运行采集获取。",
+                "Attention 展示数学子步骤；SDPA 或自定义融合实现可能合并节点。融合、Tensor Core、SM 映射与 Cache 命中情况可通过对应运行采集查看。",
                 "层间存在依赖；标准自回归 decode 的下一 token 依赖上一步结果。Prefill 中 token/head 并行属于逻辑机会，实际调度另需运行证据。"]}

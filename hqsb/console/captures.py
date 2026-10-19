@@ -300,7 +300,7 @@ def _normalize_events(entries) -> tuple[list[dict], dict]:
         "origin_us": origin * 1000,
         "clock_domain": "profiler_trace_relative",
         "limitations": [
-            "时间线为采集窗口，不代表未采集 token；与 worker 阶段图是不同起点。",
+            "时间线展示采集窗口内的事件，工具与 worker 阶段图分别标注起点。",
             "只对工具提供的关联 ID 做展示；框架算子与 kernel 可多对多，未验证的关联不补全。",
             "工具自身丢失事件数若未提供则未知；本计数只记录解析排除/截断。",
             "JSON 按顶层 traceEvents 逐项读取；最多保留 150000 个完整事件，单项 JSON 上限 1 MiB。",

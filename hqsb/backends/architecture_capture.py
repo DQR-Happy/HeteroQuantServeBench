@@ -1,7 +1,7 @@
 """Bounded, observational ATen dataflow capture on the existing model owner.
 
-No tensor values, copies, GPU synchronization or model rewrites are performed.
-The result describes only executed forward calls, not unvisited program paths.
+The collector records Tensor metadata around the existing forward calls.
+The result describes the paths executed for the captured input.
 """
 from contextlib import contextmanager
 from collections import Counter
@@ -198,9 +198,9 @@ class ArchitectureCapture:
                 "source": "torch_dispatch_and_module_hooks", "nodes": self.nodes, "edges": self.edges,
                 "phases": self.phases, "operator_counts": dict(self.histogram), "warnings": sorted(self.warnings),
                 "limits": {"max_nodes": self.max_nodes, "max_edges": self.max_edges}, "truncated": self.truncated,
-                "limitations": ["仅覆盖本次实际执行的 forward 路径；不证明所有输入、分支或专家均已覆盖。",
-                    "边表示观测到的 Tensor 生产消费及存储写依赖，不是 GPU kernel 时间线或完整设备内存依赖。",
-                    "共享 storage 的写依赖为保守关联，不证明不同视图的字节区间实际重叠。",
-                    "融合 ATen / 自定义算子按整体节点展示；未展开的内部计算不可由此推断。",
-                    "不记录 Tensor 数值；外部 Tensor 是本次捕获边界，不表示新的物理分配。",
-                    "采集有 Python / 元数据开销，本次 Token/s 不用于正式性能结论。"]}
+                "limitations": ["覆盖本次输入实际执行的 forward、分支与专家路径。",
+                    "边表示采集到的 Tensor 生产消费与 storage 写依赖；GPU 活动见设备时间线。",
+                    "共享 storage 的视图按存储写依赖关联，字节区间重叠需结合视图布局分析。",
+                    "融合 ATen 与自定义算子按其公开调用边界展示。",
+                    "Tensor 记录 shape、dtype 和 device；外部 Tensor 标明本次采集的输入边界。",
+                    "采集包含 Python 与元数据开销，性能评测请使用独立测量运行。"]}

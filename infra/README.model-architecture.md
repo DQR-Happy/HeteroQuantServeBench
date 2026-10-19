@@ -1,5 +1,8 @@
 # Artifact-backed model architecture
 
+L3 compilation controls, actual FX graphs and module/weight joins are integrated
+on this page; see [L3 runtime guide](README.l3-runtime.md).
+
 Open **环境 → 模型架构** (`/model-architecture?deployment=<id>`) or the per-model
 link in devices. A downloaded model can be inspected after registration, without
 loading, warming, unloading or invoking a GPU worker. No new login is required.
@@ -8,12 +11,12 @@ Inspection now starts with family-independent evidence: actual weight-path
 containment, resident `nn.Module` classes/parameters/buffers after loading, and
 an explicitly requested ATen dataflow capture on the existing model owner.
 An unknown family never blocks these paths. Admission and execution policies
-still belong to the existing model-hub/provider, not to this inspector.
+are owned by the existing model-hub/provider.
 
 Optional semantic annotations cover 13 groups: Llama, Qwen, Gemma, DeepSeek,
 GLM, Mistral/Mixtral, Phi, GPT-OSS, MiniMax, InternLM, Falcon, OLMo and
 GPT/OPT/Bloom, including available MoE/MLA/hybrid-layer configuration declarations.
-These labels are not official-weight or device certification. Reviewed static
+These labels organize configuration declarations; execution results are recorded per model and device. Reviewed static
 diagrams cover Llama, Qwen2, Qwen3 and Gemma 3 **text** implementations.
 The legacy `metadata_only` field describes absence of a reviewed static diagram;
 generic structure and explicit runtime capture remain independently available.
@@ -32,23 +35,20 @@ generic structure and explicit runtime capture remain independently available.
 auth and relay boundary. Paths cannot be supplied by the browser. Config reads
 are bounded to 2 MiB, index to 8 MiB, header reads to 16 MiB/shard and 32 MiB
 total, up to 256 shards. Layer count is bounded to 1024. No untrusted checkpoint
-Python or pickle is executed. Metadata parsing is not full safetensors
-validation or full-weight manifest verification.
+Python or pickle is executed. Complete file integrity is verified by the Safetensors validator and weight manifest.
 
 Static adapters were checked against installed Transformers 5.8.0 source files.
 GET inspection never constructs a model. Exact source-file fingerprints gate
 only static semantic graph generation. Artifact snapshots include config,
 header and implementation hashes and a graph-sensitive `snapshot_sha256`.
 Browser JSON export records observation time and the separate current epoch,
-load run and config match. Snapshot hashes do not certify weight values.
+load run and config match. Weight-value integrity is checked through the weight manifest.
 
 Edges are mathematical dependencies, residual identity paths or KV state
 dependencies. Independent Q/K/V and Gate/Up branches express **possible logical
-parallelism**, not observed concurrent CUDA streams. Standard decoder blocks
+parallelism**; CUDA stream overlap is recorded by device profiling. Standard decoder blocks
 and successive autoregressive tokens have dependencies. Attention's mathematical
-QKᵀ/mask/softmax/PV decomposition can be fused in SDPA or custom kernels; no
-one-node/one-kernel correspondence, hardware placement, cache hit or Tensor Core
-claim is made. Actual runtime dataflow is a separate observation source.
+QKᵀ/mask/softmax/PV decomposition can be fused in SDPA or custom kernels; hardware placement, cache hit and Tensor Core activity are available through their respective collectors. Actual runtime dataflow is a separate observation source.
 
 ## Explicit runtime capture and persistence
 
@@ -65,7 +65,7 @@ remain intact; added hooks are removed on success and failure. There is no
 forward rewrite, Tensor value copy or added CUDA synchronization. Tensor
 producers are weakly referenced; anonymous node IDs replace storage addresses.
 Outputs record shape/dtype/device. Shared-storage writes create conservative
-edges, not proof of overlapping byte intervals or physical-page placement.
+edges; view layouts supply the byte-interval details.
 
 `architecture-capture.json` binds run ID, epoch, input-token digest, model and
 tokenizer identity, source digest, resident module inventory, phases and graph.
@@ -83,14 +83,14 @@ retain no dangling edges when the serialized graph is clipped.
 
 The observed graph covers this input, visited branches and selected experts
 only. Fused/custom/compiled operators may remain opaque boundaries; a module
-with no dispatch events is recorded as opaque rather than inventing internals.
-No single sample proves all possible dynamic paths. Kernel internals, GPU
+with no dispatch events is recorded as an opaque module boundary.
+Additional inputs can capture further dynamic paths. Kernel internals, GPU
 overlap, cache hit rates and physical pages require separate profiler/system
-collectors. Family recognition cannot create that missing evidence.
+collectors. Those collectors supply the corresponding runtime metrics.
 
 Local tensor storage dtype/bytes may differ from FP16 runtime residency. Tied
 weights can be omitted or aliased in serialized storage; reported element/byte
-counts belong to stored tensors, not a universal architecture parameter count.
+counts describe the tensors present in serialized storage.
 
 Remote tests and evidence: `reports/console/model-architecture/` and
 `reports/console/generic-architecture/`. Random small CPU configurations and

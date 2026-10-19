@@ -16,7 +16,7 @@ def architecture_router(service):
         if config is None:
             raise ServiceError("NOT_FOUND", "部署不存在", 404)
         if config.provider != "pytorch":
-            raise ServiceError("ARCHITECTURE_UNAVAILABLE", "外部服务未提供本地模型制品，不能推断内部架构", 422)
+            raise ServiceError("ARCHITECTURE_UNAVAILABLE", "架构解析需要本地模型制品，请选择 PyTorch 部署", 422)
         try:
             result = inspect_architecture(config.model_path)
         except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -27,6 +27,8 @@ def architecture_router(service):
                        "kernel_profile": state.get("kernel_profile"), "model_class": state["detail"].get("model_class"),
                        "weight_verification": state["detail"].get("weight_verification"),
                        "modules": state["detail"].get("module_inventory"),
+                       "structure_receipt": state["detail"].get("structure_receipt"),
+                       "structure_scope": "original_config_with_l5_module_overrides" if state.get("structure_artifact_id") else "original_model",
                        "loaded_config_matches": state["detail"].get("metadata_hashes", {}).get("config.json") == result["config_sha256"] if state["epoch"] else None}
         with service.store.lock:
             row = service.store.db.execute("SELECT id FROM runs WHERE json_extract(body, '$.config.deployment.id')=? "

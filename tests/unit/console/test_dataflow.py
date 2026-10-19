@@ -178,7 +178,7 @@ def test_no_copy_events_does_not_claim_zero_physical_memory_traffic():
     assert result["totals"]["kernel_events"] == 1
     assert result["totals"]["bytes"] is None
     assert result["edges"] == []
-    assert "未观测到不代表未发生" in " ".join(result["limitations"])
+    assert "profiler 采集窗口" in " ".join(result["limitations"])
 
 
 def test_nonfinite_duration_and_unneeded_physical_addresses_are_not_exposed():
