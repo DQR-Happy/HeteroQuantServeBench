@@ -59,6 +59,8 @@ precision = [
     "bitsandbytes==0.50.2",
     "optimum-quanto==0.2.7",
 ]
+# Optional structure exporter; does not install/replace the target's torch.
+graph-export = ["onnx==1.19.1", "onnxscript==0.3.2", "onnx_ir==0.1.12"]
 # Ascend/CANN backend (S09).
 ascend = [
     "torch-npu",
