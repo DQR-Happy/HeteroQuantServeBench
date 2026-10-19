@@ -120,3 +120,6 @@ test-results/
 # Internal Notion sync dumps: private workspace page IDs, full page text and
 # local absolute paths. Working notes only; never published.
 /work/notion-sync/
+
+# Intermediate upstream dataset transfers; the curated licensed subset is tracked.
+/work/quality-benchmark-source/
