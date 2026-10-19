@@ -12,6 +12,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public code?: string,
   ) {
     super(message);
   }
@@ -39,6 +40,7 @@ export async function api<T>(path: string, body?: unknown, signal?: AbortSignal)
     throw new ApiError(
       typeof detail === 'string' ? detail : JSON.stringify(detail),
       response.status,
+      data.error?.code,
     );
   }
   return response.json() as Promise<T>;

@@ -15,7 +15,12 @@ export type Deployment = {
   precision: string;
   kernel: string;
   kernel_profile?: string;
-  quantization?: { method: string; artifact_id?: string | null };
+  structure_artifact_id?: string | null;
+  quantization?: {
+    method: string;
+    artifact_id?: string | null;
+    kv?: { bits?: number | null; backend?: string };
+  };
   input_mode?: 'chat' | 'completion';
   state: string;
   epoch: string | null;
@@ -37,7 +42,19 @@ export type Metrics = {
   input_policy?: { mode: string; add_special_tokens: boolean; chat_template_sha256: string | null };
   experiment_bundle?: { status: string; publication: string };
   optimization_receipt?: Receipt;
-  quality_evaluation?: { status: string; perplexity?: number; task_accuracy?: number | null };
+  quality_evaluation?: {
+    status: string;
+    perplexity?: number | null;
+    task_accuracy?: number | null;
+    score_mode?: string;
+    benchmark_id?: string;
+    mean_nll?: number | null;
+    scored_tokens?: number | null;
+    document_count?: number | null;
+    dataset_sha256?: string;
+    perplexity_overflow?: boolean;
+    protocol?: Record<string, unknown>;
+  };
   observation?: Observation;
   quantization?: {
     status: string;
@@ -82,6 +99,7 @@ export type Run = {
   seq: number;
   config: {
     deployment: Deployment;
+    runtime_plan?: { mode: string; shape_policy: string; fullgraph: boolean };
     epoch: string | null;
     input_sha256?: string;
     messages?: Message[];

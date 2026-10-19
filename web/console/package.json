@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build",
+    "build": "node tools/disabled-actions.mjs && tsc -b && vite build",
     "test": "vitest run src",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b",
+    "typecheck": "node tools/disabled-actions.mjs && tsc -b",
+    "check:actions": "node tools/disabled-actions.mjs",
     "format:check": "prettier --check src tests *.ts *.json index.html",
     "format": "prettier --write src tests *.ts *.json index.html",
     "api:generate": "openapi-typescript ../../contracts/console/openapi.json -o src/api/generated.ts"
