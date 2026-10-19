@@ -1,8 +1,8 @@
+import Button from '../components/ActionButton';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
-  Button,
   Checkbox,
   Descriptions,
   Drawer,
@@ -34,6 +34,9 @@ const states: Record<string, string> = {
   cancelled: '已取消 · 可继续',
   interrupted: '已中断 · 可继续',
   failed: '失败',
+  deleting: '正在删除本地文件',
+  delete_failed: '删除待重试',
+  deleted: '本地文件已删除',
   not_loaded: '目录尚未加载',
   refreshing: '正在索引发布方目录',
   partial: '目录不完整',
@@ -111,6 +114,11 @@ function VersionDrawer({ modelId, onClose }: { modelId: string; onClose: () => v
       <Space wrap className="section-gap">
         <Button
           loading={busy === 'inspect'}
+          disabledReason={{
+            reason: busy
+              ? '当前检查或下载操作正在提交，请等待完成。'
+              : '请先在上方发布方分支 / 标签中选择一个有效版本；读取失败时先重试读取版本。',
+          }}
           disabled={!!busy || !options.includes(revision)}
           onClick={() => void check()}
         >
@@ -203,6 +211,12 @@ function VersionDrawer({ modelId, onClose }: { modelId: string; onClose: () => v
           <Button
             type="primary"
             block
+            disabledReason={{
+              reason: busy
+                ? '下载任务正在提交，请等待完成。'
+                : inspection.admission.reasons.join('；'),
+              next: { to: '/models', label: '选择兼容版本或较小模型' },
+            }}
             disabled={!inspection.admission.eligible || !!busy}
             loading={busy === 'download'}
             onClick={() => void download()}
@@ -292,15 +306,15 @@ export default function ModelHubPage() {
     <>
       <PageHead
         kicker="MODELSCOPE / NODE ARTIFACTS"
-        title="模型下载与接入"
-        description="浏览 ModelScope 发布方权重，按当前机器筛选候选，检查具体版本后下载、校验并接入推理。"
+        title="模型下载"
+        description="浏览 ModelScope 发布方权重，按当前机器筛选候选，检查具体版本后下载并校验到当前节点。"
         extra={
           <Space>
             <Link to="/guide#models">
               <Button>模型下载指南</Button>
             </Link>
-            <Link to="/devices">
-              <Button>查看已登记部署</Button>
+            <Link to="/models/local">
+              <Button>管理本地模型与空间</Button>
             </Link>
           </Space>
         }
@@ -368,6 +382,7 @@ export default function ModelHubPage() {
           </div>
           <Button
             loading={busy === 'catalog'}
+            disabledReason={{ reason: '发布方目录正在刷新，请等待本轮分页读取完成后再刷新。' }}
             disabled={catalog.data?.state === 'refreshing'}
             onClick={() => void refresh()}
           >
@@ -404,7 +419,7 @@ export default function ModelHubPage() {
             description={
               catalog.data.retained_cached
                 ? '刷新期间保留上轮目录；模型仍可选择和检查，新目录完成后再替换。'
-                : '正在读取公开仓库；若整批结果被截断，会继续分页补齐。当前没有候选不表示该发布方没有适配模型。'
+                : '正在读取公开仓库；若整批结果被截断，会继续分页补齐。候选列表随目录读取和版本检查逐步更新。'
             }
           />
         )}
@@ -514,7 +529,13 @@ export default function ModelHubPage() {
               value={direct}
               onChange={(event) => setDirect(event.target.value)}
             />
-            <Button disabled={!direct.trim()} onClick={() => setModel(direct.trim())}>
+            <Button
+              disabledReason={{
+                reason: '请先在左侧填写完整的 ModelScope 仓库 ID，例如 Qwen/Qwen3-0.6B。',
+              }}
+              disabled={!direct.trim()}
+              onClick={() => setModel(direct.trim())}
+            >
               读取版本
             </Button>
           </Space.Compact>
@@ -529,7 +550,7 @@ export default function ModelHubPage() {
       </Panel>
       <Panel
         title="当前节点下载任务"
-        subtitle="字节进度来自实际传输；到 100% 后仍需校验。取消 / 中断保留部分文件，显式继续时校验并续传。"
+        subtitle="字节进度来自实际传输；到 100% 后继续校验。取消 / 中断可续传；完成后到本地模型页登记部署或管理文件。"
       >
         <Table<DownloadJob>
           size="small"
@@ -557,32 +578,36 @@ export default function ModelHubPage() {
               render: (_, row) => (
                 <div>
                   <Tag>{states[row.state] ?? row.state}</Tag>
-                  <Progress
-                    percent={
-                      row.total_bytes
-                        ? Math.min(
-                            100,
-                            Math.round((row.downloaded_bytes / row.total_bytes) * 1000) / 10,
-                          )
-                        : 0
-                    }
-                    status={
-                      row.state === 'failed'
-                        ? 'exception'
-                        : row.state === 'completed'
-                          ? 'success'
-                          : active(row.state)
-                            ? 'active'
-                            : 'normal'
-                    }
-                  />
-                  <div className="help-text">
-                    {size(row.downloaded_bytes)} / {size(row.total_bytes)} ·{' '}
-                    {row.bytes_per_second == null
-                      ? '—'
-                      : `${fmt(row.bytes_per_second / 1024 ** 2, 1)} MiB/s`}{' '}
-                    · 已校验 {row.verified_files}/{row.total_files}
-                  </div>
+                  {row.state !== 'deleted' && (
+                    <Progress
+                      percent={
+                        row.total_bytes
+                          ? Math.min(
+                              100,
+                              Math.round((row.downloaded_bytes / row.total_bytes) * 1000) / 10,
+                            )
+                          : 0
+                      }
+                      status={
+                        row.state === 'failed'
+                          ? 'exception'
+                          : row.state === 'completed'
+                            ? 'success'
+                            : active(row.state)
+                              ? 'active'
+                              : 'normal'
+                      }
+                    />
+                  )}
+                  {row.state !== 'deleted' && (
+                    <div className="help-text">
+                      {size(row.downloaded_bytes)} / {size(row.total_bytes)} ·{' '}
+                      {row.bytes_per_second == null
+                        ? '—'
+                        : `${fmt(row.bytes_per_second / 1024 ** 2, 1)} MiB/s`}{' '}
+                      · 已校验 {row.verified_files}/{row.total_files}
+                    </div>
+                  )}
                   {row.current_file && <code>{row.current_file}</code>}
                 </div>
               ),
@@ -592,9 +617,11 @@ export default function ModelHubPage() {
               render: (_, row) => (
                 <div className="model-hub-error">
                   {row.error ??
-                    (row.state === 'completed'
-                      ? '发布方 SHA-256 已核验；运行尚需验证'
-                      : '保存在当前节点')}{' '}
+                    (row.state === 'deleted'
+                      ? '文件已清理；可重新选择版本下载'
+                      : row.state === 'completed'
+                        ? '发布方 SHA-256 已核验；运行尚需验证'
+                        : '保存在当前节点')}{' '}
                   {row.snapshot_path && (
                     <details>
                       <summary>制品目录与计划身份</summary>
@@ -615,6 +642,12 @@ export default function ModelHubPage() {
                   {active(row.state) && (
                     <Button
                       size="small"
+                      disabledReason={{
+                        reason:
+                          row.state === 'cancelling'
+                            ? '取消请求已经提交，正在等待下载进程退出。'
+                            : '另一个下载操作正在提交，请等待完成。',
+                      }}
                       disabled={row.state === 'cancelling' || !!busy}
                       onClick={() => void act(row.id, 'cancel')}
                     >
@@ -624,6 +657,9 @@ export default function ModelHubPage() {
                   {['failed', 'cancelled', 'interrupted'].includes(row.state) && (
                     <Button
                       size="small"
+                      disabledReason={{
+                        reason: '另一个下载操作正在提交，请等待完成后再继续下载。',
+                      }}
                       disabled={!!busy}
                       loading={busy === row.id}
                       onClick={() => void act(row.id, 'resume')}
@@ -631,21 +667,7 @@ export default function ModelHubPage() {
                       继续下载
                     </Button>
                   )}
-                  {row.state === 'completed' &&
-                    (row.deployment_id ? (
-                      <Link to={`/playground?deployment=${row.deployment_id}`}>
-                        到推理页加载验证 →
-                      </Link>
-                    ) : (
-                      <Button
-                        size="small"
-                        disabled={!!busy}
-                        loading={busy === row.id}
-                        onClick={() => void act(row.id, 'register')}
-                      >
-                        登记为推理部署
-                      </Button>
-                    ))}
+                  <Link to={`/models/local?download=${row.id}`}>查看本地模型 →</Link>
                 </Space>
               ),
             },
@@ -653,7 +675,7 @@ export default function ModelHubPage() {
         />
         <p className="help-text">
           下载串行排队，不自动占用
-          GPU。登记后进入推理页显式加载，可继续使用固定输入评测和观测。新增模型默认框架原生，下载成功不代表自定义算子适配、质量或性能验收通过。
+          GPU。登记后进入推理页显式加载，可继续使用固定输入评测和观测。新增模型默认框架原生，下载完成后，可继续检查自定义算子兼容性并运行质量与性能评测。
         </p>
       </Panel>
       {model && <VersionDrawer key={model} modelId={model} onClose={() => setModel('')} />}

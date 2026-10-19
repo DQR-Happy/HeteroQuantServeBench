@@ -77,4 +77,50 @@ export interface DownloadJob {
   snapshot_path?: string;
   plan_sha256: string;
   attempt: number;
+  deletion?: {
+    allowed: boolean;
+    reason: string;
+    next?: { to: string; label: string };
+    paths: string[];
+    deployment_ids: string[];
+  };
+}
+
+export interface LocalModel {
+  id: string;
+  path: string;
+  model_id: string;
+  model_type?: string;
+  revision_name: string;
+  kind: string;
+  exists: boolean;
+  complete: boolean;
+  logical_bytes: number;
+  allocated_bytes: number;
+  file_count: number;
+  revision: string;
+  issues: string[];
+  references: { id: string; name: string; state: string; epoch?: string | null }[];
+  download_id?: string;
+  download_state?: string;
+  deployment_id?: string;
+  artifact_id?: string;
+  variant?: string;
+  deletion: { allowed: boolean; reason: string; next?: { to: string; label: string } };
+}
+export interface LocalInventory {
+  items: LocalModel[];
+  roots: string[];
+  sampled_at: number;
+  logical_bytes: number;
+  allocated_bytes: number;
+  file_count: number;
+  issues: string[];
+  volumes: {
+    device: string;
+    path: string;
+    total_bytes: number;
+    used_bytes: number;
+    free_bytes: number;
+  }[];
 }
