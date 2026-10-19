@@ -119,3 +119,42 @@
   justify-content: flex-end;
   margin: 0 0 8px;
 }
+.runtime-explorer .ant-space {
+  max-width: 100%;
+}
+.runtime-explorer .ant-space-item {
+  min-width: 0;
+  max-width: 100%;
+}
+.graph-source {
+  max-height: 560px;
+  overflow: auto;
+  max-width: 100%;
+  white-space: pre;
+  font-size: 12px;
+}
+.architecture-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+.architecture-subnav {
+  display: flex;
+  gap: 24px;
+  overflow: auto;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.architecture-subnav a {
+  padding: 10px 0;
+  white-space: nowrap;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+}
+.architecture-subnav a[aria-current='page'] {
+  color: var(--text);
+  border-bottom-color: var(--accent, #367e70);
+}

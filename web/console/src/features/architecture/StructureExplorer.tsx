@@ -35,7 +35,7 @@ export default function StructureExplorer({ data }: { data: Architecture }) {
       subtitle={
         runtime
           ? '来自当前驻留模型的真实 nn.Module；树线表示包含关系。'
-          : '按实际权重路径组织，不依赖模型族；树线表示包含关系，不表示 forward 依赖。'
+          : '按实际权重路径组织各模型的结构，树线表示模块包含关系。'
       }
     >
       <Tag>{runtime ? '运行时模块树' : '制品权重结构'}</Tag>
@@ -92,6 +92,10 @@ export default function StructureExplorer({ data }: { data: Architecture }) {
           { key: 'weights', label: '关联制品 Tensor', children: weights.length },
         ]}
       />
+      {!!chosen?.parameters?.length && <Table size="small" rowKey="name" pagination={false} dataSource={chosen.parameters} columns={[
+        {title:'当前运行参数',dataIndex:'name'}, {title:'实际形状',dataIndex:'shape',render:(value:number[])=>value.join(' × ')},
+        {title:'运行 dtype',dataIndex:'dtype'}, {title:'设备',dataIndex:'device'},
+      ]}/>}
       {selected && (
         <Table
           size="small"
@@ -99,7 +103,7 @@ export default function StructureExplorer({ data }: { data: Architecture }) {
           pagination={{ pageSize: 6, showSizeChanger: false }}
           dataSource={weights}
           columns={[
-            { title: 'Tensor', dataIndex: 'name', render: (value) => <code>{value}</code> },
+            { title: '源制品 Tensor', dataIndex: 'name', render: (value) => <code>{value}</code> },
             { title: 'Shape', dataIndex: 'shape', render: (value) => value.join(' × ') },
             { title: '存储 dtype', dataIndex: 'dtype' },
           ]}

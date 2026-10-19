@@ -13,8 +13,8 @@ test('artifact architecture supports layer selection, graph drilldown and eviden
   test.skip(!qwen, 'requires the configured 3090 Qwen3 artifact');
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(`/model-architecture?deployment=${qwen.id}`);
-  await expect(page.getByText('制品关键结构与已核对实现匹配', { exact: true })).toBeVisible();
+  await page.goto(`/model-architecture/semantic?deployment=${qwen.id}`);
+  await expect(page.getByRole('navigation', { name: '模型架构子页' })).toBeVisible();
   await page.getByRole('tab', { name: 'Attention 内部', exact: true }).click();
   await expect(page.getByText(/Q、K、V 有共同输入/)).toBeVisible();
   await page.getByRole('button', { name: 'Q Linear，self_attn.q_proj', exact: true }).click();
@@ -23,7 +23,7 @@ test('artifact architecture supports layer selection, graph drilldown and eviden
     page.getByRole('row').filter({ hasText: 'model.layers.0.self_attn.q_proj.weight' }),
   ).toHaveCount(1);
   await page.getByRole('button', { name: 'Q RoPE / reshape', exact: true }).click();
-  await expect(page.getByText(/所选计算节点没有独立的模型权重/)).toBeVisible();
+  await expect(page.getByText(/所选节点为函数操作、残差或 KV 状态/)).toBeVisible();
   await page.getByLabel('选择具体 Decoder 层', { exact: true }).press('ArrowDown');
   await page.getByText('Layer 1 · 全局 Attention', { exact: true }).click();
   await page.getByRole('button', { name: 'Q Linear，self_attn.q_proj', exact: true }).click();
@@ -63,7 +63,7 @@ test('Gemma distinguishes local and global attention and its additional norms', 
   const deployments = (await (await request.get('/api/console/v1/deployments')).json()).items;
   const gemma = deployments.find((row: { model: string }) => row.model === 'google/gemma-3-1b-it');
   test.skip(!gemma, 'requires the configured Gemma text artifact');
-  await page.goto(`/model-architecture?deployment=${gemma.id}`);
+  await page.goto(`/model-architecture/semantic?deployment=${gemma.id}`);
   await expect(
     page.getByRole('button', { name: 'FFN 后 RMSNorm，post_feedforward_layernorm', exact: true }),
   ).toBeAttached();
@@ -87,7 +87,7 @@ test('Gemma distinguishes local and global attention and its additional norms', 
 
 test('architecture remains contained at narrow width', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/model-architecture?deployment=qwen-reference');
+  await page.goto('/model-architecture/semantic?deployment=qwen-reference');
   await expect(page.getByRole('tab', { name: 'Decoder Block', exact: true })).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2),
@@ -122,10 +122,11 @@ test('unrecognized family retains generic structure without starting inference',
   page.on('request', (row) => {
     if (row.method() === 'POST' && row.url().endsWith('/requests')) submitted.push(row.url());
   });
-  await page.goto(`/model-architecture?deployment=${local.id}`);
+  await page.goto(`/model-architecture/semantic?deployment=${local.id}`);
   await expect(
     page.getByText('通用结构已读取；暂无经过核对的模型族语义示意图', { exact: true }),
   ).toBeVisible();
+  await page.getByRole('link', { name: '模块与权重', exact: true }).click();
   await expect(page.getByRole('tree', { name: '通用模块树', exact: true })).toBeVisible();
   await page.getByLabel('筛选模块路径', { exact: true }).fill('q_proj');
   const panel = page

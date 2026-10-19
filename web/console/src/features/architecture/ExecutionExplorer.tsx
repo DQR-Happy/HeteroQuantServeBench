@@ -1,6 +1,8 @@
+import { captureBlock } from './availability';
+import Button from '../../components/ActionButton';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Input, Select, Space, Table, Tag } from 'antd';
+import { Alert, Input, Select, Space, Table, Tag } from 'antd';
 import { Link } from 'react-router-dom';
 import { api, terminal } from '../../api/client';
 import type { Deployment, Run } from '../../api/types';
@@ -121,18 +123,17 @@ export default function ExecutionExplorer({
         <Button
           type="primary"
           loading={active}
-          disabled={active || deployment?.state !== 'ready'}
+          disabledReason={captureBlock(deployment, active, identity)}
+          disabled={!!captureBlock(deployment, active, identity)}
           onClick={() => void start()}
         >
           采集运行架构
         </Button>
         {identity && <Link to={`/runs/${identity}`}>查看采集运行与原始制品 →</Link>}
-        <Tag>诊断样本 · 不用于正式性能比较</Tag>
+        <Tag>架构诊断样本</Tag>
       </Space>
       {deployment?.state !== 'ready' && (
-        <p className="help-text">
-          先在设备或推理工作台加载此模型；读取本页不会自动加载或提交推理。
-        </p>
+        <p className="help-text">请先在设备或推理工作台加载模型，然后点击采集运行架构。</p>
       )}
       <QueryState error={query.error} />
       {error && <Alert type="error" message={error} />}
@@ -262,7 +263,7 @@ export default function ExecutionExplorer({
         !query.isFetching && (
           <p className="help-text">
             尚无此模型的运行架构。采集使用固定 Hello 输入与最多 2 个输出
-            Token，不修改权重或算子配置。
+            Token，使用当前加载的模型与算子配置。
           </p>
         )
       )}

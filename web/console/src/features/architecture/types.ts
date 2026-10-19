@@ -52,6 +52,8 @@ export interface Architecture {
     model_class: string | null;
     weight_verification: string | null;
     loaded_config_matches: boolean | null;
+    structure_receipt?: {artifact_id?:string|null; transforms?:Record<string,unknown>[]};
+    structure_scope?: string;
   };
   layers: {
     index: number;
