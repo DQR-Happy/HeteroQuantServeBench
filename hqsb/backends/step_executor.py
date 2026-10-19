@@ -15,7 +15,7 @@ def capabilities(provider):
     types = getattr(cfg, "layer_types", None)
     if getattr(cfg, "sliding_window", None) or getattr(cfg, "attention_chunk_size", None) or (types and any(x != "full_attention" for x in types)):
         reasons.append("SLIDING_OR_HYBRID_CACHE_NOT_ADAPTED")
-    # This is a verified execution adapter boundary, not an architecture-reader gate.
+    # This boundary selects the model execution adapter; architecture inspection uses its own generic path.
     # Full attention alone does not establish positional/mask/cache semantics.
     if type(provider.model).__name__ not in {"LlamaForCausalLM", "Qwen2ForCausalLM", "Qwen3ForCausalLM"}:
         reasons.append("FORWARD_MASK_POSITION_ADAPTER_NOT_VERIFIED")
@@ -27,6 +27,7 @@ def capabilities(provider):
     return {"schema_version": "l8-v1", "supported": not reasons, "reasons": reasons,
             "executor": "dense-full-attention-v1", "kv_layout": "independent_compact_rows",
             "paged_kv": False, "model_class": type(provider.model).__name__,
+            "kv_layouts": ["dense", "block_pool"], "block_pool_attention": "dense_materialization_not_paged_attention_kernel",
             "layer_types": types, "policies": ["fcfs", "priority_aging", "tenant_fair"],
             "modes": ["serial", "static", "continuous"], "sampling": "greedy",
             "limits": ["single GPU, one forward in flight", "no prefix sharing/offload/KV quantization",
@@ -34,7 +35,7 @@ def capabilities(provider):
 
 
 class StepExecutor:
-    def __init__(self, provider, max_padded_positions, max_temporary_bytes=512 * 1024**2):
+    def __init__(self, provider, max_padded_positions, max_temporary_bytes=512 * 1024**2, *, limits=None):
         import torch
 
         self.torch, self.provider = torch, provider
@@ -46,6 +47,12 @@ class StepExecutor:
         self.kv_token_bytes = (2 * config.num_hidden_layers * getattr(config, "num_key_value_heads", config.num_attention_heads)
                                * getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
                                * provider.model.dtype.itemsize)
+        if limits is not None and limits.kv_layout == "block_pool":
+            from hqsb.backends.block_kv import BlockKV
+            blocks = min(math.ceil(limits.kv_capacity_tokens / limits.kv_block_tokens) + limits.max_active_sequences,
+                         limits.kv_pool_max_bytes // (limits.kv_block_tokens * self.kv_token_bytes))
+            self.kv = BlockKV(torch, block_size=limits.kv_block_tokens, capacity_blocks=blocks,
+                              max_bytes=limits.kv_pool_max_bytes)
         self.capability = capabilities(provider)
         if not self.capability["supported"]:
             raise ValueError("SCHEDULING_UNSUPPORTED: " + ",".join(self.capability["reasons"]))
@@ -53,18 +60,24 @@ class StepExecutor:
         torch.cuda.reset_peak_memory_stats()
 
     def prepare(self, steps):
-        """Conservative estimate, not a promise about opaque kernel workspace."""
+        """Conservative workspace estimate for resource admission."""
+        if hasattr(self.kv, "refusal"):
+            reason = self.kv.refusal([s.request_id for s in steps], [s.start for s in steps], [len(s.token_ids) for s in steps])
+            if reason:
+                return reason
         batch, past, query = len(steps), max(s.start for s in steps), max(len(s.token_ids) for s in steps)
         config = self.provider.model.config.get_text_config(decoder=True)
         # Packed cache, updated cache, compact copies, mask and major activations.
         estimate = (3 * batch * (past + query) * self.kv_token_bytes
                     + batch * query * (past + query) * (self.provider.model.dtype.itemsize + 2)
                     + batch * query * (config.hidden_size * 16 + config.vocab_size) * 4)
+        persistent = (self.kv.capacity_blocks * self.kv.block_size * self.kv_token_bytes
+                      if hasattr(self.kv, "max_bytes") and self.kv.slabs is None else 0)
         free, _ = self.torch.cuda.mem_get_info()
         available = free + self.torch.cuda.memory_reserved() - self.torch.cuda.memory_allocated()
         if estimate > self.max_temporary_bytes:
             return "TEMPORARY_MEMORY_ESTIMATE_BUDGET"
-        if estimate + 256 * 1024**2 > available:
+        if estimate + persistent + 256 * 1024**2 > available:
             return "DEVICE_HEADROOM_ESTIMATE"
         return None
 
@@ -134,6 +147,7 @@ class StepExecutor:
                        "selected_logprobs": [v[1] for v in decisions],
                        "top2_logit_margins": [v[2] for v in decisions],
                        "phases": [s.phase for s in steps]}
+            receipt["memory_management"] = self.kv.receipt() if hasattr(self.kv, "receipt") else {"layout": "dense_compact_rows", "resident_bytes": self.kv.bytes()}
             del output, cache, inputs, mask, valid, positions, allowed, logits, chosen, logprobs, top_two, margin
         return StepResult(tokens=tokens, receipt=receipt)
 

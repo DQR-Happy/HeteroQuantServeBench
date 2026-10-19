@@ -154,9 +154,9 @@ class _Inventory:
                 "logical_total_bytes 按已列出的名称求和，别名可重复；unique_storage_bytes 按已观察底层 storage 去重。",
                 "view 保留完整 storage；storage 字节可能包含视图未使用区域，不能与 logical 字节相加。",
                 (
-                    "私有证据包含 storage 虚拟地址；仅用于同一进程快照关联，不是物理地址或跨进程分配身份。"
+                    "私有证据使用 storage 虚拟地址关联同一进程的快照。"
                     if self.include_addresses
-                    else "storage_key 仅在此进程内可关联；不暴露裸指针，不是物理地址或跨进程分配身份。"
+                    else "storage_key 是当前进程内用于关联 storage 的匿名标识。"
                 ),
                 "未采集 tensor 值；不覆盖激活、临时 workspace、allocator 余量、驱动或其他进程内存。",
                 "partial 时总量只覆盖已观察条目，不能当作完整模型或设备内存。",
@@ -253,7 +253,7 @@ def cache_inventory(past_key_values: Any, *, include_addresses=False) -> dict:
     """Inspect supported HF/legacy cache containers without mutation or copies."""
     inventory = _Inventory("retained_kv_cache", include_addresses=include_addresses)
     inventory.limitations.append(
-        "这是请求结束时保留的 KV storage 快照，不推断分页、物理地址、历史分配峰值或缓存复用命中。"
+        "此快照记录请求结束时的 KV storage 及其 shape、dtype 和容量。"
     )
     if past_key_values is None:
         inventory.unknown("cache", "Model returned no observable past_key_values")

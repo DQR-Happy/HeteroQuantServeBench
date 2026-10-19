@@ -33,9 +33,11 @@ class InteractivePyTorch:
         from hqsb.core.precision import PrecisionPlan
         self.precision_plan = PrecisionPlan()
         self.precision_load = {}
+        self.structure_load = {}
+        self.structure_artifact_id = None
         self.chat_template_policy = None
 
-    def load(self, *, kernel_profile=None, precision=None, quantization=None) -> dict:
+    def load(self, *, kernel_profile=None, precision=None, quantization=None, structure_artifact_id=None) -> dict:
         if self.model is not None:
             raise RuntimeError("KERNEL_PROFILE_REQUIRES_UNLOAD")
         if kernel_profile is not None:
@@ -45,6 +47,10 @@ class InteractivePyTorch:
             self.config = {**self.config, "kernel_profile": kernel_profile}
         from hqsb.core.precision import PrecisionPlan
         self.precision_plan = PrecisionPlan.model_validate(quantization or {})
+        self.structure_artifact_id = structure_artifact_id
+        self.structure_load = {}
+        if structure_artifact_id and (self.precision_plan.method != "none" or self.precision_plan.kv_bits or self.config.get("kernel_profile", "framework-native") != "framework-native"):
+            raise ValueError("L5_REQUIRES_NATIVE_FLOAT_DEFAULT_KV")
         self.config = {**self.config, **({"precision": precision} if precision else {})}
         if self.precision_plan.method != "none" and self.config.get("kernel_profile", "framework-native") != "framework-native":
             raise ValueError("L4_CUSTOM_L2_KERNEL_NOT_QUANTIZATION_VERIFIED")
@@ -80,7 +86,17 @@ class InteractivePyTorch:
         observation = ObservationRecorder()
         observation.snapshot("before_model_load", self.memory)
         with observation.phase("model_load"):
-            if self.precision_plan.method != "none":
+            if self.structure_artifact_id:
+                from hqsb.backends.structure_artifacts import load, resolve
+                from hqsb.observation.storage import sha256
+                started = time.monotonic()
+                root = resolve(self.config["l5_artifact_root"], self.structure_artifact_id)
+                self.tokenizer, self.model, self.structure_load = load(root, getattr(torch, precision), self.config["attention"])
+                self.structure_load["manifest_sha256"] = sha256(root / "l5-manifest.json")
+                self.precision_load = {}
+                self.model.to("cuda:0")
+                seconds = time.monotonic() - started
+            elif self.precision_plan.method != "none":
                 from hqsb.backends.precision_runtime import load
                 self.tokenizer, self.model, seconds, self.precision_load = load(
                     self.config, self.precision_plan.model_dump(), getattr(torch, precision))
@@ -134,6 +150,15 @@ class InteractivePyTorch:
         from hqsb.backends.kernel_session import KernelSession
 
         self.kernel_session = KernelSession(self.model, self.config)
+        if self.structure_load:
+            if self.structure_load["source_model_identity"] != self.source_identity:
+                raise ValueError("L5_SOURCE_MODEL_IDENTITY")
+            self.source_identity = {"hash": self.structure_load["manifest_sha256"], "scope": "verified_l5_artifact_manifest_at_load", "revision": self.structure_artifact_id}
+            self.kernel_session.binding.update(parameter_layout="l5_transformed_model", state_dict_preserved=False)
+            from hqsb.core.optimization import fingerprint
+            self.kernel_session.binding_hash = fingerprint(self.kernel_session.binding)
+        from hqsb.backends.structure_runtime import install
+        install(self)
         if self.precision_plan.method != "none":
             from hqsb.core.optimization import fingerprint
             self.kernel_session.binding.update(parameter_layout="l4_quantized_model",
@@ -203,6 +228,7 @@ class InteractivePyTorch:
             "kernel_bindings": self.kernel_session.binding,
             "precision_receipt": __import__("hqsb.backends.precision_runtime", fromlist=["receipt"]).receipt(self),
             "precision_artifact": {k: v for k, v in self.precision_load.items() if k not in {"manifest", "capability"}},
+            "structure_receipt": __import__("hqsb.backends.structure_runtime", fromlist=["receipt"]).receipt(self),
         }
 
     def memory(self) -> dict:
@@ -232,6 +258,18 @@ class InteractivePyTorch:
                 "max_output_tokens": max(0, min(self.config["max_output_tokens"], 4096, self.config["context_limit"] - count))}
 
     def generate(self, request: dict, cancel):
+        from hqsb.backends.runtime_session import execution
+        from hqsb.backends.structure_runtime import reset
+        reset(self)
+
+        with execution(self, request):
+            yield from self._generate(request, cancel)
+
+    def _generate(self, request: dict, cancel):
+        if request.get("decoding_plan") is not None:
+            from hqsb.backends.decoding_execution import generate
+            yield from generate(self, request, cancel)
+            return
         if request.get("experiment_role") == "quality":
             from hqsb.backends.quality_evaluation import evaluate
 
@@ -313,8 +351,10 @@ class InteractivePyTorch:
         observation.data["profile"] = capture.summary
         ids, times, text = [], [], ""
         current = attention = inputs = out = None
-        from hqsb.backends.precision_runtime import new_cache
-        cache = new_cache(self)
+        from hqsb.backends.memory_session import MemorySession, MemoryPlanError
+        memory_session = MemorySession(self, request)
+        observation.data["execution"]["use_cache"] = memory_session.use_cache
+        cache = None
         torch.cuda.reset_peak_memory_stats()
         observation.snapshot("before_request", self.memory)
         finish = "length"
@@ -364,9 +404,10 @@ class InteractivePyTorch:
             input_token_sha256 = digest(inputs["input_ids"].tolist()[0])
             if input_count + limit > self.config["context_limit"]:
                 raise ContextLimitExceeded(input_count, limit, self.config["context_limit"])
+            cache, reused = memory_session.prepare(inputs["input_ids"].tolist()[0], limit)
             with observation.phase("input_transfer"):
                 inputs = {key: value.to("cuda") for key, value in inputs.items()}
-            current = inputs["input_ids"]
+            current = inputs["input_ids"][:, reused:]
             attention = inputs["attention_mask"]
             eos = self.model.generation_config.eos_token_id
             eos_ids = set(eos if isinstance(eos, list) else [eos])
@@ -384,6 +425,8 @@ class InteractivePyTorch:
                             capture.start()
                             capture.attach_modules(self.model, scope="all")
                     phase = "prefill" if index == 0 else "decode"
+                    from hqsb.backends.runtime_session import set_phase
+                    set_phase(self, phase)
                     if self.kernel_session:
                         self.kernel_session.set_phase(phase)
                     token_start = observation.now_ms()
@@ -398,14 +441,16 @@ class InteractivePyTorch:
                                 input_ids=current,
                                 attention_mask=attention,
                                 past_key_values=cache,
-                                use_cache=True,
+                                use_cache=memory_session.use_cache,
                             )
                         model_end = time.monotonic()
                         # This existing .item() waits for selection; host timings
                         # intentionally expose the wait instead of calling it GPU time.
                         token = int(out.logits[:, -1, :].argmax(-1).item())
                         selection_end = time.monotonic()
-                        cache = out.past_key_values
+                        cache = out.past_key_values if memory_session.use_cache else None
+                        selected_logprob = float(out.logits[:, -1, :].float().log_softmax(-1)[0, token].item()) if memory_session.enabled else None
+                        memory_session.after_forward(cache, current.shape[-1], selected_logprob)
                         out = None
                         ids.append(token)
                         times.append((selection_end - runtime_start) * 1000)
@@ -453,9 +498,11 @@ class InteractivePyTorch:
                         finish = "stop"
                         break
                     with observation.phase("prepare_decode"):
-                        current = torch.tensor(
+                        next_token = torch.tensor(
                             [[token]], device="cuda", dtype=torch.long
                         )
+                        current = next_token if memory_session.use_cache else torch.cat((current, next_token), dim=-1)
+                        del next_token
                         attention = torch.cat(
                             (attention, attention.new_ones((1, 1))), dim=1
                         )
@@ -501,6 +548,10 @@ class InteractivePyTorch:
                     "quantized_kv_inventory": __import__("hqsb.backends.precision_runtime", fromlist=["cache_receipt"]).cache_receipt(cache),
                 },
             }
+        except MemoryPlanError as exc:
+            result = {"kind": "result", "finish_reason": "rejected", "text": "",
+                      "request_error": {"code": "MEMORY_PLAN", "message": str(exc)},
+                      "metrics": {"output_tokens": 0, "input_token_sha256": input_token_sha256}}
         except ContextLimitExceeded as exc:
             result = {"kind": "result", "finish_reason": "rejected", "text": "",
                       "request_error": {"code": "CONTEXT_LIMIT", "message": str(exc)},
@@ -516,6 +567,12 @@ class InteractivePyTorch:
                         session.problems.append("FRAMEWORK_PROFILE_PARTIAL_OR_UNAVAILABLE")
             try:
                 with observation.phase("request_cleanup"):
+                    if memory_session.enabled:
+                        memory_receipt = memory_session.finish(execution_status == "completed")
+                        if result is not None:
+                            result["metrics"]["memory_receipt"] = memory_receipt
+                    else:
+                        memory_session.cache = None
                     del out, cache, current, attention, inputs
                     gc.collect()
                     if request.get("cleanup_policy", "empty_cache") == "empty_cache":
@@ -601,6 +658,21 @@ class InteractivePyTorch:
     def close(self):
         import torch
 
+        from hqsb.backends.decoding_draft import release
+        release(self)
+
+        for handle in getattr(self, "structure_handles", []):
+            handle.remove()
+        self.structure_handles = []
+        self.structure_load = {}
+        if getattr(self, "prefix_store", None) is not None:
+            if torch.cuda.is_initialized():
+                torch.cuda.synchronize()
+            self.prefix_store.clear()
+            del self.prefix_store
+        if getattr(self, "runtime_session", None) is not None:
+            self.runtime_session = None
+            torch._dynamo.reset()
         for handle in getattr(self, "precision_handles", []):
             handle.remove()
         self.precision_handles = []

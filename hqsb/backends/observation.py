@@ -1,6 +1,6 @@
 """Bounded worker observations; importing this module never imports torch.
 
-Host spans describe dispatch and waiting, not device execution. Operator capture
+Host spans describe dispatch and waiting. Device activities use profiler timing. Operator capture
 is opt-in and kept separate from request observations so missing CUPTI support
 does not turn successful inference into a failed request.
 """
@@ -58,9 +58,9 @@ class ObservationRecorder:
             "memory_snapshots": [],
             "execution": execution or {},
             "limitations": [
-                "Host spans include dispatch and synchronization waits; they are not GPU kernel durations.",
-                "Nested phases and operator totals must not be summed as wall-clock latency.",
-                "Observation overhead is not calibrated against an unobserved baseline.",
+                "Host spans include dispatch and synchronization waits; GPU kernel durations use device timing.",
+                "Nested phases and operator totals are reported separately from wall-clock latency.",
+                "Observation overhead can be measured against an independent baseline.",
             ],
         }
 

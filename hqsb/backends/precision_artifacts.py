@@ -11,7 +11,7 @@ def ensure_capacity(destination, tensor_bytes, metadata):
     """Bound the compact payload before writing it; source FP16 size is irrelevant.
 
     Reserve 8 MiB for safetensors headers and small config/tokenizer files. This
-    is a conservative export reserve, not an assertion about measured savings.
+    is a conservative reserve for export; measured savings are recorded separately.
     """
     destination = Path(destination)
     required = (

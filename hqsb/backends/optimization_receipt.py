@@ -31,6 +31,18 @@ def receipt(provider, request, plan, *, role, output_hash, status, cleanup, proo
         applied = applied and kernel_summary["status"] in {"invoked", "reference"}
     kernel_id = kernel_summary["profile_id"] if kernel_summary else "framework-native"
     from hqsb.backends.precision_runtime import receipt as precision_receipt
+    from hqsb.backends.runtime_session import receipt as runtime_receipt
+    runtime = runtime_receipt(provider, request)
+    from hqsb.backends.structure_runtime import receipt as structure_receipt
+    structure = structure_receipt(provider)
+    applied = applied and structure["status"] in {"original", "invoked"}
+    applied = applied and runtime["status"] in {"reference", "invoked"}
+    memory = request.get("_memory_receipt")
+    decoding = request.get("_decoding_receipt")
+    if request.get("decoding_plan") is not None:
+        applied = applied and bool(decoding and decoding["status"] == "invoked" and decoding["cleanup_status"] == "succeeded")
+    if request.get("memory_plan") is not None:
+        applied = applied and bool(memory and memory["status"] == "applied")
     document = {**plan, "status": "applied" if applied else "not_fully_applied",
                 "run_id": request.get("capture_id"), "measurement_role": role,
                 "request_id": request.get("capture_id"),
@@ -43,6 +55,10 @@ def receipt(provider, request, plan, *, role, output_hash, status, cleanup, proo
                             if request.get("input_mode", "chat") == "chat" else None},
                 "kernel_receipt": kernel_summary,
                 "precision_receipt": precision_receipt(provider),
+                "structure_receipt": structure,
+                "decoding_receipt": decoding,
+                "runtime_receipt": runtime,
+                "memory_receipt": memory if request.get("memory_plan") is not None else None,
                 "experiment_links": request.get("experiment_links", {}),
                 "effective": {**plan["resolved"], "attention_backend": attention},
                 "output_token_hash": output_hash, "execution_status": status,

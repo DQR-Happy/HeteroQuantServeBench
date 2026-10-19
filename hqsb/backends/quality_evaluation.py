@@ -24,6 +24,11 @@ def evaluate(provider, request, cancel):
     if provider.model is None:
         raise RuntimeError("QUALITY_MODEL_NOT_LOADED")
     plan = validate_quality_plan(request["quality_plan"])
+    if plan.get("score_mode") == "corpus_nll":
+        from hqsb.backends.corpus_evaluation import evaluate as evaluate_corpus
+
+        yield from evaluate_corpus(provider, request, cancel, plan)
+        return
     request, optimization = resolve_request(provider.config, request)
     kernels = getattr(provider, "kernel_session", None)
     if kernels:
@@ -69,6 +74,8 @@ def evaluate(provider, request, cancel):
                     mask = torch.ones_like(current)
                     if kernels:
                         kernels.set_phase("prefill")
+                    from hqsb.backends.runtime_session import set_phase
+                    set_phase(provider, "prefill")
                     full_output = provider.model(input_ids=current, attention_mask=mask, use_cache=False)
                 for position, token in enumerate(tokens[:-1]):
                     check()
@@ -77,6 +84,8 @@ def evaluate(provider, request, cancel):
                         mask = torch.ones((1, position + 1), dtype=torch.long, device="cuda:0")
                         if kernels:
                             kernels.set_phase("prefill" if position == 0 else "decode")
+                        from hqsb.backends.runtime_session import set_phase
+                        set_phase(provider, "prefill" if position == 0 else "decode")
                         output = provider.model(input_ids=current, attention_mask=mask, past_key_values=cache, use_cache=True)
                         cache = output.past_key_values
                     row = (full_output.logits[0, position] if full_output is not None else output.logits[0, -1]).float().cpu()
@@ -108,6 +117,8 @@ def evaluate(provider, request, cancel):
                     check()
                     if kernels:
                         kernels.set_phase("prefill" if step == 0 else "decode")
+                    from hqsb.backends.runtime_session import set_phase
+                    set_phase(provider, "prefill" if step == 0 else "decode")
                     output = provider.model(input_ids=current, attention_mask=mask, past_key_values=cache, use_cache=True)
                     if not bool(torch.isfinite(output.logits[:, -1, :]).all()):
                         raise ValueError("QUALITY_NONFINITE_GENERATION_LOGITS")

@@ -154,7 +154,7 @@ def bind(model, session):
             if isinstance(module, torch.nn.Linear):
                 if module.bias is not None:
                     raise ValueError("KERNEL_LINEAR_BIAS_UNSUPPORTED")
-                # Fixed predeclared selector, not an autotuned speed claim.
+                # Select using the fixed, predeclared rule.
                 lt_site = session.site(path, "linear", "cublaslt-fp32-acc-v1")
                 gemv_site = session.site(path, "linear_small_m", "cuda-small-m-gemv-v1") if choices["linear"] == "cuda-small-m-gemv-v1" else None
 

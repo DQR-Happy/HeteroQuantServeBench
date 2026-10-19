@@ -27,6 +27,9 @@ class SchedulingLimits(BaseModel):
     max_padded_positions: int = Field(16384, ge=1, le=131072)
     max_temporary_bytes: int = Field(512 * 1024**2, ge=1024**2, le=2 * 1024**3)
     kv_capacity_tokens: int = Field(8192, ge=1, le=131072)
+    kv_layout: Literal["dense", "block_pool"] = "dense"
+    kv_block_tokens: int = Field(16, ge=1, le=256)
+    kv_pool_max_bytes: int = Field(256 * 1024**2, ge=1024**2, le=2 * 1024**3)
     prefill_chunk_tokens: int = Field(64, ge=1, le=4096)
     chunked_prefill: bool = True
     policy: Literal["fcfs", "priority_aging", "tenant_fair"] = "fcfs"

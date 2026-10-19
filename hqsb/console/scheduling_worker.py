@@ -24,6 +24,7 @@ def percentile(values, p):
 
 def execute(provider, payload, cancel, controls):
     from hqsb.backends.precision_runtime import receipt as precision_receipt, reset_calls
+    from hqsb.backends.structure_runtime import receipt as structure_receipt
     spec = SchedulingExperiment.model_validate(payload["experiment"])
     capability = capabilities(provider)
     if not capability["supported"]:
@@ -53,15 +54,17 @@ def execute(provider, payload, cancel, controls):
             "tokenizer_identity": provider.tokenizer_identity,
             "attention": provider.config["attention"], "precision": provider.config["precision"],
             "precision_receipt": precision_receipt(provider),
+            "structure_receipt": structure_receipt(provider),
             "kernel_profile": provider.kernel_session.profile if provider.kernel_session else None,
-            "sampling": "greedy", "cleanup_policy": "session_empty_cache", "paged_kv": False})
+            "sampling": "greedy", "cleanup_policy": "session_empty_cache", "paged_kv": False,
+            "kv_layout": spec.limits.kv_layout, "kv_limits": spec.limits.model_dump()})
         for repeat in range(spec.repeats):
             for mode in spec.modes:
                 if cancel.is_set():
                     break
                 current_session = f"{identity}:{repeat}:{mode}"
                 reset_calls(provider)
-                executor = StepExecutor(provider, spec.limits.max_padded_positions, spec.limits.max_temporary_bytes)
+                executor = StepExecutor(provider, spec.limits.max_padded_positions, spec.limits.max_temporary_bytes, limits=spec.limits)
                 receipts = []
 
                 def emit(kind, body):
@@ -188,6 +191,11 @@ def execute(provider, payload, cancel, controls):
                     "padding_positions": sum(r["padding_positions"] for r in receipts),
                     "kv_padding_positions": sum(r["kv_padding_positions"] for r in receipts),
                     "kv_copy_bytes": sum(r["pack_copy_bytes"] + r["scatter_copy_bytes"] for r in receipts),
+                    "kv_layout": spec.limits.kv_layout,
+                    "memory_management": {"peak_pool_storage_bytes": max((r.get("memory_management", {}).get("pool_storage_bytes", 0) for r in receipts), default=0),
+                        "peak_tail_waste_tokens": max((r.get("memory_management", {}).get("tail_waste_tokens", 0) for r in receipts), default=0),
+                        "pack_copy_bytes": sum(r["pack_copy_bytes"] for r in receipts),
+                        "scatter_copy_bytes": sum(r["scatter_copy_bytes"] for r in receipts)},
                     "gpu_forward_ms": sum(r["gpu_forward_ms"] for r in receipts),
                     "peak_allocator_bytes": max((r["memory"]["peak_allocated_bytes"] for r in receipts), default=0),
                     "peak_reserved_kv_tokens": engine.kv.peak, "cleanup": final_memory,
@@ -197,6 +205,7 @@ def execute(provider, payload, cancel, controls):
                         "before": system_before, "after": sample_process(process)},
                     "loadgen": fidelity, "requests": summaries,
                     "precision_receipt": precision_receipt(provider),
+                    "structure_receipt": structure_receipt(provider),
                     "outcome": "invalid" if fidelity["validity"] != "VALID" else "rejected_requests" if failed else "completed"}
                 writer.offer("session.result", variant)
                 variants.append(variant)

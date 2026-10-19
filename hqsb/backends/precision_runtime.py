@@ -527,6 +527,8 @@ def receipt(provider):
 
 
 def reset_calls(provider):
+    from hqsb.backends.structure_runtime import reset
+    reset(provider)
     if hasattr(provider, "precision_plan"):
         for module in provider.model.modules():
             if hasattr(module, "calls"):
