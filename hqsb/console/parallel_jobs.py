@@ -6,8 +6,6 @@ import fcntl
 import os
 from pathlib import Path
 import shutil
-import signal
-import struct
 import subprocess
 import sys
 import threading
@@ -18,71 +16,8 @@ from hqsb.core.parallel_execution import ParallelPlan, validate_hardware
 from hqsb.core.optimization import fingerprint
 from hqsb.observation.storage import atomic_json, sha256
 from hqsb.experiments.artifacts import seal, read_manifest, read_json
-
-
-def weight_budget(root, size):
-    elements = 0
-    for path in root.glob("*.safetensors"):
-        with path.open("rb") as f:
-            n = struct.unpack("<Q", f.read(8))[0]
-            if n > 8 * 1024**2:
-                raise ValueError("L9_WEIGHT_HEADER_BUDGET")
-            header = json.loads(f.read(n))
-        for k, v in header.items():
-            if k != "__metadata__":
-                count = 1
-                for dim in v["shape"]:
-                    count *= dim
-                elements += count
-    if not elements:
-        raise ValueError("L9_LOCAL_SAFETENSORS_REQUIRED")
-    return elements * size
-
-
-def mapped_visibility(devices):
-    inherited = os.environ.get("CUDA_VISIBLE_DEVICES")
-    visible = inherited.split(",") if inherited is not None else None
-    return ",".join(visible[i] if visible is not None else str(i) for i in devices)
-
-
-def terminate(process):
-    """The torchrun agent and all ranks share this private session/process group."""
-    if process is None:
-        return
-    import psutil
-
-    try:
-        children = psutil.Process(process.pid).children(recursive=True)
-    except psutil.NoSuchProcess:
-        children = []
-    for child in children:
-        try:
-            child.terminate()
-        except psutil.NoSuchProcess:
-            pass
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        pass
-    # Also terminate orphan ranks when the agent has already exited.
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    process.wait(timeout=5)
-    _, alive = psutil.wait_procs(children, timeout=5)
-    for child in alive:
-        try:
-            child.kill()
-        except psutil.NoSuchProcess:
-            pass
-    _, alive = psutil.wait_procs(alive, timeout=5)
-    if any(p.is_running() and p.status() != psutil.STATUS_ZOMBIE for p in alive):
-        raise RuntimeError("L9_RANK_CLEANUP_NOT_CONFIRMED")
+from hqsb.backends.process_supervision import mapped_visibility, terminate
+from hqsb.models.source_budget import weight_budget
 
 
 class ParallelJobs:
