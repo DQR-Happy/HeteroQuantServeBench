@@ -1,6 +1,7 @@
+import Button from '../../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Select } from 'antd';
+import { Alert, Select } from 'antd';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { Deployment, Run } from '../../api/types';
@@ -17,7 +18,7 @@ const unavailable = (reason?: string | null) =>
         ? '此实现仅适配 Qwen3 1.7B，当前模型使用框架原生实现'
         : reason === 'KERNEL_MODEL_CONFIG_INVALID'
           ? '模型配置读取失败，无法确认算子兼容性'
-      : '原生制品身份检查未通过，请检查服务配置';
+          : '原生制品身份检查未通过，请检查服务配置';
 
 export default function KernelControl({
   deployment,
@@ -127,7 +128,9 @@ export default function KernelControl({
                 ))
               : '全部使用模型的框架原生实现。'}
           </div>
-          <p className="help-text">未列出的算子保留原实现。列入目录不代表质量或性能验收通过。</p>
+          <p className="help-text">
+            未列出的算子保留原实现。加载后可通过质量与性能评测比较所选方案。
+          </p>
         </div>
       )}
       {query.data?.native_artifact && (
@@ -149,6 +152,15 @@ export default function KernelControl({
       <Button
         block
         loading={busy}
+        disabledReason={{
+          reason:
+            disabled || busy
+              ? '当前推理或模型切换尚未结束，请先等待任务完成。'
+              : !canApply
+                ? '所选算子方案当前不可加载，请在上方选择可用的实现与版本，并查看兼容性说明。'
+                : '模型正在加载、排空或量化，请等待状态恢复。',
+          next: { to: '/runs', label: '查看运行与加载进度' },
+        }}
         disabled={
           disabled ||
           busy ||
@@ -168,7 +180,8 @@ export default function KernelControl({
             : '切换模型并加载方案'}
       </Button>
       <div className="help-text">
-        切换会排空并卸载当前 GPU 模型，再加载所选模型与方案。加载成功后，仍需单独提交推理或固定输入评测。离开此页会停止后续自动提交；已接受任务可在运行记录查看。
+        切换会排空并卸载当前 GPU
+        模型，再加载所选模型与方案。加载成功后，仍需单独提交推理或固定输入评测。离开此页会停止后续自动提交；已接受任务可在运行记录查看。
       </div>
       {(job || deployment.load_run_id) && (
         <div className="help-text">

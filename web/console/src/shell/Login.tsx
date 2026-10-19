@@ -1,5 +1,6 @@
+import Button from '../components/ActionButton';
 import { useState } from 'react';
-import { Alert, Button, Input } from 'antd';
+import { Alert, Input } from 'antd';
 import { LockOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { api } from '../api/client';
 import { NodeMark } from './WorkbenchShell';
@@ -56,6 +57,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             type="primary"
             block
             loading={busy}
+            disabledReason={{ reason: '请先在此页输入执行节点提供的访问令牌，再进入工作台。' }}
             disabled={!token.trim()}
             icon={<ArrowRightOutlined />}
           >

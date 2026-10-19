@@ -52,7 +52,7 @@ export default function KernelReceiptView({ receipt }: { receipt: Receipt }) {
       )}
       <p className="help-text">
         以上计数来自模型逻辑站点的成功分派；GPU kernel 活动见独立 profiler
-        观测，缓存命中与物理访存不能由这些计数推断。
+        观测；缓存命中与物理访存见对应硬件计数器。
       </p>
       {summary.not_exercised.length > 0 && (
         <Alert type="warning" message="部分绑定站点未执行，不能视为完整生效" />

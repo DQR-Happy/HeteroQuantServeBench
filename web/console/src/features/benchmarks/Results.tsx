@@ -200,7 +200,7 @@ export default function Results({ benchmark }: { benchmark: Benchmark }) {
         showIcon
         type="info"
         message="质量口径与性能口径分别判断"
-        description="算术、结构化提取和检索按固定参考答案评分；解释生成仅展示内容和基线一致率，不自动判优。Token 一致率衡量输出变化，不代表答案正确率。快速对照使用驻留 worker，不能替代独立进程、多轮交替的正式性能与质量验收。"
+        description="算术、结构化提取和检索按固定参考答案评分；解释生成仅展示内容和基线一致率，不自动判优。Token 一致率衡量输出变化，答案正确率按参考答案单独评分。快速对照使用驻留 worker；正式验收可采用独立进程与多轮交替测量。"
       />
       {benchmark.records.some((row) => row.role === 'diagnostic') && (
         <details className="section-gap">

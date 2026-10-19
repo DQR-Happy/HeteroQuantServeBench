@@ -42,7 +42,7 @@ export default function MemoryTopology({
   return (
     <Panel
       title="01 · 主机与 CUDA 内存结构"
-      subtitle="独显 VRAM 与主机 DRAM 分开；Jetson 共享 DRAM。下图分别核算主机与 allocator，面积不代表物理拓扑。"
+      subtitle="独显 VRAM 与主机 DRAM 分开；Jetson 共享 DRAM。下图按容量分别展示主机与 allocator 的统计。"
     >
       <div className="mf-topology" data-testid="memory-topology">
         <div className="mf-compute-pair">
@@ -69,7 +69,7 @@ export default function MemoryTopology({
           <div className="mf-section-title">
             <strong>主机与设备内存账本</strong>
             <Tag>分别核算</Tag>
-            <span>不把系统内存、VRAM 和 allocator 数值直接相加</span>
+            <span>系统内存、VRAM 和 allocator 分别统计</span>
           </div>
           <div className="mf-system-meter">
             <div className="mf-meter-label">
@@ -94,7 +94,7 @@ export default function MemoryTopology({
             <div className="mf-legend">
               <span>
                 <i className="mf-dot mf-dot-muted" />
-                总量减可用量（不是模型独占）
+                总量减可用量，包含整机进程占用
               </span>
               <span>
                 <i className="mf-dot mf-dot-green" />

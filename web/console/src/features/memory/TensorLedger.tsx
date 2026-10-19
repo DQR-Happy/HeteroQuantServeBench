@@ -63,9 +63,7 @@ function InventoryTable({
     [inventory?.entries, search],
   );
   if (!inventory)
-    return (
-      <Empty description="该部署尚无此类快照。模型卸载后，不将旧工作进程账本当作当前驻留数据。" />
-    );
+    return <Empty description="该部署暂无此类快照；可加载模型并运行对应观测后查看。" />;
   return (
     <>
       <div className="toolbar">
@@ -99,7 +97,7 @@ function InventoryTable({
           label="去重 storage 容量"
           value={gib(inventory.unique_storage_bytes)}
           unit="GiB"
-          hint="仅此账本中的 storage；不等于全部显存"
+          hint="本次账本记录的 storage 容量"
         />
         <Stat
           label="独立 storage 数"
@@ -251,8 +249,8 @@ export default function TensorLedger() {
         className="section-gap"
         type="info"
         showIcon
-        message="这是指定时刻的软件张量账本，不是逐字节的物理显存、cache 或寄存器轨迹。"
-        description="加载快照记录权重与 buffer；KV 来自最近一次请求释放前的快照。逻辑字节、去重 storage、allocator 和系统内存代表不同范围，不能互相替代。"
+        message="张量账本展示指定采样时刻的 shape、stride、storage 与容量。"
+        description="加载快照记录权重与 buffer；KV 来自最近一次请求释放前的快照。逻辑字节、去重 storage、allocator 和系统内存按各自范围分别统计。"
       />
       <label className="field-label" htmlFor="inventory-deployment">
         账本部署

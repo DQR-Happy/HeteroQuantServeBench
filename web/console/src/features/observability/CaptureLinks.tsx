@@ -24,7 +24,7 @@ export default function CaptureLinks({ runId }: { runId: string }) {
         type="info"
         showIcon
         message="同一采集内的工具 ID 关联"
-        description="只使用 External ID 建立 CPU op / launch → GPU kernel 关系。时间接近不构成关联，跨运行不建立因果链。硬件 Cache 计数器请在深度分析查看对应采集范围。"
+        description="按同次运行的 External ID 关联 CPU op / launch 与 GPU kernel。硬件 Cache 计数器见深度分析中的对应采集。"
       />
       <QueryState loading={query.isPending} error={query.error} />
       {query.data && (

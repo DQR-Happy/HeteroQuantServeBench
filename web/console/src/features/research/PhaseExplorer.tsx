@@ -127,7 +127,7 @@ export default function PhaseExplorer({ profiling }: { profiling: Research['prof
           type="warning"
           showIcon
           className="section-gap"
-          message="硬件计数器可能来自重放；其执行时间不能替代未插桩基准。"
+          message="硬件计数器按重放窗口展示，性能基准采用独立测量。"
         />
         {kernel ? (
           <>

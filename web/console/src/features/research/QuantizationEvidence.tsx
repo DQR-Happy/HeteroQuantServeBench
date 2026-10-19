@@ -93,7 +93,7 @@ export default function QuantizationEvidence({
               label="整模型等效存储"
               value={gib(method.storage_sizes.whole_model_equivalent_bytes)}
               unit="GiB"
-              hint="存储估算；不等于实际驻留内存"
+              hint="制品存储容量估算，驻留内存见加载快照"
             />
           </div>
           <Tabs

@@ -1,4 +1,5 @@
-import { Button, Table } from 'antd';
+import Button from '../../components/ActionButton';
+import { Table } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { base, fmt } from '../../api/client';
 import type { ResearchArtifact } from './types';

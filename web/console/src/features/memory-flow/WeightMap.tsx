@@ -41,7 +41,7 @@ export default function WeightMap({
       <div className="mf-evidence-line">
         <Tag color="blue">{source}</Tag>
         <span>{sampledAt ? date(sampledAt) : '时间未提供'}</span>
-        <span>按模型命名映射层；不是物理地址布局</span>
+        <span>按模型命名将权重映射到各层</span>
       </div>
       {tiles.length ? (
         <div

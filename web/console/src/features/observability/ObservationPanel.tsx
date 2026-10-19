@@ -1,4 +1,5 @@
-import { Alert, Button, Empty, Space, Table, Tabs, Tag } from 'antd';
+import Button from '../../components/ActionButton';
+import { Alert, Empty, Space, Table, Tabs, Tag } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { base, date, fmt, gib } from '../../api/client';
 import { JsonView } from '../../components';
@@ -36,6 +37,10 @@ export default function ObservationPanel({
         <Space wrap>
           <Button
             icon={<DownloadOutlined />}
+            disabledReason={{
+              reason: '此运行没有采集到可下载的设备时间线。请在交互推理中选择算子观测后重新运行。',
+              next: { to: '/playground', label: '配置算子观测并运行' },
+            }}
             disabled={!observation.profile?.trace_available}
             href={
               observation.profile?.trace_available
@@ -57,7 +62,7 @@ export default function ObservationPanel({
         message="可追溯范围"
         description={
           observation.limitations.join('；') ||
-          '观测由工作进程实际采集。基础主机事件不代表 GPU 每条指令的执行轨迹。'
+          '观测由工作进程采集；基础模式展示主机阶段，详细模式提供算子与设备活动。'
         }
       />
       <Tabs
@@ -124,7 +129,7 @@ export default function ObservationPanel({
                 />
                 <p className="help-text">
                   整机可用内存与 worker allocator
-                  是不同口径，不能相加。快照只描述指定采样时刻，不是连续分配地址轨迹。
+                  分别按各自口径统计，快照记录指定采样时刻的分配状态。
                 </p>
               </>
             ),

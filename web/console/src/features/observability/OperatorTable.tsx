@@ -50,8 +50,7 @@ export default function OperatorTable({ profile }: { profile?: Observation['prof
       )}
       {profile.coverage?.module_scope === 'first_decoder_layer_only' && (
         <p className="help-text">
-          模块归属仅标注首个 decoder 层；算子记录覆盖整个采集窗口。其他层没有逐模块
-          range，不能据此声称已完成全部层归因。
+          首个 decoder 层提供模块归属，其他算子按采集窗口汇总；逐模块范围见已记录的 range。
         </p>
       )}
       {profile.operator_groups_truncated && (

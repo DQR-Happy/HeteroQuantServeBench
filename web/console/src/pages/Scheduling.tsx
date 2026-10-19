@@ -1,6 +1,7 @@
+import Button from '../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Checkbox, Input, InputNumber, Select, Space, Table, Tag } from 'antd';
+import { Alert, Checkbox, Input, InputNumber, Select, Space, Table, Tag } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, fmt, terminal } from '../api/client';
 import type { Deployment, Run } from '../api/types';
@@ -43,6 +44,13 @@ type Variant = {
   membership_changes_with_overlap: number;
   dynamic_join_requests: string[];
   kv_copy_bytes: number;
+  kv_layout?: string;
+  memory_management?: {
+    peak_pool_storage_bytes: number;
+    peak_tail_waste_tokens: number;
+    pack_copy_bytes: number;
+    scatter_copy_bytes: number;
+  };
   peak_allocator_bytes: number;
   padding_positions: number;
   slo_goodput_requests_per_s: number;
@@ -95,6 +103,9 @@ export default function Scheduling() {
   const [tokens, setTokens] = useState(256);
   const [chunk, setChunk] = useState(64);
   const [kv, setKv] = useState(8192);
+  const [kvLayout, setKvLayout] = useState('dense');
+  const [kvBlock, setKvBlock] = useState(16);
+  const [kvPoolMiB, setKvPoolMiB] = useState(256);
   const [padded, setPadded] = useState(16384);
   const [repeats, setRepeats] = useState(1);
   const [chunked, setChunked] = useState(true);
@@ -245,6 +256,9 @@ export default function Scheduling() {
           prefill_chunk_tokens: chunk,
           chunked_prefill: chunked,
           kv_capacity_tokens: kv,
+          kv_layout: kvLayout,
+          kv_block_tokens: kvBlock,
+          kv_pool_max_bytes: kvPoolMiB * 1024 ** 2,
           max_padded_positions: padded,
           preemption: preempt ? 'recompute' : 'off',
         },
@@ -317,6 +331,14 @@ export default function Scheduling() {
           {deployment && <Status state={deployment.state} />}
           <Button
             loading={lifecycleAction === 'load'}
+            disabledReason={{
+              reason: modelActionBlocked
+                ? '当前调度实验或模型切换仍在执行，请先等待完成。'
+                : !deployment
+                  ? '请先在本页选择实验模型。'
+                  : '所选模型已使用原生算子加载，无需重复加载。',
+              next: { to: '/devices', label: '查看模型状态' },
+            }}
             disabled={
               !deployment ||
               modelActionBlocked ||
@@ -335,6 +357,12 @@ export default function Scheduling() {
           </Button>
           <Button
             loading={lifecycleAction === 'unload'}
+            disabledReason={{
+              reason: modelActionBlocked
+                ? '当前调度实验或模型切换仍在执行，请先等待完成。'
+                : '所选模型没有就绪的驻留实例，当前无需卸载。',
+              next: { to: '/devices', label: '查看模型状态' },
+            }}
             disabled={!deployment || deployment.state !== 'ready' || modelActionBlocked}
             onClick={() => void changeModel('unload')}
           >
@@ -474,6 +502,43 @@ export default function Scheduling() {
             <InputNumber min={1} max={131072} value={kv} onChange={(v) => setKv(v ?? 8192)} />
           </label>
           <label>
+            KV 存储布局{' '}
+            <Select
+              aria-label="KV 存储布局"
+              value={kvLayout}
+              style={{ width: 250 }}
+              onChange={setKvLayout}
+              options={[
+                { value: 'dense', label: '稠密独立行（原有）' },
+                { value: 'block_pool', label: 'GPU 块池 / 稠密 Attention' },
+              ]}
+            />
+          </label>
+          {kvLayout === 'block_pool' && (
+            <>
+              <label>
+                块大小 Token{' '}
+                <InputNumber
+                  aria-label="KV 块大小"
+                  min={1}
+                  max={256}
+                  value={kvBlock}
+                  onChange={(v) => setKvBlock(v ?? 16)}
+                />
+              </label>
+              <label>
+                块池预算 MiB{' '}
+                <InputNumber
+                  aria-label="KV 块池预算"
+                  min={1}
+                  max={2048}
+                  value={kvPoolMiB}
+                  onChange={(v) => setKvPoolMiB(v ?? 256)}
+                />
+              </label>
+            </>
+          )}
+          <label>
             Padding 后位置上限{' '}
             <InputNumber
               min={1}
@@ -514,6 +579,13 @@ export default function Scheduling() {
         <Button
           type="primary"
           loading={busy}
+          disabledReason={{
+            reason: launchReason || '调度实验尚未准备完成，请检查本页模型、能力与负载配置。',
+            next: {
+              to: deployment?.state !== 'ready' ? '/devices' : '/scheduling',
+              label: deployment?.state !== 'ready' ? '加载实验模型' : '检查调度模型、能力与负载',
+            },
+          }}
           disabled={!!launchReason}
           onClick={() => void launch()}
         >
@@ -563,7 +635,14 @@ export default function Scheduling() {
               {result.data.result?.quality ?? '等待对照'}
             </p>
             {!running && (
-              <Button disabled={!!modelActionBlocked} onClick={() => void replay()}>
+              <Button
+                disabledReason={{
+                  reason: '当前实验或模型切换尚未结束，请等待完成后再回放冻结负载。',
+                  next: { to: '/scheduling', label: '查看调度实验进度' },
+                }}
+                disabled={!!modelActionBlocked}
+                onClick={() => void replay()}
+              >
                 回放已保存的冻结负载
               </Button>
             )}
@@ -603,6 +682,29 @@ export default function Scheduling() {
                   render: (v) => fmt(v, 2),
                 },
                 { title: '真实 B 最大值', dataIndex: 'max_actual_batch' },
+                {
+                  title: 'KV 布局',
+                  dataIndex: 'kv_layout',
+                  render: (v: string | undefined) => v ?? '历史稠密布局',
+                },
+                {
+                  title: '块池峰值 MiB',
+                  render: (_, v) =>
+                    v.memory_management
+                      ? fmt(v.memory_management.peak_pool_storage_bytes / 1024 ** 2, 3)
+                      : '—',
+                },
+                {
+                  title: '尾部浪费 Token 峰值',
+                  render: (_, v) => fmt(v.memory_management?.peak_tail_waste_tokens, 0),
+                },
+                {
+                  title: '拼装 / 写回 MiB',
+                  render: (_, v) =>
+                    v.memory_management
+                      ? `${fmt(v.memory_management.pack_copy_bytes / 1024 ** 2, 3)} / ${fmt(v.memory_management.scatter_copy_bytes / 1024 ** 2, 3)}`
+                      : '—',
+                },
                 { title: '成员变更', dataIndex: 'membership_changes_with_overlap' },
                 {
                   title: '实际动态加入',
@@ -722,10 +824,17 @@ export default function Scheduling() {
                       'session.result',
                     ].map((value) => ({ value, label: value }))}
                   />
-                  <Button disabled={!after} onClick={() => setAfter(0)}>
+                  <Button
+                    disabledReason={{ reason: '已经位于第一页，无需返回第一页。' }}
+                    disabled={!after}
+                    onClick={() => setAfter(0)}
+                  >
                     第一页
                   </Button>
                   <Button
+                    disabledReason={{
+                      reason: '当前没有更多请求记录，请等待采集完成或回到第一页查看。',
+                    }}
                     disabled={!records.data?.items.length}
                     onClick={() => setAfter(records.data?.next_after ?? after)}
                   >

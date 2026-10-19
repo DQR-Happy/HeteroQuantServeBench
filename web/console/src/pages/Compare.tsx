@@ -1,6 +1,7 @@
+import Button from '../components/ActionButton';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Select, Table, Tag } from 'antd';
+import { Alert, App, Select, Table, Tag } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, fmt } from '../api/client';
 import type { Run, RunPage } from '../api/types';
@@ -95,10 +96,14 @@ export default function Compare() {
       </Panel>
       <Panel
         title="请求指标对照"
-        subtitle="用于延迟诊断，机制对照在上方独立检查；单次运行不能替代重复实验。"
+        subtitle="用于延迟诊断，机制对照见上方记录，性能通过重复实验比较。"
       >
         <Button
           loading={busy}
+          disabledReason={{
+            reason: '需要选择两条不同的运行记录。请先在本页选择左侧和右侧记录。',
+            next: { to: '/runs', label: '查看可选运行记录' },
+          }}
           disabled={ids.length !== 2 || left === right}
           onClick={() => void compare()}
         >
@@ -113,8 +118,8 @@ export default function Compare() {
             type={result.comparable ? 'info' : 'warning'}
             message={
               result.comparable
-                ? '基础诊断口径一致，仍不代表质量门通过'
-                : '不可直接比较：已阻止统一加速比结论'
+                ? '基础诊断口径一致，质量结果见独立质量评测'
+                : '比较条件存在差异，请对齐配置后计算加速比'
             }
             description={result.reasons.length ? result.reasons.join('；') : result.notice}
           />

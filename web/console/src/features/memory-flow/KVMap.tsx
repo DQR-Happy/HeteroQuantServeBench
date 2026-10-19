@@ -13,7 +13,7 @@ export default function KVMap({ inventory }: { inventory?: Inventory | null }) {
   return (
     <Panel
       title="03 · KV cache 层结构"
-      subtitle="所选请求生成结束、释放前的快照。关闭请求后不表示这些 KV 仍然驻留。"
+      subtitle="所选请求生成结束、释放前的快照。采样时刻见请求记录。"
     >
       <div className="mf-evidence-line">
         <Tag color="purple">请求历史快照</Tag>
@@ -36,7 +36,7 @@ export default function KVMap({ inventory }: { inventory?: Inventory | null }) {
           className="section-gap"
           type="warning"
           showIcon
-          message="仅绘制已观测的 KV 分量，缺失部分不是零容量"
+          message="展示已采集的 KV 分量；其他分量标记为待采集"
           description={
             inventory.truncated
               ? '原始账本达到条目上限；层数与容量只覆盖已返回的条目。'

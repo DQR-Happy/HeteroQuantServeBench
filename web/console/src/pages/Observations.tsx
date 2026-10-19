@@ -1,6 +1,7 @@
+import Button from '../components/ActionButton';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Input, Select, Space, Table, Tag } from 'antd';
+import { Alert, Input, Select, Space, Table, Tag } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, date, terminal } from '../api/client';
@@ -108,7 +109,7 @@ export default function Observations() {
               <i />
               不可用 / 未采集
             </span>
-            <p>每条指标标明自己的作用域与来源。CPU 页样本不代表 GPU 物理页布局。</p>
+            <p>每条指标标明自己的作用域与来源。CPU 页样本展示所选进程虚拟页的状态。</p>
           </div>
         </>
       ) : (

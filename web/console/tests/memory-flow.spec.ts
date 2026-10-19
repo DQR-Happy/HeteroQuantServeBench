@@ -121,7 +121,7 @@ test('basic observation retains memory evidence without claiming zero GPU activi
   await expect(summary).toContainText('未采集');
   await expect(summary).toContainText('总字节未完整采集');
   await expect(
-    page.getByText('这个采集窗口没有可展示的 copy 方向证据。未捕获不代表没有发生传输。'),
+    page.getByText('当前窗口暂无 copy 方向数据，可使用包含 CUDA 活动的观测模式重新采集。'),
   ).toBeVisible();
   await expect(page.getByText('读取数据流失败', { exact: true })).toHaveCount(0);
 });
@@ -176,7 +176,7 @@ test('partial KV and genuine zero allocator are distinct from missing evidence',
     await route.fulfill({ response, json: record });
   });
   await page.goto(`/memory-flow?run=${run!.id}`);
-  await expect(page.getByText('仅绘制已观测的 KV 分量，缺失部分不是零容量')).toBeVisible();
+  await expect(page.getByText('展示已采集的 KV 分量；其他分量标记为待采集')).toBeVisible();
   await expect(page.locator('.mf-kv-detail').getByText('V 未采集', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('img', { name: 'Reserved 0 B 包含 Allocated 0 B', exact: true }),

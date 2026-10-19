@@ -21,7 +21,7 @@ const nodes = [
     location: 'CPU → GPU 逻辑位置',
     names: ['input_transfer'],
     description:
-      '输入张量执行 .to("cuda")。逻辑迁移的物理代价取决于设备：独显使用独立 VRAM，Jetson 共享 DRAM。当前这类采集在输入迁移之后启动 profiler，此节点的主机跨度不能冒充捕获到的 GPU memcpy。',
+      '输入张量执行 .to("cuda")。独显使用独立 VRAM，Jetson 共享 DRAM。此节点记录主机迁移阶段，设备 copy 活动见 profiler 采集窗口。',
   },
   {
     id: 'prefill',
@@ -29,7 +29,7 @@ const nodes = [
     location: 'GPU 算子执行',
     names: ['prefill'],
     description:
-      '处理完整提示词并创建 KV。展示的是模型调用与 token 选择所在的主机阶段包络；真正的 GPU kernel 数来自下方 trace，不能用主机耗时替代 GPU 执行时间。',
+      '处理完整提示词并创建 KV。展示的是模型调用与 token 选择所在的主机阶段包络；GPU kernel 次数与耗时见下方设备 trace。',
   },
   {
     id: 'decode',
@@ -53,7 +53,7 @@ const nodes = [
     location: '工作进程',
     names: ['request_cleanup'],
     description:
-      '清理请求持有的输入与 KV 引用，保留驻留模型。allocator 保留的池内存可能仍在 Reserved 中，释放 Python 引用不等于立即归还整机所有页面。',
+      '清理请求持有的输入与 KV 引用，保留驻留模型。allocator 保留的池内存可能仍在 Reserved 中，页面回收由 allocator 和操作系统按各自策略执行。',
   },
 ];
 const directionNames: Record<string, string> = {
@@ -126,8 +126,8 @@ export default function RequestFlow({
         ))}
       </div>
       <p className="mf-caption">
-        箭头表达程序处理顺序，不是逐字节物理追踪；不推断 HBM、cache、寄存器位置，也不把 HtoD 等同
-        PCIe 流量。节点点击只展开主机阶段证据，不筛选或归属下方 GPU 事件：两者时钟原点不同。
+        箭头表示程序处理顺序，HtoD 表示主机到设备逻辑地址空间的拷贝。 点击节点查看主机阶段记录；下方
+        GPU 事件按采集工具的时钟展示。
       </p>
       <div className="mf-flow-detail">
         <div className="mf-section-title">
@@ -164,8 +164,8 @@ export default function RequestFlow({
         className="section-gap"
         type="info"
         showIcon
-        message="这里的字节数仅属于显式 memcpy，不是整次推理的内存流量"
-        description="此采集窗口不含模型加载和首次输入迁移，也不统计 GPU kernel 对权重、KV、激活的普通读写。即使这里只显示少量字节，也不能据此判断带宽开销很小。"
+        message="显式 memcpy 字节数与拷贝方向"
+        description="本表按采集窗口统计显式 memcpy；模型加载与首次输入迁移见对应阶段，kernel 的权重、KV 和激活访问由硬件计数器单独采集。"
       />
       {error && (
         <Alert type="error" showIcon message="读取数据流失败" description={error.message} />
@@ -221,7 +221,7 @@ export default function RequestFlow({
           ) : (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="这个采集窗口没有可展示的 copy 方向证据。未捕获不代表没有发生传输。"
+              description="当前窗口暂无 copy 方向数据，可使用包含 CUDA 活动的观测模式重新采集。"
             />
           )}
           {dataflow.copy_events.length > 0 && (

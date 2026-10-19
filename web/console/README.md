@@ -6,7 +6,27 @@
 
 ## UI v0.4：项目工作台
 
+### L5 模型结构与压缩
+
+`/model-structure/build` 检查实际加载的模块，创建幅值剪枝、单遍 Wanda 评分剪枝、门控 MLP 通道裁剪或 SVD 低秩制品；`/model-structure/artifacts` 查看真实参数及存储变化，显式卸载并加载制品或恢复原始浮点模型；`/model-structure/evaluation` 运行同协议 PPL 和固定输出长度推理，对照原始基线。压缩在隔离 CPU 子进程执行，原始权重不改写，完成后不会自动加载。非结构化和 2:4 剪枝仍走稠密计算，不能据此声称 GPU 加速；SVD 和通道裁剪则改变实际执行模块与参数尺寸。每次运行保存原始来源、制品哈希、实际调用凭据和质量结果。边界与接口见 [L5 说明](../../infra/README.l5-structure.md)。
+
+### L7 解码与生成算法
+
+`/decoding/run` 使用固定典型输入或原始 prompt，选择 greedy、温度/Top-k/Top-p 采样、提示词查找推测、独立草稿推测以及有限候选 Mask/Gather。`/decoding/draft` 显示独立草稿的驻留身份和字节，并显式卸载；`/decoding/compare` 核对同负载封存记录的 Token 一致性、Forward/接受/回滚及性能。草稿首次加载与持续显存成本均记录；不是所有推测都会更快。原 `/playground` 默认行为保留并提供新入口，运行详情有单独 L7 页签。详细接口、语言/模块、KV 不变量与未接能力见 [L7 说明](../../infra/README.l7-decoding.md)。
+
+### L9 多卡与分布式执行
+
+`/parallel/run|topology|peers|compare` 分别负责方案执行、设备与通信、跨节点请求 DP 和结果对照。使用已验证的原始模型制品，先卸载驻留模型；私有进程退出后统一封存。CPU 逻辑、多 GPU 与异构双节点证据分开，通信诊断默认关闭。详见 [L9 说明](../../infra/README.l9-parallel.md)。
+
+### 内置量化质量回归
+
+`/precision` 的“质量评测数据集”默认提供 WikiText-2 Mini：来自 raw 测试集的固定 8 段英文，每段最多 64 Token，逐 Token 经过当前权重和 KV 路径计分。先用浮点基线评测，再加载量化方案运行同一预设，将双方运行 ID 填入“基线与候选质量对照”，查看 PPL、平均 NLL 增量和 PPL 倍率。可在双方运行前登记相同质量阈值；未登记时只报告测量结果。旧的自定义文本 / logits / 标准答案模式仍保留。数据随项目保存，日常使用不依赖联网；该子集用于英文语料的快速回归，其他能力可通过相应任务集评测。来源、协议、模块和 API 见 [L4 表示精度与量化说明](../../infra/README.l4-precision.md#内置-wikitext-2-mini-与-ppl)。
+
+质量结果现会自动关联每个模型的已封存浮点基线，显示 PPL 增幅、绝对变化和 NLL 增量；运行列表也提供“PPL 相对基线”。首个有效基线固定保存，后续重测不自动替换，可在合格浮点记录显式设为新基线。未量化的 FP16 / BF16 / FP32 标注实际精度；模型制品、分词器、源码、依赖版本、设备或评分协议不同会分开建立基线。未测过浮点版本时会提示先建立，不会虚构下降比例。手动多运行对照继续用于进一步分析及预登记阈值裁决。
+
 ### 通用模型架构
+
+本页新增“计算图与 L3 执行”：按请求选择 Eager、Dynamo 捕获或 Inductor 编译，调整形状与 Fullgraph，运行固定样例或独立 PPL。FX 节点通过已有模块路径关联权重；支持历史图、源码、实际图调用/新图计数及严格身份对照。原 ATen 架构采集继续保留。首批仅开放原生浮点/默认 KV 的编译组合，CUDA Graph 暂不启用，详见 [L3 说明](../../infra/README.l3-runtime.md)。
 
 `/model-architecture` 先展示不依赖模型族白名单的权重路径树；模型加载后可查看实际 nn.Module 类与参数。点击“采集运行架构”显式提交固定小样本，查看实际 ATen 算子、Tensor 依赖、Prefill / Decode 和来源指纹，支持筛选、邻域图和完整 JSON 导出。模型族标签及已核对的静态示意图作为补充，未识别家族不会阻止通用解析。采集有额外开销，仅用于诊断。模块、接口、持久化及能力边界见[模型架构观测说明](../../infra/README.model-architecture.md)。
 
@@ -39,7 +59,7 @@
 
 运行时仍独立校验窗口。输入超窗产生 `CONTEXT_LIMIT` 失败记录、零输出及部分诊断制品；清理确认成功后保留常驻模型与 epoch，修改预算即可继续提交。设备执行或清理异常仍会关闭 worker、使部署失效。已失效/卸载的模型在输入区有明确的重新加载入口，当前输入与设置在同一页面操作中保留。
 
-结果按用例排列方案，分别展示任务正确率、Token 一致率、首 Token、生成 E2E、Decode 吞吐、输入/输出数量、峰值分配与实际输出。开放解释不自动评分，Token 一致率不代表准确率；输出数量不同的结果不计算 E2E 相对比例。每项可跳转同 run 的实际算子凭据与原件。可选机制诊断另做一轮，不污染性能样本。版本化用例是功能比较 fixture，同 worker 数据仅用于快速检查，不代表通用模型质量或正式性能收益。
+结果按用例排列方案，分别展示任务正确率、Token 一致率、首 Token、生成 E2E、Decode 吞吐、输入/输出数量、峰值分配与实际输出。开放解释不自动评分，Token 一致率与准确率分别统计；输出数量不同的结果不计算 E2E 相对比例。每项可跳转同 run 的实际算子凭据与原件。可选机制诊断另做一轮，与性能样本分开保存。版本化用例用于快速比较功能；正式性能与质量评测采用独立进程和对应任务数据集。
 
 模块：`features/benchmarks/Results.tsx` 只呈现服务端冻结报告，`pages/Benchmarks.tsx` 管理选择、显式提交和轮询；评分与统计属于 Python `hqsb.experiments.benchmark_suite`，任务和 journal 所有权属于 `hqsb.console.benchmark_campaigns`。输入不允许浏览器任意改写。验收命令仍须通过项目远端代理执行：
 
@@ -49,7 +69,7 @@
 # 真实模型额外显式设置 HQSB_BENCHMARK_UI_LIVE=1；会占用 GPU 并重载模型。
 ```
 
-真实功能通过同源 HTTP 服务访问。**不要直接双击 `index.html` 或 `dist/index.html`**，它们是应用入口，不是独立应用文件。`public/preview.html` 是明确标注的离线截图预览，可双击且不调用后端；生成命令仍须在 Jetson 执行：
+真实功能通过同源 HTTP 服务访问。**不要直接双击 `index.html` 或 `dist/index.html`**，应用入口通过 HTTP 服务加载资源。`public/preview.html` 是明确标注的离线截图预览，可双击且不调用后端；生成命令仍须在 Jetson 执行：
 
 ```bash
 ./scripts/remote_run.sh python3 scripts/console/build_preview.py --screenshots reports/console/v04
@@ -73,7 +93,7 @@ HQSB_REMOTE_HOST=jetson HQSB_REMOTE_DIR=/home/jetson/work/HQSB-kernel-ui-2026101
   bash -lc 'cd web/console && npx playwright test tests/kernel-ui.spec.ts'
 ```
 
-结果位于 `reports/console/kernel-ui/`，包括 `acceptance.json`、逐方案运行 ID、下载哈希、CUDA 活动证明和界面截图；这是功能与证据联通验收，不代表独立质量或性能评测。
+结果位于 `reports/console/kernel-ui/`，包括 `acceptance.json`、逐方案运行 ID、下载哈希、CUDA 活动证明和界面截图；记录包含功能与证据联通验收，独立质量和性能评测另行执行。
 
 ## 当前能力
 
@@ -81,7 +101,7 @@ HQSB_REMOTE_HOST=jetson HQSB_REMOTE_DIR=/home/jetson/work/HQSB-kernel-ui-2026101
 - 持久任务与事件、幂等提交、有界串行设备队列、部署 epoch、独立进程清理。
 - 运行详情、JSON/Markdown 导出、基础可比性检查；质量未评估会明确显示。
 - `/proc/meminfo` 与 `tegrastats` 实际采样；历史 verdict、报告、算子源码只读查看和 SHA-256 下载校验。
-- 管理员可配置 OpenAI-compatible 外部服务；不代表 ROCm / MUSA / Ascend 硬件已认证。
+- 管理员可配置 OpenAI-compatible 外部服务；各硬件后端按实际节点配置验证。
 - v0.2：提交前选择关闭详录、基础观测或算子诊断；运行详情显示阶段瀑布、逐 token 成本、生命周期内存、算子耗时和输入形状。
 - v0.2：有界 profiler 窗口、Chrome trace 下载、原始事件服务端分页检索，以及带验证方法的候选优化方案导出。
 - v0.2：深度分析页连接 E02-07 的真实阶段/kernel/计数器证据与 E05-02 的量化存储、执行路径和质量结果；历史采集明确标注。
@@ -95,7 +115,7 @@ W8/W4 原生低比特模型回接、任意算子热切换、GPU 频率写入、�
 1. 在“设备与部署”加载模型；“内存归因与生命周期”同时显示整机 MemAvailable、进程 RSS/PSS，以及带时间戳的 worker allocator 快照。模型加载后的可用内存已经包含权重占用影响。
 2. 在“推理工作台”选择观测模式。基础观测记录主机阶段、token 和内存；算子诊断最多捕获 prefill 与前 8 个 decode step，首 decoder 层带模块 range。所有观测都有成本，不能将插桩数据当作未插桩性能基准。
 3. 推理结束后打开“查看完整运行 → 全链路观测”。依次查看阶段与逐 token、算子耗时、原始事件查询、优化假设和请求内存快照。CPU self、CUDA self、累计 kernel 工作时间与阶段墙钟时间不混算。
-4. 下载 Chrome trace 供兼容工具离线查看；下载优化方案记录证据、候选操作、验证方法和限制。方案中的假设不是已经完成的优化。
+4. 下载 Chrome trace 供兼容工具离线查看；下载优化方案记录证据、候选操作、验证方法和限制。方案包含待执行的候选措施与验证步骤。
 5. 打开“深度分析”钻取已有阶段实验。所有历史数据保留来源与 SHA-256；不会将一次历史 NCU 重放归为当前请求的观测。
 6. 在“量化与质量”创建 RTN 候选，进入运行记录追踪任务，再下载 manifest。完成转换后仍需独立质量与低比特执行验证；当前 FP16 部署保持自身执行契约。
 
@@ -129,7 +149,7 @@ ssh -N -L 8765:127.0.0.1:8765 <jetson-user>@<jetson-lan-ip>
 
 默认 `configs/console/default.yaml`。`--config` 可选择其他服务端配置，`--host` 默认回环地址，`--port` 默认 8765。`HQSB_CONSOLE_DATA` 覆盖 `.console/`；`HQSB_EVIDENCE_ROOT` 指向有历史证据的仓库根目录。
 
-Jetson/CUPTI 权限受限时，管理员可显式加 `--privileged-worker`（或 YAML `privileged_worker: true`）；默认关闭。需要账户已有对应 `sudo -n` 权限，只提权固定私有管道设备 worker，API 保持普通用户，不修改 sudoers/全局驱动权限。必须信任本机仓库和依赖，不能作为恶意本地代码沙箱。没有 CUDA 活动时页面明确显示 CPU-only/partial，开关本身不等于 GPU 验收通过。
+Jetson/CUPTI 权限受限时，管理员可显式加 `--privileged-worker`（或 YAML `privileged_worker: true`）；默认关闭。需要账户已有对应 `sudo -n` 权限，只提权固定私有管道设备 worker，API 保持普通用户，不修改 sudoers/全局驱动权限。必须信任本机仓库和依赖，不能作为恶意本地代码沙箱。没有 CUDA 活动时页面明确显示 CPU-only/partial，GPU 采集状态见实际 CUDA 活动记录。
 
 `.console/` 包含 SQLite WAL 运行记录和进程锁；启用认证后还包含私有令牌。运行记录默认不保存输入原文（仅 SHA-256），但保存输出、指标和实际部署快照；开启“保存输入”后才保存提示词。不要将私有数据或下载报告公开发布。备份先停止服务，再复制整个数据目录。没有自动清理历史的后台任务。
 
@@ -173,3 +193,5 @@ Playwright 在 Jetson 上启动 Chromium。硬件验收脚本先完成并使部�
 | `../../contracts/console/openapi.json` | 从真实服务代码导出的 v1 契约 |
 
 禁止将静态演示数据混入正式页面。新增平台先接入实际 Provider 与能力边界；新增指标先说明采样对象、时钟、单位和缺失状态；新增写操作必须具备队列、状态、鉴权、取消与证据闭环。
+
+L6 入口为 `/memory-cache/configure` 与 `/memory-cache/records`，分别负责缓存方案和同输入运行对照；共享 deployment/run URL 身份。支持动态、静态、卸载预取、重计算、有界前缀复用，显示实际张量/allocator/搬运与进程缺页。L8 调度页可选择 GPU 块池；仍需稠密 Attention 拼装。默认单请求行为和免登录保留；细节、接口与边界见 [L6 说明](../../infra/README.l6-memory.md)。

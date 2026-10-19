@@ -1,6 +1,7 @@
+import Button from '../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Checkbox, Select, Space, Table, Tag } from 'antd';
+import { Alert, Checkbox, Select, Space, Table, Tag } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, date } from '../api/client';
 import type { Deployment } from '../api/types';
@@ -339,6 +340,23 @@ export default function Benchmarks() {
             <Button
               type="primary"
               loading={submitting}
+              disabledReason={{
+                reason: locked
+                  ? '当前评测或模型切换尚未完成，配置和提交已锁定。'
+                  : !catalog.data
+                    ? '评测目录尚未读取成功，请先等待或刷新目录。'
+                    : !cases.length
+                      ? '请在本页样例配置中至少选择一个输入样例。'
+                      : !candidates.length
+                        ? '请在本页推理方案中至少选择一个不同于基线的候选。'
+                        : '输出 token 预算超出当前允许范围，请修改本页输出预算。',
+                next: {
+                  to: catalog.data?.active_id
+                    ? '/benchmarks?benchmark=' + catalog.data.active_id
+                    : '/guide#benchmarks',
+                  label: catalog.data?.active_id ? '查看当前评测' : '查看评测配置步骤',
+                },
+              }}
               disabled={
                 locked || !catalog.data || !cases.length || !candidates.length || budgetError
               }
@@ -416,6 +434,10 @@ export default function Benchmarks() {
               {!finished(result.data.state) && (
                 <Button
                   danger
+                  disabledReason={{
+                    reason: '取消请求已经提交，正在等待任务停止并恢复原部署，请勿重复取消。',
+                    next: { to: '/devices', label: '查看部署恢复状态' },
+                  }}
                   disabled={result.data.state === 'cancelling'}
                   onClick={() => void cancel()}
                 >

@@ -1,5 +1,6 @@
+import Button from '../components/ActionButton';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Empty, Select, Space, Tag } from 'antd';
+import { Alert, Empty, Select, Space, Tag } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, base, date } from '../api/client';
 import type { Deployment, RunPage } from '../api/types';
@@ -133,6 +134,10 @@ export default function MemoryFlow() {
                 <Link to={`/observations?run=${run.id}`}>机制证据 →</Link>
                 <Button
                   href={`${base}/runs/${run.id}/trace?format=chrome`}
+                  disabledReason={{
+                    reason: '所选运行没有设备时间线文件。请在推理工作台启用算子观测后重新运行。',
+                    next: { to: '/playground', label: '采集设备时间线' },
+                  }}
                   disabled={!run.metrics.observation?.profile?.trace_available}
                 >
                   下载 Trace
@@ -157,7 +162,7 @@ export default function MemoryFlow() {
             description={
               loadId
                 ? '当前模型可能已卸载或重载。权重从这次请求绑定的加载记录读取；KV 来自该请求结束前快照。不会为回放自动加载模型。'
-                : '当前模型可能已卸载或重载。该旧请求没有绑定加载记录，缺失的权重证据不会用当前模型替代。KV 仅展示该请求保存的快照。'
+                : '当前模型可能已卸载或重载。此请求的加载记录待关联；页面展示该请求已保存的 KV 快照。'
             }
           />
         )}
@@ -175,7 +180,7 @@ export default function MemoryFlow() {
           <Alert
             className="section-gap"
             type="warning"
-            message="此 ID 对应的不是推理请求，请从上方选择推理记录。"
+            message="此 ID 对应其他类型的任务，请从上方选择推理记录。"
           />
         )}
       </Panel>

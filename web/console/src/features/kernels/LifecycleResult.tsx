@@ -113,8 +113,8 @@ export default function LifecycleResult({ run }: { run: Run }) {
             scroll={{ x: 600 }}
           />
           <p className="help-text">
-            权重加载是 loader 内部计时；model_load
-            主机阶段还包含分词器及其他准备工作，不能相加，也不代表 GPU Kernel 时间。
+            权重加载是 loader 内部计时；model_load 主机阶段包含分词器和其他准备工作，设备 Kernel
+            时间单独统计。
           </p>
           <h3>加载与预热内存快照</h3>
           <Table<Observation['memory_snapshots'][number]>

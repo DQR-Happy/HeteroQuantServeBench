@@ -1,6 +1,7 @@
+import Button from '../../components/ActionButton';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Select, Space, Table, Tag } from 'antd';
+import { Alert, App, Select, Space, Table, Tag } from 'antd';
 import { Link } from 'react-router-dom';
 import { api, base, date } from '../../api/client';
 import type { Deployment, Run } from '../../api/types';
@@ -106,6 +107,10 @@ export default function QuantizationBuilder() {
         </div>
         <Button
           type="primary"
+          disabledReason={{
+            reason: '量化候选需要就绪的模型实例。请先在设备与部署页加载所选模型。',
+            next: { to: '/devices', label: '加载模型' },
+          }}
           disabled={deployment?.state !== 'ready' || !deployment.epoch}
           loading={busy}
           onClick={() => void create()}
@@ -174,6 +179,11 @@ export default function QuantizationBuilder() {
                 <Link to={`/runs/${row.run_id}`}>运行记录</Link>
                 <Button
                   size="small"
+                  disabledReason={{
+                    reason:
+                      '量化任务尚未完成，当前还没有可发布的制品清单。请在运行详情检查进度或失败原因。',
+                    next: { to: '/runs/' + row.run_id, label: '查看量化任务' },
+                  }}
                   disabled={row.status !== 'completed'}
                   href={
                     row.status === 'completed'

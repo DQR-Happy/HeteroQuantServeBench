@@ -1,5 +1,6 @@
+import Button from '../components/ActionButton';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Descriptions, Steps, Table, Tag } from 'antd';
+import { Alert, Descriptions, Steps, Table, Tag } from 'antd';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Session } from '../api/types';
@@ -15,7 +16,7 @@ export function Showcase() {
         description="沿着问题、测量、优化、质量与限制，讲清楚一次推理工程决策。每一步都落到真实页面和证据。"
       />
       <div className="guide-layout">
-        <Panel title="五步演示" subtitle="无需伪造 GPU 曲线或预填性能结果">
+        <Panel title="五步演示" subtitle="从运行记录到指标对照，逐步查看项目功能">
           <Steps
             direction="vertical"
             items={[
@@ -60,7 +61,7 @@ export function Showcase() {
                 description: (
                   <p>
                     用 <Link to="/compare">运行对比</Link>{' '}
-                    展示可比性门，说明多平台用于识别硬件约束、验证移植和部署决策。没有设备证据时，不宣布该平台获得加速。
+                    展示可比性门，说明多平台用于识别硬件约束、验证移植和部署决策。各平台的速度变化以对应设备测量结果为准。
                   </p>
                 ),
               },
@@ -104,7 +105,7 @@ export function SettingsPage() {
         description="当前工作台采用单操作者模式。部署配置与访问令牌由服务端管理，页面不读取 SSH 密钥和供应商 API key。"
       />
       <QueryState loading={query.isPending} error={query.error} />
-      <Panel title="操作手册" subtitle="按任务查找界面位置、可替换内容和实际能力边界">
+      <Panel title="操作手册" subtitle="按任务查找界面位置、可替换内容和功能范围">
         <p>
           从固定输入评测开始，逐步了解机器切换、模型与算子重载、质量实验、内存和系统页观测以及原件导出。
         </p>
@@ -159,12 +160,11 @@ export function SettingsPage() {
             },
             {
               name: '共享内存 / CUDA allocator',
-              meaning:
-                '主机 MemAvailable 与 PyTorch allocator 是不同口径，不能相加或替代设备物理显存。',
+              meaning: '主机 MemAvailable 与 PyTorch allocator 分别统计系统可用内存和框架分配。',
             },
             {
               name: '质量未评估',
-              meaning: '成功生成文本只说明功能执行完成，不等于正确性、精度或应用质量通过。',
+              meaning: '生成完成后，可继续通过参考答案、数值对照和任务数据集评估质量。',
             },
           ]}
           columns={[

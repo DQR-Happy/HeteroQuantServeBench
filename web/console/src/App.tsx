@@ -1,6 +1,7 @@
+import Button from './components/ActionButton';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button } from 'antd';
+import { App as AntApp } from 'antd';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { api, ApiError } from './api/client';
 import type { Session } from './api/types';
@@ -11,6 +12,10 @@ const Overview = lazy(() => import('./pages/Overview'));
 const Benchmarks = lazy(() => import('./pages/Benchmarks'));
 const Scheduling = lazy(() => import('./pages/Scheduling'));
 const Precision = lazy(() => import('./pages/Precision'));
+const MemoryCache = lazy(() => import('./pages/MemoryCache'));
+const ModelStructure = lazy(() => import('./pages/ModelStructure'));
+const Decoding = lazy(() => import('./pages/Decoding'));
+const Parallel = lazy(() => import('./pages/Parallel'));
 const Observations = lazy(() => import('./pages/Observations'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Devices = lazy(() => import('./pages/Devices'));
@@ -28,6 +33,7 @@ const Showcase = lazy(() => import('./pages/Guide').then((m) => ({ default: m.Sh
 const Settings = lazy(() => import('./pages/Guide').then((m) => ({ default: m.SettingsPage })));
 const UserGuide = lazy(() => import('./pages/UserGuide'));
 const ModelHub = lazy(() => import('./pages/ModelHub'));
+const LocalModels = lazy(() => import('./pages/LocalModels'));
 const ModelArchitecture = lazy(() => import('./pages/ModelArchitecture'));
 
 export default function App() {
@@ -90,6 +96,10 @@ export default function App() {
           <Route path="/benchmarks" element={<Benchmarks />} />
           <Route path="/scheduling" element={<Scheduling />} />
           <Route path="/precision" element={<Precision />} />
+          <Route path="/memory-cache/:section?" element={<MemoryCache />} />
+          <Route path="/model-structure/:section?" element={<ModelStructure />} />
+          <Route path="/decoding/:section?" element={<Decoding />} />
+          <Route path="/parallel/:section?" element={<Parallel />} />
           <Route path="/playground" element={<Playground />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/machines" element={<Machines />} />
@@ -109,7 +119,8 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/guide" element={<UserGuide />} />
           <Route path="/models" element={<ModelHub />} />
-          <Route path="/model-architecture" element={<ModelArchitecture />} />
+          <Route path="/models/local" element={<LocalModels />} />
+          <Route path="/model-architecture/:section?" element={<ModelArchitecture />} />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
       </Suspense>

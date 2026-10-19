@@ -1,5 +1,6 @@
+import Button from '../components/ActionButton';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Space, Tabs, Tag } from 'antd';
+import { Alert, Space, Tabs, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { api, base } from '../api/client';
 import { PageHead, QueryState } from '../components';
@@ -42,7 +43,7 @@ export default function ResearchPage() {
             <Tag color="blue">历史采集</Tag> 当前页面来自阶段实验的真实制品
           </>
         }
-        description="历史采集不代表正在运行的模型。查看本次请求请进入运行详情的「全链路观测」；新的采集必须在推理提交前开启。"
+        description="本页展示历史采集；本次请求的数据见运行详情的「全链路观测」。提交推理前可选择采集模式。"
       />
       <QueryState loading={query.isPending} error={query.error} />
       {query.data && (

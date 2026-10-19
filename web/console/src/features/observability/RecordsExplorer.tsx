@@ -1,6 +1,7 @@
+import Button from '../../components/ActionButton';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Select, Table } from 'antd';
+import { Alert, Select, Table } from 'antd';
 import { api } from '../../api/client';
 import { JsonView, QueryState } from '../../components';
 
@@ -75,7 +76,7 @@ export default function RecordsExplorer({ runId }: { runId: string }) {
               <Alert
                 type="warning"
                 message={row.projection}
-                description="请下载对应原始证据；预览缺失不表示原件没有记录。"
+                description="预览暂无数据，请下载原始记录查看。"
               />
             ) : (
               <JsonView value={row} />
@@ -84,12 +85,22 @@ export default function RecordsExplorer({ runId }: { runId: string }) {
       />
       <div className="toolbar section-gap">
         <Button
+          disabledReason={{
+            reason: query.isPending
+              ? '观测记录正在读取，请稍候。'
+              : '已经位于第一页，没有更早的分页。',
+          }}
           disabled={cursors.length === 1 || query.isPending}
           onClick={() => setCursors((prev) => prev.slice(0, -1))}
         >
           上一页
         </Button>
         <Button
+          disabledReason={{
+            reason: query.isPending
+              ? '观测记录正在读取，请稍候。'
+              : '当前记录没有下一页。可调整本页筛选条件后重新查询。',
+          }}
           disabled={query.isPending || query.data?.next_after == null}
           onClick={() => {
             const next = query.data?.next_after;

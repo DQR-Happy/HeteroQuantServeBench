@@ -1,6 +1,7 @@
+import Button from '../../components/ActionButton';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Empty, Table, Tabs, Tag } from 'antd';
+import { Empty, Table, Tabs, Tag } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import { api, base } from '../../api/client';
 import { JsonView, QueryState } from '../../components';

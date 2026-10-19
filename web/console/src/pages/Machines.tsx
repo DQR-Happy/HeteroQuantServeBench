@@ -1,6 +1,7 @@
+import Button from '../components/ActionButton';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Form, Input, InputNumber, Select, Space, Table, Tag } from 'antd';
+import { Alert, Form, Input, InputNumber, Select, Space, Table, Tag } from 'antd';
 import { api, selectedMachine } from '../api/client';
 import { PageHead, Panel, QueryState } from '../components';
 import { activateMachine } from '../features/machines/types';
@@ -108,11 +109,21 @@ export default function Machines() {
               title: '操作',
               render: (_, row) => (
                 <Space wrap>
-                  <Button size="small" disabled={!!busy} onClick={() => void act(row.id, 'probe')}>
+                  <Button
+                    size="small"
+                    disabledReason={{ reason: '正在处理另一项机器连接操作，请等待完成后再测试。' }}
+                    disabled={!!busy}
+                    onClick={() => void act(row.id, 'probe')}
+                  >
                     测试连接
                   </Button>
                   <Button
                     size="small"
+                    disabledReason={{
+                      reason: busy
+                        ? '正在处理机器连接操作，请等待完成。'
+                        : '这已经是当前使用的机器，无需重复切换。',
+                    }}
                     disabled={!!busy || row.id === selectedMachine}
                     onClick={() => void act(row.id, 'activate')}
                   >
@@ -121,6 +132,12 @@ export default function Machines() {
                   {row.transport !== 'local' && (
                     <Button
                       size="small"
+                      disabledReason={{
+                        reason: busy
+                          ? '正在处理机器连接操作，请等待完成。'
+                          : '当前使用的连接不能移除。请先切换到其他机器，再返回移除此连接。',
+                        next: { to: '/machines', label: '选择并切换其他机器' },
+                      }}
                       disabled={!!busy || row.id === selectedMachine}
                       onClick={() => void act(row.id, 'remove')}
                     >
@@ -206,7 +223,13 @@ export default function Machines() {
           <Form.Item name="token_env" label="目标服务访问令牌的环境变量名（免登录服务留空）">
             <Input placeholder="例如 HQSB_REMOTE_TOKEN，仅填写变量名" />
           </Form.Item>
-          <Button htmlType="submit" type="primary" loading={busy === 'new'} disabled={!!busy}>
+          <Button
+            htmlType="submit"
+            type="primary"
+            loading={busy === 'new'}
+            disabledReason={{ reason: '正在保存、测试或切换连接，请等待当前操作完成后再保存。' }}
+            disabled={!!busy}
+          >
             保存连接
           </Button>
         </Form>

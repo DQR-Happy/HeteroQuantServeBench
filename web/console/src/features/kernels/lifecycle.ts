@@ -64,7 +64,7 @@ export async function applyKernelProfile(
   profileId: string,
   signal: AbortSignal,
   onProgress: (run: Run) => void,
-  loadOptions?: { precision: string; quantization: Record<string, unknown> },
+  loadOptions?: { precision: string; quantization: Record<string, unknown>; structure_artifact_id?: string },
 ): Promise<Deployment> {
   const checkAbort = () => signal.throwIfAborted();
   const wait = (run: Run) => waitForLifecycleRun(run, signal, onProgress);
@@ -114,6 +114,7 @@ export async function applyKernelProfile(
     !actual.epoch ||
     actual.epoch === deployment.epoch ||
     actual.load_run_id !== loaded.id ||
+    (actual.structure_artifact_id ?? null) !== (loadOptions?.structure_artifact_id ?? null) ||
     (deployment.provider === 'pytorch' &&
       (actual.kernel_profile ?? 'framework-native') !== profileId) ||
     (loadOptions &&

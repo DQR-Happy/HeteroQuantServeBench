@@ -1,6 +1,7 @@
+import Button from '../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Collapse, Input, Select, Space, Table, Tabs, Tag } from 'antd';
+import { Alert, Collapse, Input, Select, Space, Table, Tabs, Tag } from 'antd';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, date, terminal } from '../api/client';
 import type { Deployment, Run } from '../api/types';
@@ -167,7 +168,16 @@ export default function Optimization() {
         title="优化实验"
         description="冻结配置，核对实际生效，分别比较质量、性能和机制变化。"
         extra={
-          <Button disabled={!!locked} onClick={() => setParams({})}>
+          <Button
+            disabledReason={{
+              reason: locked
+                ? '当前计划或任务正在执行，请等待完成后再操作。'
+                : '当前任务执行中，请等待完成后再新建计划。',
+              next: { to: '/runs', label: '查看当前任务' },
+            }}
+            disabled={!!locked}
+            onClick={() => setParams({})}
+          >
             新建计划
           </Button>
         }
@@ -232,7 +242,7 @@ export default function Optimization() {
                 type="info"
                 showIcon
                 message="注册后配置与阈值冻结"
-                description="评测文本会保存在服务器的私有实验目录。最多 4 个样本，2–64 个 token；超限拒绝，不静默截断。默认算术 fixture 不代表任务质量基准。"
+                description="评测文本会保存在服务器的私有实验目录。最多 4 个样本，2–64 个 token；超限拒绝，不静默截断。默认算术样本用于检查功能闭环，任务质量可使用自定义评测集。"
               />
               <label className="field-label" htmlFor="experiment-spec">
                 实验计划 JSON
@@ -284,6 +294,14 @@ export default function Optimization() {
                       />
                       {deployment && <Status state={deployment.state} />}
                       <Button
+                        disabledReason={{
+                          reason: locked
+                            ? '当前计划或任务正在执行，请等待完成后再操作。'
+                            : deployment?.provider !== 'pytorch'
+                              ? '此计划需要本地 PyTorch 部署，请先选择本地模型。'
+                              : '部署已加载或正在切换。已就绪的部署可直接执行；其他状态请先等待完成。',
+                          next: { to: '/devices', label: '检查执行部署' },
+                        }}
                         disabled={
                           !!locked ||
                           deployment?.provider !== 'pytorch' ||
@@ -301,6 +319,16 @@ export default function Optimization() {
                       <Button
                         type="primary"
                         loading={executing}
+                        disabledReason={{
+                          reason: locked
+                            ? '当前计划或任务正在执行，请等待完成后再操作。'
+                            : !plan.data
+                              ? '请先在本页登记或选择一个工程计划。'
+                              : !canExecute
+                                ? '执行部署尚未就绪，请先加载执行部署。'
+                                : '此计划没有未提交槽位，请到任务表查看已提交结果。',
+                          next: { to: '/devices', label: '检查执行部署' },
+                        }}
                         disabled={
                           !canExecute ||
                           !plan.data ||
@@ -356,6 +384,12 @@ export default function Optimization() {
                             ) : (
                               <Button
                                 size="small"
+                                disabledReason={{
+                                  reason: locked
+                                    ? '当前计划或任务正在执行，请等待完成后再操作。'
+                                    : '执行部署未就绪，请先在本页加载执行部署后再运行槽位。',
+                                  next: { to: '/devices', label: '查看部署与加载状态' },
+                                }}
                                 disabled={!canExecute}
                                 onClick={() => void execute([row])}
                               >
@@ -437,7 +471,7 @@ export default function Optimization() {
                             dataIndex: 'scope',
                             render: (scope?: string) => scope ?? '—',
                           },
-                          { title: '能力边界', dataIndex: 'runtime_capability' },
+                          { title: '运行能力', dataIndex: 'runtime_capability' },
                         ]}
                       />
                     ),

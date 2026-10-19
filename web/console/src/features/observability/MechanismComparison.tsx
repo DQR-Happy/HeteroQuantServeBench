@@ -1,6 +1,7 @@
+import Button from '../../components/ActionButton';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Select, Table, Tag } from 'antd';
+import { Alert, Select, Table, Tag } from 'antd';
 import { api, fmt } from '../../api/client';
 import { QueryState } from '../../components';
 import { byteValue, scopeName, type Evidence } from './mechanisms';
@@ -76,6 +77,10 @@ export default function MechanismComparison({ ids }: { ids: string[] }) {
         <Button
           type="primary"
           loading={busy}
+          disabledReason={{
+            reason: '需要两条不同的运行记录。请在此区域选择基线和候选，再检查可比性。',
+            next: { to: '/runs', label: '选择可对照的运行记录' },
+          }}
           disabled={ids.length !== 2 || ids[0] === ids[1]}
           onClick={() => void compare()}
         >
@@ -99,7 +104,7 @@ export default function MechanismComparison({ ids }: { ids: string[] }) {
             description={
               result.reasons.length
                 ? result.reasons.join('；')
-                : '仅描述已观测的差异；缺少质量门和成对无插桩实验时，不形成优化采纳结论。'
+                : '展示已观测的差异；补齐质量评测和成对性能实验后可判断优化效果。'
             }
           />
           <div className="workspace-strip">

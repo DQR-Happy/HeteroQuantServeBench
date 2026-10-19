@@ -1,6 +1,8 @@
+import Button from '../components/ActionButton';
+import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Alert, App, Button, Descriptions, Space, Table, Tag } from 'antd';
+import { Link, useLocation } from 'react-router-dom';
+import { Alert, App, Descriptions, Space, Table, Tag } from 'antd';
 import { api, fmt, gib } from '../api/client';
 import type { Deployment, Telemetry } from '../api/types';
 import { Chart, JsonView, PageHead, Panel, QueryState, Stat, Status } from '../components';
@@ -8,6 +10,8 @@ import MemoryInspector from '../features/memory/MemoryInspector';
 import TensorLedger from '../features/memory/TensorLedger';
 
 export default function Devices() {
+  const { hash } = useLocation();
+  const focused = useRef('');
   const client = useQueryClient();
   const { message, modal } = App.useApp();
   const deployments = useQuery({
@@ -20,6 +24,14 @@ export default function Devices() {
     queryFn: () => api<Telemetry>('/telemetry'),
     refetchInterval: 2000,
   });
+  useEffect(() => {
+    if (!hash || focused.current === hash) return;
+    const target = document.getElementById(hash.slice(1));
+    if (target) {
+      target.scrollIntoView({ block: 'center' });
+      focused.current = hash;
+    }
+  }, [hash, deployments.data]);
   const samples = telemetry.data?.samples ?? [];
   const last = samples.at(-1);
   const action = async (d: Deployment, kind: string) => {
@@ -38,11 +50,14 @@ export default function Devices() {
       <PageHead
         kicker="COMPUTE & DEPLOYMENTS"
         title="设备与部署"
-        description="管理模型生命周期，观察实际执行节点。平台名称不代表已完成硬件适配认证。"
+        description="管理模型生命周期，观察实际执行节点。各平台的适配状态见节点能力与运行记录。"
         extra={
           <Space wrap>
             <Link to="/models">
-              <Button>下载与接入模型</Button>
+              <Button>下载模型</Button>
+            </Link>
+            <Link to="/models/local">
+              <Button>管理本地模型</Button>
             </Link>
             <Link to="/memory-flow">
               <Button type="primary">打开内存结构与数据流</Button>
@@ -87,7 +102,7 @@ export default function Devices() {
       >
         <QueryState loading={deployments.isPending} error={deployments.error} />
         {deployments.data?.items.map((d) => (
-          <div className="deployment-card" key={d.id}>
+          <div className="deployment-card" id={`deployment-${d.id}`} key={d.id}>
             <div className="panel-head">
               <div>
                 <h2>{d.name}</h2>
@@ -101,12 +116,24 @@ export default function Devices() {
                   </Link>
                 )}
                 <Button
+                  disabledReason={{
+                    reason:
+                      d.state === 'ready'
+                        ? '此部署已经加载。需要更换精度或量化方案时，请在表示精度页应用并重载。'
+                        : '此部署正在执行加载、排空或量化操作，请等待完成后再加载。',
+                    next: { to: '/precision?deployment=' + d.id, label: '查看或调整模型方案' },
+                  }}
                   disabled={!['unloaded', 'failed'].includes(d.state)}
                   onClick={() => void action(d, 'load')}
                 >
                   加载部署
                 </Button>
                 <Button
+                  disabledReason={{
+                    reason:
+                      '只有就绪的驻留模型可以卸载。当前模型未加载或仍在切换中，请检查部署状态。',
+                    next: { to: '/runs', label: '查看加载与卸载任务' },
+                  }}
                   disabled={d.state !== 'ready'}
                   onClick={() =>
                     modal.confirm({

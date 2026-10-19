@@ -231,8 +231,7 @@ export function LayoutView({ evidence, kind }: { evidence: Evidence; kind: 'kv' 
         </div>
       </div>
       <p className="help-text">
-        虚拟地址仅定位当前进程与设备中的 Storage；不能推断物理 DRAM 布局。KV
-        折线连接采样点，不代表连续逐 token 采集。
+        虚拟地址用于定位当前进程与设备中的 Storage。KV 折线连接已采集的采样点，采样时间见各点记录。
       </p>
       <TensorTable key={`${kind}:${current.selectionId}`} entries={current.entries} />
     </>
@@ -358,7 +357,7 @@ export function PageView({ evidence }: { evidence: Evidence }) {
         type="info"
         showIcon
         message="CPU 页样本 · 有界抽样"
-        description="present / swapped 来自选定 CPU 虚拟页的 pagemap。抽样不提供 GPU 物理页表，不等于整个模型的页驻留率；PFN 不导出。"
+        description="present / swapped 来自选定 CPU 虚拟页的 pagemap，按所选样本统计页状态。"
       />
       <Table
         className="section-gap"

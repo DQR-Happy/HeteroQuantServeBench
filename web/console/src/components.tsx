@@ -27,6 +27,9 @@ const runKinds: Record<string, string> = {
   load: '加载部署',
   unload: '卸载部署',
   quantize: '量化转换',
+  compress: '模型结构压缩',
+  draft_unload: '卸载独立草稿模型',
+  distributed: '多卡与分布式执行',
   scheduling: '多请求调度实验',
 };
 export function runKindLabel(kind: string) {

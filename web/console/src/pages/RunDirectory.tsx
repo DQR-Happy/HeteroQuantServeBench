@@ -1,10 +1,13 @@
+import Button from '../components/ActionButton';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Input, Table, Tag } from 'antd';
+import { Input, Table, Tag } from 'antd';
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, date, fmt } from '../api/client';
 import type { Run, RunPage } from '../api/types';
 import { PageHead, QueryState, Status, runKindLabel } from '../components';
+import { isQualityRun } from '../features/experiments/model';
+import { QualityBaselineCell } from '../features/experiments/QualityBaseline';
 
 const states = [
   ['all', '全部状态'],
@@ -41,7 +44,10 @@ export default function RunDirectory() {
   const rows = (query.data?.items ?? []).filter(
     (run) =>
       (filter === 'all' || run.state === filter) &&
-      (kind === 'all' || run.kind === kind) &&
+      (kind === 'all' ||
+        (kind === 'quality'
+          ? isQualityRun(run)
+          : run.kind === kind && (kind !== 'generate' || !isQualityRun(run)))) &&
       `${run.id} ${run.config.deployment.name}`.toLowerCase().includes(search.toLowerCase()),
   );
   return (
@@ -79,15 +85,21 @@ export default function RunDirectory() {
           </nav>
           <h2>任务类型</h2>
           <nav>
-            {['all', 'generate', 'load', 'unload', 'quantize', 'scheduling'].map((value) => (
-              <button
-                key={value}
-                aria-pressed={kind === value}
-                onClick={() => update('kind', value)}
-              >
-                {value === 'all' ? '全部任务' : runKindLabel(value)}
-              </button>
-            ))}
+            {['all', 'generate', 'quality', 'load', 'unload', 'quantize', 'scheduling'].map(
+              (value) => (
+                <button
+                  key={value}
+                  aria-pressed={kind === value}
+                  onClick={() => update('kind', value)}
+                >
+                  {value === 'all'
+                    ? '全部任务'
+                    : value === 'quality'
+                      ? '独立质量评测'
+                      : runKindLabel(value)}
+                </button>
+              ),
+            )}
           </nav>
           <p>筛选与计数作用于当前页的 30 条记录。</p>
         </aside>
@@ -151,7 +163,7 @@ export default function RunDirectory() {
                       {run.config.deployment.name}
                     </Link>
                     <span>
-                      <Tag>{runKindLabel(run.kind)}</Tag>
+                      <Tag>{isQualityRun(run) ? '独立质量评测' : runKindLabel(run.kind)}</Tag>
                       <code>{run.id.slice(0, 20)}</code>
                     </span>
                   </div>
@@ -167,6 +179,8 @@ export default function RunDirectory() {
                 title: '观测证据',
                 width: 120,
                 render: (_, run) => {
+                  if (isQualityRun(run))
+                    return <Link to={`/runs/${run.id}?tab=quality`}>质量评分 →</Link>;
                   const mode = run.config.observation_mode ?? run.metrics.observation?.mode;
                   return mode && mode !== 'off' ? (
                     <Link to={`/observations?run=${run.id}`}>{mode} →</Link>
@@ -176,16 +190,35 @@ export default function RunDirectory() {
                 },
               },
               {
-                title: '首内容 / ms',
+                title: '首内容 / PPL',
                 align: 'right',
                 render: (_, run) => (
-                  <span className="numeric">{fmt(run.metrics.console_first_content_ms)}</span>
+                  <span className="numeric">
+                    {isQualityRun(run)
+                      ? `${fmt(run.metrics.quality_evaluation?.perplexity, 3)} PPL`
+                      : `${fmt(run.metrics.console_first_content_ms)} ms`}
+                  </span>
                 ),
               },
               {
-                title: '输出 token',
+                title: 'PPL 相对基线',
+                render: (_, run) =>
+                  isQualityRun(run) ? (
+                    <QualityBaselineCell run={run} />
+                  ) : (
+                    <span className="muted">不适用</span>
+                  ),
+              },
+              {
+                title: '输出 / 计分 Token',
                 align: 'right',
-                render: (_, run) => fmt(run.metrics.output_tokens, 0),
+                render: (_, run) =>
+                  fmt(
+                    isQualityRun(run)
+                      ? run.metrics.quality_evaluation?.scored_tokens
+                      : run.metrics.output_tokens,
+                    0,
+                  ),
               },
               { title: '创建时间', dataIndex: 'created_at', render: date },
             ]}

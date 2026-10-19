@@ -1,3 +1,4 @@
+import Button from '../components/ActionButton';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -7,11 +8,12 @@ import {
   SearchOutlined,
   BranchesOutlined,
 } from '@ant-design/icons';
-import { Button, Input, Segmented } from 'antd';
+import { Input, Segmented } from 'antd';
 import { Link } from 'react-router-dom';
 import { api, date, fmt, gib } from '../api/client';
 import type { Overview as OverviewData } from '../api/types';
 import { PageHead, Status, QueryState, runKindLabel } from '../components';
+import { isQualityRun } from '../features/experiments/model';
 
 export default function Overview() {
   const query = useQuery({
@@ -87,7 +89,9 @@ export default function Overview() {
                 <div className="activity-main">
                   <div className="activity-title">
                     <Link to={`/runs/${run.id}`}>{run.config.deployment.name}</Link>
-                    <span className="activity-kind">{runKindLabel(run.kind)}</span>
+                    <span className="activity-kind">
+                      {isQualityRun(run) ? '独立质量评测' : runKindLabel(run.kind)}
+                    </span>
                   </div>
                   <div className="activity-meta">
                     <code>{run.id.slice(0, 20)}</code>
@@ -170,7 +174,7 @@ export default function Overview() {
               管理设备与部署 <ArrowRightOutlined />
             </Link>
             <p className="help-text">
-              整机采样，不代表模型独占内存。
+              整机采样，包含模型与其他进程的占用。
               <br />
               {data ? date(data.observed_at) : '等待采样'}
             </p>

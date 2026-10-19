@@ -1,5 +1,6 @@
+import Button from '../components/ActionButton';
 import { useEffect, type ReactNode } from 'react';
-import { Alert, Button, Space } from 'antd';
+import { Alert, Space } from 'antd';
 import { Link, useLocation } from 'react-router-dom';
 import { PageHead } from '../components';
 import '../features/help/styles.css';
@@ -9,6 +10,10 @@ const chapters = [
   ['machines', '选择执行机器'],
   ['models', '下载与接入模型'],
   ['architecture', '查看模型架构与计算依赖'],
+  ['model-structure', 'L5 模型结构与压缩'],
+  ['memory-cache', 'L6 内存与 KV 管理'],
+  ['decoding', 'L7 解码与生成算法'],
+  ['parallel', 'L9 多卡与分布式执行'],
   ['benchmarks', '固定输入与多方案评测'],
   ['playground', '交互推理与参数'],
   ['kernels', '替换算子实现与版本'],
@@ -74,7 +79,7 @@ export default function UserGuide() {
       <PageHead
         kicker="USER GUIDE"
         title="使用指南"
-        description="按任务查入口：选择机器与模型，替换执行方案，比较输出，再追踪实际生效与内存机制。这里只说明现有功能，不会自动提交任务。"
+        description="按任务查找操作入口：选择机器与模型，替换执行方案，比较输出，再查看生效凭据与内存变化。"
         extra={
           <Link to="/benchmarks">
             <Button type="primary">开始固定输入对照</Button>
@@ -130,14 +135,15 @@ export default function UserGuide() {
               type="info"
               showIcon
               message="先核对可比性，再解释性能差异"
-              description="输出预算相同不代表实际输出数量相同。输出 token 数变化、模型或分词器身份不同、执行未确认时，系统会保留结果并拒绝部分速度比例。1 次预览与驻留 worker 对照不能替代正式性能验收。"
+              description="实际输出数量以生成结果为准。输出 token 数变化、模型或分词器身份不同、执行未确认时，系统会保留结果并拒绝部分速度比例。正式性能验收采用独立进程和多轮交替测量。"
             />
           </Section>
 
           <Section id="machines" title="02 / 选择执行机器">
             <p>
               入口：顶部机器下拉框，或 <Link to="/machines">环境 → 机器连接</Link>
-              。目标端必须已经运行 HQSB Console；保存 SSH 连接不会自动安装项目或下载模型。
+              。先在目标端启动 HQSB
+              Console，再保存连接并测试；模型权重在“模型下载”取得，在“本地模型管理”接入与清理。
             </p>
             <ReferenceTable
               headings={['要做什么', '在哪里填写 / 操作', '实际作用与边界']}
@@ -155,12 +161,12 @@ export default function UserGuide() {
                 [
                   '指定 SSH 密钥',
                   'SSH 表单中的密钥文件路径（可选）',
-                  '路径与 SSH 别名都属于控制服务所在机器；不是浏览器所在 Mac。不要粘贴私钥内容。',
+                  '路径与 SSH 别名由控制服务所在机器解析，私钥请通过该机器的文件路径配置。',
                 ],
                 [
                   '新增网络节点',
                   '新增连接 → HTTP / HTTPS；填写服务源地址，如 http://host:8768',
-                  '填 HQSB 服务根地址，不含 /api/console/v1。不是 /v1/chat/completions，也不是任意 OpenAI 兼容服务。TLS 证书必须有效。',
+                  '填写 HQSB Console API v1 的服务根地址，例如 https://node.example:8768，并使用有效的 TLS 证书。',
                 ],
                 [
                   '连接需要令牌的目标',
@@ -177,13 +183,13 @@ export default function UserGuide() {
             <p>
               当前部署保留 3090、Jetson 和 4090D 连接配置。4090D 关机时不能切换；Jetson 的 HTTP
               桥依赖已有 Mac
-              隧道，隧道断开会影响可达性。机器列表的“最近测试”是本页测试结果，不是持续在线监控。
+              隧道，隧道断开会影响可达性。机器列表的“最近测试”显示最近一次手动连接检查的结果和时间。
             </p>
           </Section>
 
           <Section id="models" title="03 / 下载与接入模型">
             <p>
-              入口：<Link to="/models">环境 → 模型下载与接入</Link>
+              下载入口：<Link to="/models">环境 → 模型下载</Link>
               ，设备页“下载与接入模型”或评测页“添加模型”。先确认顶部机器，所有下载、进度和部署登记都属于该节点。
             </p>
             <ol>
@@ -191,9 +197,9 @@ export default function UserGuide() {
                 选择发布方，点击“加载发布方目录”。优先整批读取公开仓库，必要时分页补齐，并核对去重后的仓库总数；刷新可更新目录，不固定为几个预置模型。
               </li>
               <li>
-                在已索引目录中搜索名称或参数规模。默认显示资源候选及缺少体积摘要的待检查纯文本模型；待检查不代表资源已通过。
+                在已索引目录中搜索名称或参数规模。默认显示资源候选及缺少体积摘要的待检查纯文本模型；待检查模型将在版本检查时核对资源需求。
                 缺少架构时可取消筛选或输入完整仓库 ID
-                检查。刷新期间保留已有目录；初次读取会逐页更新，目录不完整时不能当作已覆盖该发布方全部模型。
+                检查。刷新期间保留已有目录；初次读取会逐页更新，目录完整度以刷新进度和仓库总数核对结果为准。
               </li>
               <li>
                 点击“选择版本与检查”，从该仓库公开的分支与标签中选版本，再点击“检查所选版本与机器资源”。权重规模、KV
@@ -208,21 +214,33 @@ export default function UserGuide() {
                 续传。上游拒绝范围或哈希不同会明确失败，不将错误内容登记为模型。
               </li>
               <li>
-                完成后点击“登记为推理部署”，再到推理页显式加载验证。默认框架原生；不会自动替换当前
-                GPU 模型。登记后可在推理与固定输入评测选择该部署，服务重启后登记仍保留。
+                完成后打开<Link to="/models/local">本地模型管理</Link>
+                ，点击“登记为推理部署”，再到推理页显式加载验证。默认框架原生；不会自动替换当前 GPU
+                模型。登记后可在推理与固定输入评测选择该部署，服务重启后登记仍保留。
+              </li>
+              <li>
+                在<Link to="/models/local">本地模型管理 → 本地模型清单</Link>
+                中点击“删除本地制品”可释放权重空间；取消或失败的下载可点击“清理下载文件”。
+                先在设备与部署页卸载关联模型，等待节点任务结束，再核对确认框中的模型、版本和目录。
+                删除会移除关联的下载部署，历史推理、评测与观测记录继续保留；再次使用时重新选择版本下载。
+                删除失败可查看具体原因并重试。
               </li>
             </ol>
             <p>
-              当前来源策略登记 Qwen、Google、DeepSeek、Microsoft、智谱、InternLM、01ai；LLM-Research
-              作为平台镜像单列，不冒充原厂组织。覆盖这些发布方的公开仓库与公开分支 / 标签，不代表
-              ModelScope
-              全站所有上传者。受限仓库仍需节点已有权限；不在网页接受授权协议或执行远程仓库 Python
-              代码。
+              本地模型页集中列出下载制品、节点配置的模型及 L4/L5 制品。文件大小和磁盘占用分别统计，
+              汇总按设备与 inode 去重。可按占用排序、搜索目录、查看部署引用，并手动刷新空间统计。
+              其他目录可在“扫描范围与其他模型目录”中填写当前节点的绝对路径后添加。 节点 YAML
+              引用的目录需先整理配置；页面会提供具体原因和对应部署链接。
             </p>
             <p>
-              当前仅接纯文本、非量化、原生 Transformers 架构的 FP16 单卡候选；按 batch 1、最多 2048
+              当前来源策略登记 Qwen、Google、DeepSeek、Microsoft、智谱、InternLM、01ai；LLM-Research
+              作为平台镜像单列。目录收录这些发布方的公开仓库与公开分支 / 标签。
+              受限仓库使用节点已有的访问权限，模型按原生 Transformers 实现加载。
+            </p>
+            <p>
+              当前支持纯文本、非量化、原生 Transformers 架构的 FP16 单卡候选；按 batch 1、最多 2048
               上下文保守估算。GPU
-              总量用于卸载当前模型后的容量估计，主机暂存与下载盘余量另行检查。加载预热和真实推理才是运行验证，下载成功不等于质量通过。每节点最多登记
+              总量用于卸载当前模型后的容量估计，主机暂存与下载盘余量另行检查。下载完成后可依次进行加载预热、真实推理和质量评测。每节点最多登记
               16 个部署，下载任务最多 8 个排队、单路传输，登记上限不删除已下载权重。
             </p>
             <p>
@@ -244,12 +262,12 @@ export default function UserGuide() {
                 [
                   '模型',
                   '新对照配置 → 模型部署',
-                  '选择当前节点已登记的 PyTorch 模型。列表不等于机器上所有模型；不兼容的候选方案会被禁用。',
+                  '列表展示当前节点已登记的 PyTorch 模型；候选方案按部署兼容性开放。',
                 ],
                 [
                   '基线与候选',
                   '基线方案 / 候选方案（最多 3 个）',
-                  '可选框架原生、适配的算子组合及保留 allocator 缓存方案。一次只改变一个因素更容易解释原因。目录可选表示可加载，不等于已证明有效。',
+                  '可选框架原生、适配的算子组合及保留 allocator 缓存方案。一次只改变一个因素更容易解释原因。选择后加载模型，再通过生效凭据和评测结果比较效果。',
                 ],
                 [
                   '典型输入',
@@ -303,7 +321,143 @@ export default function UserGuide() {
             </p>
           </Section>
 
+          <Section id="model-structure" title="L5 / 模型结构与压缩">
+            <p>
+              进入<Link to="/model-structure/build">模型结构与压缩</Link>
+              ，先加载原始浮点模型，检查真实模块，再选择变换目标。幅值或 Wanda
+              评分剪枝把权重置零，仍用稠密 Linear；MLP 通道裁剪成组缩小 Gate/Up/Down；SVD
+              将一个权重换成两次紧凑 Linear，不在推理中重建完整矩阵。
+            </p>
+            <p>
+              点击创建后，在独立 CPU 子进程上生成新权重，不修改源权重或驻留模型。完成后去
+              <Link to="/model-structure/artifacts">制品与加载</Link>
+              显式应用，或恢复原始浮点模型。制品在所选后端的数据目录 l5-artifacts 下，格式为 HQSB
+              配方加 safetensors；不是 Mac 上另存的文件，也不是任意 Transformers
+              加载器都支持的检查点。
+            </p>
+            <p>
+              在<Link to="/model-structure/evaluation">评测与对照</Link>对原模型和制品分别运行
+              PPL、固定 16 Token 生成，选择相同类型的基线与候选，查看 PPL/NLL
+              的增加及性能、参数变化。压缩通常有损，参数少不保证更快；Wanda
+              的一次校准变体也不保证优于幅值剪枝。L5 制品不会被当作原始浮点 baseline。架构页会区分源
+              config 与实际被覆写的模块形状。
+            </p>
+          </Section>
+          <Section id="memory-cache" title="L6 / 内存与 KV 管理">
+            <p>
+              进入<Link to="/memory-cache/configure">优化 → 内存与 KV 管理</Link>
+              ，选择已加载模型，点击“检查缓存能力”。动态 KV 按需增长，静态 KV 预分配到输入＋输出−1
+              的容量；卸载模式把逐层 KV 搬到 CPU 并预取回 GPU；重计算关闭
+              KV，每步重新执行完整历史。已有 L4 KV 量化请用“模型默认 KV”，暂不和其他缓存布局组合。
+            </p>
+            <p>
+              选择典型原始文本、固定输出 Token 后执行同一个输入。在
+              <Link to="/memory-cache/records">运行对照</Link>选择两条完成记录，检查生成
+              Token、logprob、Token/s 和 Worker 总时间差。首 Token
+              与生成循环时间不含前缀还原/快照及清理；Worker
+              总时间包含这些成本。前缀未命中与命中样本要分开比较。
+            </p>
+            <p>
+              动态且全部 full attention 的模型可启用有界前缀复用。第一次请求成功后保存 GPU
+              前缀，第二次相同前缀命中并复制到私有
+              KV；切换模型会清空。想测冷缓存，先点“清空驻留前缀”，再重新检查能力。Gemma3
+              混合滑窗目前不支持该前缀适配器。
+            </p>
+            <p>
+              <Link to="/scheduling">多请求调度实验</Link>可选原有稠密独立行或 GPU
+              块池，调整块大小、块池预算，观察新增 KV
+              写回、批次拼装、尾部浪费和回收。块池仍还原为稠密 Attention；它不是 PagedAttention
+              Kernel，也不是操作系统物理页。CPU 缺页是 worker 进程统计，GPU L2
+              命中率和逐页迁移暂未接入。
+            </p>
+          </Section>
+          <Section id="decoding" title="L7 / 解码与生成算法">
+            <p>
+              进入<Link to="/decoding/run">解码策略与运行</Link>
+              ，选择已加载的原始浮点目标模型，使用固定重复数字、英文续写或有限候选分类样例。可切换逐
+              Token
+              贪心/随机采样、提示词查找推测和独立草稿模型推测。普通推理工作台继续保留原有行为。
+            </p>
+            <p>
+              随机采样可调整温度、Top-k、Top-p、重复惩罚、最少长度与请求独立
+              Seed。有限候选每行填写一个完整回答，取消固定输出长度，为最长候选与 EOS
+              预留预算；可比较全词表 Mask 与候选 Gather。它不是通用 JSON Schema 约束。
+            </p>
+            <p>
+              独立草稿必须先在模型页下载并登记，且 Tokenizer 编码与 ID
+              映射完全一致。第一次明确运行会加载草稿，后续请求复用驻留权重；到
+              <Link to="/decoding/draft">草稿模型与资源</Link>
+              查看身份、参数字节和卸载。目标卸载也会释放草稿，两者请求 KV
+              每次独立清理。相同检查点副本可验证算法，但不代表获得小草稿模型的成本优势。
+            </p>
+            <p>
+              在<Link to="/decoding/compare">结果对照</Link>
+              选择相同输入、预算和观测配置的基线/候选。查看目标与草稿 Forward
+              数、验证批次、接受率、KV 回滚、Token/s、首 Token 和含加载/清理的请求总时间。逐 Token
+              一致仅支持当前贪心样例的结论；采样需具体任务的多 Seed 评测，Teacher-forcing PPL
+              不测解码策略。批内多个 Token 同时提交可出现零到达间隔，不能解释为零计算时间。
+            </p>
+            <p>
+              本阶段不开放随机推测拒绝采样、自推测早退、训练多 Token
+              头、树形验证或通用语法编译；与量化、结构压缩、编译、特殊 KV
+              和连续合批的组合需另行验收。按钮禁用时悬停可查看前置操作与链接。
+            </p>
+          </Section>
+          <Section id="parallel" title="L9 / 多卡与分布式执行">
+            <p>
+              进入<Link to="/parallel/run">执行方案</Link>，选择已下载并校验的原始浮点源模型。先在
+              <Link to="/devices">设备与部署</Link>卸载驻留模型；L9
+              的私有进程负责加载、执行和释放权重，结束后不自动改变单请求部署。
+            </p>
+            <p>
+              单设备基线用于对照；DP 将不同请求分给独立完整副本；TP
+              使用框架原生权重分片和通信；按层放置顺序经过多张 GPU，不等于多微批流水；Prefill/Decode
+              分离将真实 KV 经 CPU 暂存和 Gloo 传给 Decode
+              rank。原始文本每行一条，固定输出预算便于比较；CPU
+              多进程诊断只验证逻辑，不能代替多卡性能。
+            </p>
+            <p>
+              <Link to="/parallel/topology">设备与通信</Link>读取当前节点可见
+              GPU、库版本与后端能力。只有一张 GPU
+              时无法运行多卡策略，按钮会解释原因并链接到节点选择。
+              <Link to="/parallel/peers">跨节点 DP</Link>支持已登记 HTTP / SSH 节点，每节点提供新版
+              L9 API、相同权重及 Tokenizer，并卸载各自驻留模型。双节点 DP 只传请求和结果，不传模型或
+              KV。
+            </p>
+            <p>
+              运行结果保存每 rank 参数字节、全局/局部分片形状、设备、通信 CPU 事件、allocator 与请求
+              KV；P/D 另存传输字节与阻塞阶段时间。CPU 事件不是完成的 GPU 通信耗时，P/D
+              的接收等待也不是入口排队时间。在<Link to="/parallel/compare">结果对照</Link>
+              选基线与候选，核对实际输入和逐 Token 输出；单次结果不作为正式加速结论。PP
+              流水重叠、CP/SP、MoE EP、混合并行及跨主机 KV/TP 尚未接通。
+            </p>
+          </Section>
           <Section id="architecture" title="模型架构与计算依赖">
+            <p>
+              模型架构按任务分为“模块与权重、静态计算结构、运行算子观测、编译与导出、来源与凭据”五个子页。
+              顶部导航保留所选模型和历史运行；编译与导出页选择 FX、ONNX 或 Inductor IR/代码。
+              每个子页都可直接分享链接。灰色业务按钮可悬停、点击或用 Tab 聚焦查看当前不可用原因，
+              提示中提供加载模型、配置精度或查看任务的入口；提示不会自行执行前置操作。
+            </p>
+            <p>
+              各子页分别展示静态语义结构、实际 ATen；“编译与导出”的“计算图类型”可切换 Dynamo
+              FX、ONNX、Inductor 融合前 IR、融合后 IR
+              和生成代码。切换只读取记录；静态结构不需要加载模型，其他图需要对应的采集记录。 ONNX
+              页点击“采集 ONNX 导出诊断样例”，导出固定输入、无 KV 的 prefill 结构，权重作为图输入，
+              不另存一份权重，不是可独立部署的 ONNX 模型。Inductor
+              任一视图点击采集按钮，一次保存融合前后 IR
+              与代码，之后可选择同一运行切换查看和下载。历史记录未采集的图会明确提示缺失。
+              新增诊断先支持原生浮点权重、默认 KV，含采集开销；它们的耗时不能作为正式性能对照。
+            </p>
+            <p>
+              “计算图与 L3 执行”可按请求选择 Eager、Dynamo 图捕获或 Inductor 编译，调整自动 / 静态 /
+              动态形状与 Fullgraph
+              策略。先运行固定样例作为基线，再切换方案运行；同一方案重复运行可查看新图数和图调用。
+              独立 PPL
+              按钮会实际执行所选策略。编译图节点通过模块路径关联到原架构与权重，历史图随运行封存。
+              首批编译只支持原生浮点权重和默认 KV；首次成本包含编译，FX
+              节点数量不能当作物理融合或加速证明。
+            </p>
             <p>
               入口：<Link to="/model-architecture">环境 → 模型架构</Link>
               ，或设备与部署中每个模型的“查看模型架构”。下载完成后先登记为部署即可查看，不需要加载到
@@ -312,7 +466,7 @@ export default function UserGuide() {
             <p>
               先看“通用模块与权重结构”：未加载时从实际权重名称建立层级；加载后展示真实 nn.Module
               类、参数与
-              buffer。未知模型族也能查看这部分，不依赖模型族白名单。层级包含关系不等于计算依赖。
+              buffer。各模型族均使用同一条通用解析通路。树线表示模块包含关系，计算依赖见下方执行图。
             </p>
             <p>
               加载模型后点击“采集运行架构”，系统用固定 Hello 输入和最多 2 个输出 Token
@@ -337,7 +491,7 @@ export default function UserGuide() {
               Llama、Qwen、Gemma、DeepSeek、GLM、Mistral / Mixtral、Phi、GPT-OSS、MiniMax、InternLM
               等模型族另有配置语义标注。缺少专用示意图不会阻止通用结构解析和执行采集。
               实际采集仅代表这次输入走过的路径，融合算子内部、未访问的专家和分支不能凭空展开；
-              达到节点、边或字节上限会明确标为部分采集。导出快照不替代完整权重校验或运行验收。
+              达到节点、边或字节上限时标记为部分采集；完整权重校验与运行结果见对应凭据。
             </p>
           </Section>
 
@@ -357,12 +511,12 @@ export default function UserGuide() {
                 [
                   '清理策略',
                   '请求后清理策略 → 释放 / 保留 allocator 空闲缓存',
-                  '影响请求结束后的 allocator 缓存，不等于卸载权重、不等于清空 GPU L1/L2。',
+                  '控制请求结束后的 allocator 空闲缓存回收，模型权重保持驻留。',
                 ],
                 [
                   '输入与输出预算',
                   '中间“输入”文本框；左侧“最大输出 token”',
-                  '总窗口包含 System prompt、聊天模板、输入与输出预算；最大输出仅限制生成部分。窗口由部署配置决定，模型声明窗口另列；超限输入保留原值并提示，不自动截断。字符数不是 token 数。',
+                  '总窗口包含 System prompt、聊天模板、输入与输出预算；最大输出仅限制生成部分。窗口由部署配置决定，模型声明窗口另列；超限输入保留原值并提示，不自动截断。Token 数由当前分词器计算。',
                 ],
                 [
                   'System prompt 与复现输入',
@@ -372,7 +526,7 @@ export default function UserGuide() {
                 [
                   '采样与量化',
                   '侧栏显示 Greedy / 量化方式',
-                  '当前交互路径固定 greedy；W4/W8 尚无已验证在线部署，不是可切换的推理精度。外部引擎以其实际能力为准。',
+                  '当前交互路径采用 greedy 解码；权重量化和 KV 精度请在表示精度页配置，外部引擎选项由其能力决定。',
                 ],
                 [
                   '观测模式',
@@ -389,7 +543,7 @@ export default function UserGuide() {
             <p>
               运行结束后，在“本次运行凭据与观测”查看 applied 与
               effective；通过“查看完整运行”和“检查机制证据”进入同一 run
-              ID。浏览器首内容、服务端首内容与 Runtime 首 token 使用不同计时起点，不能互相替代。
+              ID。浏览器首内容、服务端首内容与 Runtime 首 Token 分别标注计时起点。
             </p>
           </Section>
 
@@ -406,7 +560,7 @@ export default function UserGuide() {
                 [
                   'RMSNorm',
                   'CUDA scalar · v1 / CUDA half2 向量化 · v2',
-                  '替换受支持的 RMSNorm 调用点；版本号不是性能排名。',
+                  '替换受支持的 RMSNorm 调用点；版本号用于区分实现，性能请通过相同负载的评测比较。',
                 ],
                 [
                   '残差与激活',
@@ -422,7 +576,7 @@ export default function UserGuide() {
                 [
                   'Attention',
                   'PyTorch SDPA math · v1 / PyTorch SDPA flash · v1',
-                  '选择已接入的 SDPA 后端路径；不等于接入独立 flash-attn 软件包。',
+                  '选择 PyTorch SDPA 提供的 Attention 后端路径。',
                 ],
                 [
                   '组合方案',
@@ -441,14 +595,14 @@ export default function UserGuide() {
               <li>
                 在运行的“生效凭据与原件”核对
                 requested、resolved、effective，以及算子调用点、调用次数、not_exercised、源码 / 库
-                SHA-256。只看到配置名不代表对应分支已执行。
+                SHA-256。通过实际调用记录核对所选配置的执行情况。
               </li>
             </ol>
             <p>
               页面使用服务端登记的完整 profile，暂不提供任意拼接算子或上传 CUDA 代码。
               <Link to="/kernels">证据 → 算子与配置</Link>{' '}
-              用于查看目录与源码，不是部署编辑器。新实现、新版本、模型适配与 native manifest
-              需要开发端集成并在目标机器编译验证。
+              用于查看目录与源码，部署操作在推理工作台完成。新实现、新版本、模型适配与 native
+              manifest 需要开发端集成并在目标机器编译验证。
             </p>
           </Section>
 
@@ -507,7 +661,7 @@ export default function UserGuide() {
             <p>
               “停止后续提交并取消当前任务”会请求取消；离开页面只停止浏览器继续提交，已接受任务仍在后端运行。失败
               / 中断槽位保留记录，不自动覆盖重试；需要重新实验时注册新计划。默认算术 fixture
-              只检查闭环，不代表通用模型质量。
+              用于检查评测闭环；应用质量请使用对应任务的数据集评测。
             </p>
           </Section>
 
@@ -527,7 +681,7 @@ export default function UserGuide() {
                 [
                   'basic · 基础观测',
                   '阶段、逐 token 与内存快照',
-                  'worker 主机时间不是 GPU kernel 时间。适合先了解请求结构。',
+                  '展示 worker 的主机阶段耗时，适合了解请求结构；GPU kernel 耗时见设备时间线。',
                 ],
                 [
                   'operators · 算子诊断',
@@ -542,7 +696,7 @@ export default function UserGuide() {
                 [
                   'pages · 页诊断',
                   'CPU 映射与有界页样本',
-                  '看采样范围、权限与来源。CPU /proc 页证据不能代表 GPU 物理页表。',
+                  '看采样范围、权限与来源。CPU 页状态取自 /proc，GPU 页指标由对应设备采集器提供。',
                 ],
               ]}
             />
@@ -555,12 +709,12 @@ export default function UserGuide() {
               <li>
                 <Link to="/memory-flow">内存与数据流：</Link>选择历史请求，点选权重容量图、逐层
                 KV、主机阶段与复制方向。权重按加载记录关联，KV
-                是请求释放前快照；矩形按容量排布，不是物理地址图。
+                是请求释放前快照；矩形按各分量容量排布。
               </li>
               <li>
                 <Link to="/runs">运行详情 → 全链路观测：</Link>看阶段、token、算子聚合、trace
-                事件过滤与下载。框架算子和 GPU kernel 并非一一对应；GPU copy 字节不包含 kernel
-                内全部权重 / KV 访问。
+                事件过滤与下载。框架算子和 GPU kernel 按工具关联 ID 建立多对多映射；GPU copy
+                字节不包含 kernel 内全部权重 / KV 访问。
               </li>
               <li>
                 <Link to="/research">深度分析：</Link>主要展示既有阶段实验与历史 NCU
@@ -574,8 +728,8 @@ export default function UserGuide() {
             <Alert
               type="info"
               showIcon
-              message="三个常见误读"
-              description="allocated 与 reserved 是包含关系，不能相加；CPU RSS、主机可用内存与设备显存口径不同；reserved 保留不等于 KV 仍存活。Cache 命中率、GPU 页与物理布局只有相应事件源和真实采集证据时才能讨论。"
+              message="指标口径"
+              description="reserved 包含 allocated；CPU RSS、主机可用内存与设备显存分别统计。KV 生命周期见张量账本，Cache 命中率、GPU 页与物理布局见对应采集器的数据。"
             />
           </Section>
 
@@ -595,27 +749,27 @@ export default function UserGuide() {
               </li>
               <li>
                 到 <Link to="/compare">优化 → 运行对比</Link> 选基线 A 与候选
-                B，先检查可比性门。跨模型或跨机器的原始耗时不直接形成同条件优化结论。
+                B，先检查可比性门。跨模型或跨机器对照时，先核对硬件、负载和模型身份。
               </li>
               <li>
                 <Link to="/evidence">证据中心</Link> 与 <Link to="/experiments">实验地图</Link>{' '}
-                用于查历史报告和阶段原件；它们不是新任务的实时采集窗口。
+                用于查询历史报告与阶段原件；本次任务的采集数据位于运行详情。
               </li>
             </ol>
             <p>
               记录与原件保存在执行节点的私有数据目录，默认 <code>.console/</code>，包括
               SQLite、评测计划和采集 /
-              实验制品。切换机器不会聚合数据库；查旧记录要切回原节点。备份由维护者处理整个数据目录及依赖原件，网页下载单个报告不等于备份全部模型和历史数据。
+              实验制品。切换机器不会聚合数据库；查旧记录要切回原节点。备份由维护者处理整个数据目录及依赖原件，完整备份需包含模型、数据目录和历史运行引用的原件。
             </p>
           </Section>
 
           <Section id="boundaries" title="10 / 十层能力与替换边界">
             <p>
-              目录按十层整理不代表十层都能在网页任意替换。实际可执行措施，以当前节点{' '}
-              <Link to="/optimization">优化实验 → 十层优化能力目录</Link> 及加载校验为准。
+              目录按十层整理，各层可执行措施见当前节点{' '}
+              <Link to="/optimization">优化实验 → 十层优化能力目录</Link>，加载时会核对兼容性。
             </p>
             <ReferenceTable
-              headings={['层面', '现在可以在哪里操作', '还不能据此声称什么']}
+              headings={['层面', '操作位置', '使用说明']}
               rows={[
                 [
                   '1 · 硬件与系统',
@@ -629,8 +783,8 @@ export default function UserGuide() {
                 ],
                 [
                   '3 · 编译与运行时',
-                  '查看已加载执行配置与运行证据',
-                  '当前没有通用编译器、CUDA Graph 或自动调优的一键切换界面。',
+                  '在模型架构的编译与导出子页选择 Eager、Dynamo 或 Inductor，查看多种计算图与实际编译凭据',
+                  '首轮包含编译成本；CUDA Graph 尚未开放，和 L6 自定义 KV、量化组合需要独立验收。',
                 ],
                 [
                   '4 · 数值精度与量化',
@@ -642,28 +796,42 @@ export default function UserGuide() {
                 ],
                 [
                   '5 · 模型结构',
-                  '选择服务端已登记的不同模型部署',
-                  '切模型同时改变结构与训练；没有在线剪枝、蒸馏、GQA / MoE 结构改写开关。',
+                  <>
+                    <Link to="/model-structure">模型结构与压缩</Link>创建幅值/Wanda 评分剪枝、MLP
+                    通道缩维和 SVD 低秩制品，加载后对照原模型质量和性能。
+                  </>,
+                  '没有蒸馏或恢复训练、GQA/MLA/MoE 结构转换、稀疏 Attention 与真实稀疏 GPU kernel；原生模型选择不等于已经完成结构转换。',
                 ],
                 [
                   '6 · 内存与 KV',
-                  '切换请求后 allocator 清理策略；在 L4 选择单请求 Quanto INT2/INT4 KV；查看 KV 与内存生命周期',
-                  '量化 KV 仅支持完整 attention，暂不能与 L8 组合。没有通用 PagedAttention 或 KV 卸载 / 迁移 / 淘汰策略切换。allocator 缓存不是 prefix cache。',
+                  <>
+                    <Link to="/memory-cache">内存与 KV 管理</Link>选择动态、静态、CPU
+                    卸载预取、重计算及有界前缀复用；L8 可选真实 GPU 块池。L4 保留 Quanto INT2/INT4
+                    KV。
+                  </>,
+                  '块池暂需还原成稠密 Attention；不是 PagedAttention Kernel。量化 KV、编译和自定义缓存布局暂不组合；前缀复用仅验收 full attention。GPU L2 与逐页迁移未采集。',
                 ],
                 [
                   '7 · 解码算法',
-                  '交互路径固定 greedy，可调整输出预算',
-                  '没有推测解码或多 token 候选的已验证界面控制。',
+                  <>
+                    <Link to="/decoding">解码与生成算法</Link>
+                    切换贪心/采样、提示词查找或独立草稿推测、有限候选
+                    Mask/Gather，核对真实批量验证和 KV 回滚。
+                  </>,
+                  '只支持已验收的单请求原生浮点/动态 KV 路径；不把 PPL 当解码质量分数，没有随机推测分布校正、训练多 Token 头与通用 JSON Schema。',
                 ],
                 [
                   '8 · 单实例调度',
-                  '查看排队、取消、生命周期和串行任务',
-                  '不是 continuous batching 或 chunked prefill 的可切换实验台。',
+                  '在多请求调度实验选择串行、静态和 Continuous Batching，配置 Chunked Prefill、调度策略和重计算抢占',
+                  '真实多请求执行；混合滑窗、量化 KV 和自定义算子组合仍受能力检查约束。',
                 ],
                 [
                   '9 · 分布式执行',
-                  '可切换不同单节点 HQSB 服务',
-                  '切机器不等于多机并行，不会自动接通 TP / PP / EP 或 PD 分离。',
+                  <>
+                    <Link to="/parallel">多卡与分布式执行</Link>支持独立副本 DP、原生
+                    TP、顺序按层跨卡、真实 KV 传输的 P/D 与已登记双节点请求 DP。
+                  </>,
+                  '单 GPU 不能冒充多卡；CPU/Gloo 只验证逻辑。没有多微批 PP 流水重叠、CP/SP、MoE EP、混合并行及跨主机 KV/TP。',
                 ],
                 [
                   '10 · 服务与应用',
@@ -674,7 +842,7 @@ export default function UserGuide() {
             />
             <h3>需要开发或服务配置的改动</h3>
             <p>
-              登记发布方的兼容模型可以从“模型下载与接入”完成下载与动态登记；其他新模型或定制部署需要在目标端取得权重、校验
+              登记发布方的兼容模型可从“模型下载”取得权重，在“本地模型管理”完成动态登记；其他新模型或定制部署需要在目标端取得权重、校验
               manifest，并登记到该节点的服务 YAML；当前 3090 配置为{' '}
               <code>configs/console/3090-inf.yaml</code>
               。Provider、模型路径、上下文上限、native manifest
@@ -716,7 +884,7 @@ export default function UserGuide() {
                 [
                   '评测没有速度比例',
                   '比较条件、测量完整度、实际 token 数和执行凭据',
-                  '先检查输入输出和原因；补齐独立同条件实验，不把空值填成 0。',
+                  '先检查输入输出和原因，按相同条件补齐独立实验；缺失项保留为空。',
                 ],
                 [
                   '没有 trace / CUDA 耗时 / 页数据',

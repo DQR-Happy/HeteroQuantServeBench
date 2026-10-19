@@ -1,9 +1,9 @@
+import Button from '../components/ActionButton';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   App,
-  Button,
   Checkbox,
   Collapse,
   Descriptions,
@@ -144,6 +144,7 @@ export default function Playground() {
     const time = performance.now();
     try {
       const body: InferenceRequest = {
+        fixed_output_length: false,
         deployment_id: deployment.id,
         expected_epoch: deployment.epoch,
         ...(inputMode === 'completion'
@@ -210,7 +211,14 @@ export default function Playground() {
         kicker="INFERENCE WORKSPACE"
         title="推理工作台"
         description="选择真实部署，输入文本，观察生成过程与分层指标。"
-        extra={deployment && <Status state={deployment.state} />}
+        extra={
+          <Space>
+            {deployment && <Status state={deployment.state} />}
+            <Link to={`/decoding/run?deployment=${encodeURIComponent(deployment?.id ?? '')}`}>
+              L7 解码策略与推测 →
+            </Link>
+          </Space>
+        }
       />
       <QueryState error={deployments.error} />
       <div className="workspace">
@@ -344,7 +352,15 @@ export default function Playground() {
                   ? `输入额度检查失败：${(budget.error as Error).message}`
                   : '正在检查实际输入 Token 数…'}
               {budget.isError && (
-                <Button size="small" disabled={configLocked} onClick={() => void budget.refetch()}>
+                <Button
+                  size="small"
+                  disabledReason={{
+                    reason: '当前推理或模型切换尚未完成，暂不能重新检查预算。请等待任务完成。',
+                    next: { to: '/runs', label: '查看当前任务' },
+                  }}
+                  disabled={configLocked}
+                  onClick={() => void budget.refetch()}
+                >
                   重试检查
                 </Button>
               )}
@@ -366,8 +382,8 @@ export default function Playground() {
             {inputMode === 'completion'
               ? '总窗口包含原始输入、原生特殊 Token 和输出预算'
               : '总窗口包含 System prompt、聊天模板、输入和输出预算'}
-            ；以分词后的 token 数校验，
-            不按字符计数。部署上限是当前服务配置，不等于模型理论极限；增大窗口仍受显存与截止时间约束。
+            ；以分词后的 token 数校验， Token
+            数由分词器计算，部署上限由当前服务配置决定；调整窗口时请结合显存和请求截止时间。
           </div>
           <ObservationControl
             value={observationMode}
@@ -437,6 +453,10 @@ export default function Playground() {
                 action={
                   <Button
                     loading={lifecycleBusy}
+                    disabledReason={{
+                      reason: '当前推理、算子应用或模型切换尚未完成，请先等待任务结束。',
+                      next: { to: '/runs', label: '查看当前任务' },
+                    }}
                     disabled={configLocked}
                     onClick={() => void load()}
                   >
@@ -467,6 +487,23 @@ export default function Playground() {
                 <Button
                   type="primary"
                   icon={<ArrowUpOutlined />}
+                  disabledReason={{
+                    reason:
+                      deployment?.state !== 'ready'
+                        ? '所选模型未就绪，请先使用本页“加载模型”，或到设备与部署页检查。'
+                        : configLocked
+                          ? '当前任务尚未完成，请先等待或取消该任务。'
+                          : kernelPending
+                            ? '已选算子方案尚未应用，请先点击本页“应用并重载模型”。'
+                            : !prompt.trim()
+                              ? '请先在本页填写输入文本。'
+                              : outputError ||
+                                '输入 token 预算尚未检查成功，请等待检查，或点击本页“重试检查”。',
+                    next: {
+                      to: deployment?.state !== 'ready' ? '/devices' : '/guide#playground',
+                      label: deployment?.state !== 'ready' ? '检查并加载模型' : '查看推理准备步骤',
+                    },
+                  }}
                   disabled={
                     deployment?.state !== 'ready' ||
                     configLocked ||
@@ -499,6 +536,11 @@ export default function Playground() {
                     aria-label="复制输出"
                     type="text"
                     icon={<CopyOutlined />}
+                    disabledReason={{
+                      reason:
+                        '当前运行尚无可复制的文本。请先运行推理，或在运行详情中检查失败原因。',
+                      next: { to: '/runs', label: '查看运行输出与状态' },
+                    }}
                     disabled={!run.data?.output}
                     onClick={() => {
                       void navigator.clipboard
@@ -636,7 +678,7 @@ export default function Playground() {
           />
           <div className="info-note">
             <strong>指标有边界</strong>
-            <p>浏览器、服务和模型的计时不同。此处是交互诊断，不能替代正式性能基准。</p>
+            <p>本页展示交互诊断，浏览器、服务和模型分别计时；正式性能对照请进入评测页。</p>
           </div>
         </aside>
       </div>

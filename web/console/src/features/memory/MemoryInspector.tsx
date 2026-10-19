@@ -1,5 +1,6 @@
+import Button from '../../components/ActionButton';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Empty, Table, Tag } from 'antd';
+import { Alert, Empty, Table, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { api, date, fmt, gib } from '../../api/client';
@@ -91,13 +92,13 @@ export default function MemoryInspector() {
               label="完全空闲页"
               value={gib(resource.host.free_bytes)}
               unit="GiB"
-              hint="MemFree · 不等于可用内存"
+              hint="MemFree · 当前空闲页容量"
             />
             <Stat
               label="已用 Swap"
               value={gib(resource.host.swap_used_bytes)}
               unit="GiB"
-              hint="占用不代表此刻正在换页"
+              hint="当前已使用的 Swap 容量"
             />
           </div>
           <Alert
@@ -105,7 +106,7 @@ export default function MemoryInspector() {
             showIcon
             className="section-gap"
             message="模型已加载时，可用内存已经扣除了它的占用；不要再减一次权重大小。"
-            description="RSS、PSS 和 CUDA allocator 的统计范围不同，不做相加饼图。Reserved 包含 Allocated。工作进程快照有独立采样时间，不冒充实时值；外部推理服务的内存不在此控制节点统计中。"
+            description="RSS、PSS 和 CUDA allocator 分别展示；Reserved 包含 Allocated。工作进程快照标注采样时间，外部推理服务的内存由提供方采集。"
           />
           <Table<Resources['processes'][number]>
             rowKey="pid"

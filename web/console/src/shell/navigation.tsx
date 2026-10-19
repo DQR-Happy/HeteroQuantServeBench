@@ -65,6 +65,26 @@ export const navigation = [
     pages: [
       { path: '/optimization', label: '优化实验', detail: '冻结计划、执行凭据与质量门' },
       {
+        path: '/model-structure',
+        label: '模型结构与压缩',
+        detail: 'L5 剪枝、真实缩维、低秩制品与质量对照',
+      },
+      {
+        path: '/memory-cache',
+        label: '内存与 KV 管理',
+        detail: 'L6 动态/静态缓存、卸载预取、重计算与前缀复用',
+      },
+      {
+        path: '/decoding',
+        label: '解码与生成算法',
+        detail: 'L7 采样、推测验证、独立草稿与约束解码',
+      },
+      {
+        path: '/parallel',
+        label: '多卡与分布式执行',
+        detail: 'L9 DP、TP、按层放置与 Prefill/Decode KV 传输',
+      },
+      {
         path: '/precision',
         label: '表示精度与量化',
         detail: 'L4 主流方法、在线执行、制品与独立质量评测',
@@ -93,7 +113,12 @@ export const navigation = [
     pages: [
       { path: '/devices', label: '设备与部署', detail: '节点资源与模型生命周期' },
       { path: '/model-architecture', label: '模型架构', detail: '制品模块、层结构与逻辑计算依赖' },
-      { path: '/models', label: '模型下载与接入', detail: 'ModelScope 发布方权重、版本与下载进度' },
+      { path: '/models', label: '模型下载', detail: 'ModelScope 发布方权重、版本与下载进度' },
+      {
+        path: '/models/local',
+        label: '本地模型管理',
+        detail: '模型目录、磁盘空间、部署引用与清理',
+      },
       { path: '/machines', label: '机器连接', detail: 'SSH / HTTP 节点管理与切换' },
       { path: '/guide', label: '使用指南', detail: '逐页操作、替换范围与证据解读' },
       { path: '/settings', label: '设置与帮助', detail: '会话、能力与指标契约' },

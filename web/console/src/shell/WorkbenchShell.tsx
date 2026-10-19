@@ -1,5 +1,6 @@
+import Button from '../components/ActionButton';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Button, Drawer, Input, Modal, Tooltip } from 'antd';
+import { Drawer, Input, Modal, Tooltip } from 'antd';
 import {
   ArrowRightOutlined,
   LogoutOutlined,
@@ -23,7 +24,19 @@ export default function WorkbenchShell({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const path = location.pathname.startsWith('/runs/') ? '/runs' : location.pathname;
+  const path = location.pathname.startsWith('/runs/')
+    ? '/runs'
+    : location.pathname.startsWith('/decoding/')
+      ? '/decoding'
+      : location.pathname.startsWith('/parallel/')
+        ? '/parallel'
+        : location.pathname.startsWith('/model-structure/')
+          ? '/model-structure'
+          : location.pathname.startsWith('/memory-cache/')
+            ? '/memory-cache'
+            : location.pathname.startsWith('/model-architecture/')
+              ? '/model-architecture'
+              : location.pathname;
   const guideChapter =
     (
       {
@@ -31,8 +44,13 @@ export default function WorkbenchShell({
         '/playground': 'playground',
         '/machines': 'machines',
         '/models': 'models',
+        '/models/local': 'models',
         '/devices': 'machines',
         '/optimization': 'experiments',
+        '/model-structure': 'model-structure',
+        '/decoding': 'decoding',
+        '/parallel': 'parallel',
+        '/memory-cache': 'memory-cache',
         '/observations': 'observations',
         '/memory-flow': 'observations',
         '/research': 'observations',
