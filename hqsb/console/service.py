@@ -8,6 +8,7 @@ import shutil
 import threading
 import time
 import uuid
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 from hqsb.console.store import Store, TERMINAL
@@ -45,6 +46,7 @@ class ConsoleService:
 
         def make_actor(config):
             actor_config = {**config.model_dump(), "l4_artifact_root": str(settings.data_dir / "l4-artifacts"),
+                            "l5_artifact_root": str(settings.data_dir / "l5-artifacts"),
                             "l4_artifact_budget_bytes": settings.artifact_budget_bytes}
             if actor_factory is not None:
                 return actor_factory(actor_config)
@@ -94,6 +96,23 @@ class ConsoleService:
                 rows.append(row)
             return json.loads(json.dumps(rows))
 
+    def retire_deployments(self, identities):
+        """Remove idle dynamic deployment actors while the caller holds the registry lock."""
+        with self.lock:
+            if self.closed or self.pending or self.benchmark_owner:
+                raise ServiceError("MODEL_DELETE_BUSY", "请等待当前节点任务结束后删除制品")
+            for identity in identities:
+                if any(config.id == identity for config in self.settings.deployments):
+                    raise ServiceError("MODEL_DELETE_CONFIG_REFERENCE", "请先移除节点配置中的部署引用")
+                state = self.states.get(identity)
+                if state and (state["state"] not in {"unloaded", "failed"} or state.get("epoch")):
+                    raise ServiceError("MODEL_DELETE_IN_USE", "请先在设备与部署页卸载模型")
+            for identity in identities:
+                if identity in self.actors:
+                    self.actors[identity].close()
+                    self.executors[identity].shutdown(wait=True)
+                    del self.actors[identity], self.executors[identity], self.states[identity], self.configs[identity]
+
     def precision_capabilities(self, deployment_id):
         with self.lock:
             if deployment_id not in self.configs:
@@ -128,8 +147,8 @@ class ConsoleService:
                         "latest_kv": row.get("latest_kv"),
                         "limitations": [
                             "权重按实际存储去重；逻辑字节和底层 storage 字节含义不同。",
-                            "KV 来自最近一次请求结束前快照，并非当前仍驻留；临时 activation/workspace/驱动分配不在此账本。",
-                            "storage_key 是当前进程内匿名标识，不是物理地址或跨进程稳定身份。",
+                            "KV 取自最近一次请求结束前的快照，此账本记录权重与 KV storage；临时分配见 allocator 观测。",
+                            "storage_key 是当前进程内关联 storage 快照的匿名标识。",
                         ],
                     }
                 )
@@ -145,7 +164,7 @@ class ConsoleService:
         mode = payload.get("observation_mode", "basic")
         if mode not in {"off", "basic", "operators", "memory", "pages"}:
             raise ServiceError("INVALID_OBSERVATION", "Unknown observation mode", 422)
-        if kind == "quantize" or payload.get("capture_architecture") or payload.get("experiment_role") == "quality" or mode in {"operators", "memory", "pages"} or (mode == "basic" and cfg.provider == "pytorch"):
+        if kind == "quantize" or payload.get("decoding_plan") is not None or payload.get("graph_capture") or payload.get("capture_architecture") or payload.get("experiment_role") == "quality" or mode in {"operators", "memory", "pages"} or (mode == "basic" and cfg.provider == "pytorch"):
             if cfg.provider != "pytorch":
                 raise ServiceError(
                     "UNSUPPORTED_PROVIDER",
@@ -281,6 +300,45 @@ class ConsoleService:
             self._reserve()
             state, cfg = self.states[deployment_id], self.configs[deployment_id]
             if kind == "generate":
+                if payload.get("memory_plan") is not None:
+                    from hqsb.core.memory_plan import validate_memory
+                    quant = state.get("quantization", {}) or {}
+                    try:
+                        payload = {**payload, "memory_plan": validate_memory(payload["memory_plan"],
+                            native=cfg.provider == "pytorch" and not self.settings.privileged_worker
+                            and state.get("kernel_profile", "framework-native") == "framework-native",
+                            kv_bits=(quant.get("kv") or {}).get("bits"),
+                            compiled=(payload.get("runtime_plan") or {}).get("mode", "eager") != "eager",
+                            diagnostic=bool(payload.get("graph_capture") or payload.get("capture_architecture")),
+                            quality=payload.get("experiment_role") == "quality")}
+                    except ValueError as exc:
+                        raise ServiceError("INVALID_MEMORY_PLAN", str(exc), 422) from exc
+                if payload.get("runtime_plan") is not None:
+                    from hqsb.core.runtime_plan import validate_runtime
+                    try:
+                        if state.get("structure_artifact_id") and payload["runtime_plan"].get("mode","eager") != "eager":
+                            raise ValueError("L5_COMPILED_COMPOSITION_NOT_VERIFIED")
+                        quant = state.get("quantization", {}) or {}
+                        payload = {**payload, "runtime_plan": validate_runtime(payload["runtime_plan"],
+                            provider=cfg.provider, kernel=state.get("kernel_profile", "framework-native"),
+                            method=quant.get("method", "none"), kv_bits=(quant.get("kv") or {}).get("bits"),
+                            privileged=self.settings.privileged_worker, capture=payload.get("capture_architecture", False),
+                            observation=payload.get("observation_mode", "basic"))}
+                    except ValueError as exc:
+                        raise ServiceError("INVALID_RUNTIME_PLAN", str(exc), 422) from exc
+                if payload.get("graph_capture"):
+                    from hqsb.core.graph_views import validate_capture
+                    quant = state.get("quantization", {}) or {}
+                    try:
+                        payload = {**payload, "graph_capture": validate_capture(payload["graph_capture"],
+                            runtime=payload.get("runtime_plan"), native=cfg.provider == "pytorch"
+                            and state.get("kernel_profile", "framework-native") == "framework-native"
+                            and quant.get("method", "none") == "none" and not (quant.get("kv") or {}).get("bits")
+                            and not payload.get("capture_architecture"), privileged=self.settings.privileged_worker,
+                            observation=payload.get("observation_mode", "basic"),
+                            quality=bool(payload.get("experiment_role")), tokens=payload["max_output_tokens"])}
+                    except ValueError as exc:
+                        raise ServiceError("INVALID_GRAPH_CAPTURE", str(exc), 422) from exc
                 if payload.get("capture_architecture") and (cfg.provider != "pytorch" or payload["max_output_tokens"] > 4 or payload.get("experiment_role")):
                     raise ServiceError("ARCHITECTURE_CAPTURE", "运行架构采集需要本地模型，输出预算最多 4 tokens，且单独作为诊断任务执行。", 422)
                 completion = payload.get("prompt") is not None
@@ -305,8 +363,24 @@ class ConsoleService:
                         if resolved["resolved"]["output_budget"] > 32:
                             raise ValueError("QUALITY_GENERATION_LIMIT")
                     payload = {**payload, "max_output_tokens": resolved["resolved"]["output_budget"]}
+                    if payload.get("decoding_plan") is not None:
+                        from hqsb.core.decoding_plan import validate_decoding
+                        quant = state.get("quantization") or {}
+                        selected = validate_decoding(payload["decoding_plan"],
+                            native=cfg.provider == "pytorch" and not self.settings.privileged_worker
+                            and state.get("kernel_profile", "framework-native") == "framework-native",
+                            modified=bool(state.get("structure_artifact_id") or quant.get("method", "none") != "none" or (quant.get("kv") or {}).get("bits")),
+                            request=payload)
+                        payload = {**payload, "decoding_plan": selected}
+                        if selected["method"] == "assistant":
+                            draft = self.configs.get(selected["draft_deployment_id"])
+                            if draft is None or draft.provider != "pytorch" or not draft.manifest:
+                                raise ValueError("L7_REGISTERED_LOCAL_VERIFIED_DRAFT_REQUIRED")
+                            payload["_l7_draft_config"] = draft.model_dump()
                     if payload.get("capture_architecture") and payload["max_output_tokens"] > 4:
                         raise ValueError("ARCHITECTURE_CAPTURE_OUTPUT_LIMIT")
+                    if payload.get("graph_capture") and payload["max_output_tokens"] > 4:
+                        raise ValueError("GRAPH_CAPTURE_OUTPUT_LIMIT")
                 except (ValueError, KeyError) as exc:
                     raise ServiceError("INVALID_EXPERIMENT_PLAN", str(exc), 422) from exc
             if kind in {"generate", "quantize"}:
@@ -343,6 +417,8 @@ class ConsoleService:
                     )
                 if kind == "quantize" and (state.get("precision", cfg.precision) != "float16" or state.get("quantization", {}).get("method", "none") != "none"):
                     raise ServiceError("QUANT_PRECISION_UNSUPPORTED", "当前交互量化制品通路仅验收了 FP16 源模型", 422)
+                if kind == "quantize" and state.get("structure_artifact_id"):
+                    raise ServiceError("L5_QUANTIZATION_COMPOSITION_NOT_VERIFIED", "请先在模型结构页恢复原始模型，再执行 L4 量化。", 422)
                 self._preflight(kind, cfg, payload)
             elif kind == "load":
                 from hqsb.core.kernel_profiles import profile, requires_native
@@ -355,7 +431,16 @@ class ConsoleService:
                     if self.settings.privileged_worker and (quantization.method != "none" or quantization.kv_bits):
                         raise ValueError("L4_WORKER_UNSUPPORTED: quantization requires an unprivileged local worker")
                     profile(selected)
-                    if set(payload) - {"kernel_profile", "precision", "quantization"} or (cfg.provider != "pytorch" and payload):
+                    if payload.get("structure_artifact_id"):
+                        if cfg.provider != "pytorch" or self.settings.privileged_worker or selected != "framework-native" or quantization.method != "none" or quantization.kv_bits:
+                            raise ValueError("L5_REQUIRES_NATIVE_FLOAT_DEFAULT_KV")
+                        from hqsb.console.structure_jobs import read_manifest
+                        doc = read_manifest(self.settings.data_dir / "l5-artifacts", self.store, payload["structure_artifact_id"])
+                        if not cfg.manifest or doc["source_model_identity"]["hash"] != hashlib.sha256(Path(cfg.manifest).expanduser().read_bytes()).hexdigest():
+                            raise ValueError("L5_SOURCE_DEPLOYMENT_MISMATCH")
+                        if doc["statistics"]["export_dtype"] != precision:
+                            raise ValueError("L5_ARTIFACT_DTYPE_MISMATCH")
+                    if set(payload) - {"kernel_profile", "precision", "quantization", "structure_artifact_id"} or (cfg.provider != "pytorch" and payload):
                         raise ValueError("KERNEL_PROFILE_LOAD_INVALID")
                     if precision not in {"float32", "float16", "bfloat16"}:
                         raise ValueError("L4_PRECISION_UNSUPPORTED")
@@ -393,6 +478,11 @@ class ConsoleService:
                     raise ServiceError(
                         "DEVICE_BUSY", "Only one local model may own this GPU"
                     )
+            elif kind == "draft_unload":
+                if state["state"] != "ready" or payload.get("expected_epoch") != state["epoch"] or self.pending:
+                    raise ServiceError("L7_DRAFT_LIFECYCLE_BUSY", "请等待任务清理完成，并刷新就绪模型后卸载草稿。")
+                if cfg.provider != "pytorch" or self.settings.privileged_worker:
+                    raise ServiceError("L7_LOCAL_WORKER_REQUIRED", "需要本机非特权 PyTorch worker。", 422)
             elif kind == "unload":
                 if state["state"] != "ready":
                     raise ServiceError(
@@ -403,6 +493,10 @@ class ConsoleService:
                     "UNSUPPORTED_JOB", "This job kind is not implemented", 422
                 )
             safe_payload = dict(payload)
+            safe_payload.pop("_l7_draft_config", None)
+            if safe_payload.get("decoding_plan") is not None:
+                from hqsb.core.decoding_plan import public_plan
+                safe_payload["decoding_plan"] = public_plan(safe_payload["decoding_plan"])
             if "quantization" in safe_payload:
                 recipe = safe_payload["quantization"]
                 safe_payload["quantization"] = {k: v for k, v in recipe.items() if k != "calibration"}
@@ -451,8 +545,8 @@ class ConsoleService:
                 else {},
                 "generation_policy": {
                     "input_mode": payload.get("input_mode", cfg.input_mode),
-                    "sampling": "greedy",
-                    "temperature": 0,
+                    "sampling": (payload.get("decoding_plan") or {}).get("sampling", "greedy"),
+                    "temperature": (payload.get("decoding_plan") or {}).get("temperature", 0),
                     "chat_template_owner": "none_raw_text" if payload.get("input_mode") == "completion" else "local_tokenizer"
                     if cfg.provider == "pytorch"
                     else "upstream",
@@ -572,7 +666,7 @@ class ConsoleService:
                 directory = safe_directory(self.settings.data_dir / "artifacts", run_id)
                 directory.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 worker_payload.update(artifact_dir=str(directory), artifact_id=run_id)
-            elif kind == "generate" and self.configs[deployment_id].provider == "pytorch" and (payload.get("capture_architecture") or payload.get("observation_mode", "basic") != "off" or payload.get("optimization") is not None or payload.get("experiment_role") is not None):
+            elif kind == "generate" and self.configs[deployment_id].provider == "pytorch" and (payload.get("decoding_plan") is not None or state.get("structure_artifact_id") or payload.get("memory_plan") is not None or payload.get("runtime_plan") is not None or payload.get("capture_architecture") or payload.get("observation_mode", "basic") != "off" or payload.get("optimization") is not None or payload.get("experiment_role") is not None):
                 directory = safe_directory(self.settings.data_dir / "captures", run_id)
                 directory.mkdir(parents=True, exist_ok=False, mode=0o700)
                 worker_payload.update(capture_dir=str(directory), capture_id=run_id)
@@ -611,13 +705,14 @@ class ConsoleService:
                         loaded_at=time.time(),
                         kernel_profile=payload.get("kernel_profile", self.configs[deployment_id].kernel_profile),
                         precision=payload.get("precision", self.configs[deployment_id].precision),
+                        structure_artifact_id=payload.get("structure_artifact_id"),
                         quantization={k: v for k, v in result.get("precision_receipt", {"method": "none"}).items()
                                       if k in {"method", "compute_dtype", "artifact_id", "quantized_module_count", "execution", "kv", "plan_sha256"}},
                     )
             elif kind == "unload" or result.get("worker_terminated"):
                 with self.lock:
                     state.update(
-                        state="unloaded", epoch=None, detail={}, load_run_id=None
+                        state="unloaded", epoch=None, detail={}, load_run_id=None, structure_artifact_id=None
                     )
             elif kind == "quantize":
                 with self.lock:
@@ -682,6 +777,7 @@ class ConsoleService:
             with self.lock:
                 state.update(
                     state="failed",
+                    structure_artifact_id=None,
                     epoch=None,
                     detail={},
                     load_run_id=None,

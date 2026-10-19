@@ -25,6 +25,11 @@ LIST_DETAIL_PATHS = (
     "$.metrics.observation",
     "$.metrics.kv_inventory",
     "$.metrics.generated_token_ids",
+    "$.metrics.parallel_receipt.ranks",
+    "$.metrics.parallel_receipt.requests",
+    "$.metrics.parallel_receipt.participant_receipts",
+    "$.metrics.parallel_receipt.plan.prompts",
+    "$.config.parallel_plan.prompts",
     "$.metrics.token_itl_ms",
     "$.metrics.quantization.weight_error.per_tensor_metrics",
     "$.metrics.quantization.weight_error.per_tensor_wall_time_s",
@@ -149,6 +154,20 @@ class Store:
                 "total": total,
                 "next_offset": offset + limit if offset + limit < total else None,
             }
+
+    def quality_reference_ids(self, model_hash, source_digest):
+        """Small ID projection for reference discovery, independent of UI pages."""
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT id FROM runs WHERE json_extract(body,'$.state')='completed' "
+                "AND json_extract(body,'$.cleanup')='succeeded' "
+                "AND json_extract(body,'$.metrics.quality_evaluation.status')='complete' "
+                "AND json_extract(body,'$.metrics.optimization_receipt.precision_receipt.method')='none' "
+                "AND json_extract(body,'$.metrics.optimization_receipt.model_identity.hash')=? "
+                "AND json_extract(body,'$.metrics.optimization_receipt.source_digest')=? ORDER BY created,id",
+                (model_hash, source_digest),
+            ).fetchall()
+        return [row[0] for row in rows]
 
     def recover(self):
         with self.lock:

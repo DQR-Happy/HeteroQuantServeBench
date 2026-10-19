@@ -46,9 +46,15 @@ def catalogue(provider="pytorch"):
     for name, layers in PENDING.items():
         session = name in {"continuous_batching", "chunked_prefill"}
         precision = name in {"weight_quantization", "activation_quantization", "kv_quantization"}
+        compiler = name == "compile_graph"
+        decoding = name == "speculative_decode"
+        parallel = name == "parallel_plan"
         items.append({"id": name, "layers": layers,
-                      "implementation_status": "session_api_only" if session else "load_api_only" if precision else "not_integrated",
-                      "runtime_capability": "requires_scheduling_capabilities" if session and provider == "pytorch" else "requires_precision_capabilities" if precision and provider == "pytorch" else "unavailable",
+                      "implementation_status": "session_api_only" if parallel else "request_api_only" if compiler or decoding else "session_api_only" if session else "load_api_only" if precision else "not_integrated",
+                      "runtime_capability": "requires_parallel_hardware_and_model_validation" if parallel and provider == "pytorch" else "requires_decoding_validation" if decoding and provider == "pytorch" else "native_float_runtime_validation_required" if compiler and provider == "pytorch" else "requires_scheduling_capabilities" if session and provider == "pytorch" else "requires_precision_capabilities" if precision and provider == "pytorch" else "unavailable",
+                      **({"api":"/parallel/jobs","catalogue":"/parallel/catalog","entrypoint":"/parallel","scope":"exclusive_parallel_session"} if parallel else {}),
+                      **({"api":"/requests","catalogue":"/decoding/catalog","entrypoint":"/decoding","scope":"request_decoding_plan"} if decoding else {}),
+                      **({"api": "/requests", "catalogue": "/runtime/catalog", "entrypoint": "/model-architecture", "scope": "request_runtime_plan"} if compiler else {}),
                       **({"api": "/deployments/{id}/load", "catalogue": "/precision/catalog", "scope": "deployment_reload"} if precision else {}),
                       **({"entrypoint": "/scheduling", "api": "/scheduling-benchmarks",
                           "scope": "exclusive_multi_request_session"} if session else {}),
@@ -88,6 +94,10 @@ def resolve_plan(raw, defaults, *, provider="pytorch", deployment_attention=None
 
 def validate_quality_plan(raw):
     """Bound both device work and full-vocabulary CPU output; no silent truncation."""
+    if isinstance(raw, dict) and "benchmark_id" in raw:
+        from hqsb.core.corpus_benchmark import resolve_plan
+
+        return resolve_plan(raw)
     if not isinstance(raw, dict) or set(raw) - {"samples", "max_tokens", "generation_tokens", "max_bytes", "top_k", "forward_mode"}:
         raise ValueError("QUALITY_PLAN_INVALID")
     if raw.get("forward_mode", "incremental_decode") not in ("incremental_decode", "full_prefill"):

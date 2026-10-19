@@ -181,6 +181,133 @@
         }
       }
     },
+    "/api/console/v1/model-hub/local-models": {
+      "get": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Local Models",
+        "operationId": "local_models_api_console_v1_model_hub_local_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/local-models/refresh": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Refresh Local Models",
+        "operationId": "refresh_local_models_api_console_v1_model_hub_local_models_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/local-models/roots": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Add Local Root",
+        "operationId": "add_local_root_api_console_v1_model_hub_local_models_roots_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalDirectory"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/model-hub/local-models/{identity}/delete": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Delete Local Model",
+        "operationId": "delete_local_model_api_console_v1_model_hub_local_models__identity__delete_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalDeletion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/model-hub/config": {
       "get": {
         "tags": [
@@ -608,6 +735,56 @@
         }
       }
     },
+    "/api/console/v1/model-hub/downloads/{identity}/delete": {
+      "post": {
+        "tags": [
+          "model-hub"
+        ],
+        "summary": "Delete",
+        "operationId": "delete_api_console_v1_model_hub_downloads__identity__delete_post",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadSelection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/deployments/{deployment_id}/scheduling-capabilities": {
       "get": {
         "tags": [
@@ -1004,6 +1181,748 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/structure/catalog": {
+      "get": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_structure_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/structure/capabilities": {
+      "get": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Capabilities",
+        "operationId": "capabilities_api_console_v1_structure_capabilities_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/structure/jobs": {
+      "post": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_console_v1_structure_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompressionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_structure_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/structure/artifacts": {
+      "get": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Artifacts",
+        "operationId": "artifacts_api_console_v1_structure_artifacts_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/structure/artifacts/{identity}": {
+      "get": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Artifact",
+        "operationId": "artifact_api_console_v1_structure_artifacts__identity__get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/structure/runs": {
+      "get": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Runs",
+        "operationId": "runs_api_console_v1_structure_runs_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/structure/comparisons": {
+      "post": {
+        "tags": [
+          "model-structure"
+        ],
+        "summary": "Comparison",
+        "operationId": "comparison_api_console_v1_structure_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StructureComparison"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/decoding/catalog": {
+      "get": {
+        "tags": [
+          "decoding"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_decoding_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/decoding/status": {
+      "get": {
+        "tags": [
+          "decoding"
+        ],
+        "summary": "Status",
+        "operationId": "status_api_console_v1_decoding_status_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/decoding/draft/unload": {
+      "post": {
+        "tags": [
+          "decoding"
+        ],
+        "summary": "Unload",
+        "operationId": "unload_api_console_v1_decoding_draft_unload_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftRelease"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/decoding/runs": {
+      "get": {
+        "tags": [
+          "decoding"
+        ],
+        "summary": "Runs",
+        "operationId": "runs_api_console_v1_decoding_runs_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/decoding/comparisons": {
+      "post": {
+        "tags": [
+          "decoding"
+        ],
+        "summary": "Comparison",
+        "operationId": "comparison_api_console_v1_decoding_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecodingComparison"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/parallel/catalog": {
+      "get": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_parallel_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/parallel/hardware": {
+      "get": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Hardware",
+        "operationId": "hardware_api_console_v1_parallel_hardware_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/parallel/jobs": {
+      "post": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_console_v1_parallel_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParallelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_parallel_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/parallel/peers": {
+      "get": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Peer List",
+        "operationId": "peer_list_api_console_v1_parallel_peers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/parallel/federated-jobs": {
+      "post": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Federated",
+        "operationId": "federated_api_console_v1_parallel_federated_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{identity}/parallel": {
+      "get": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Receipt",
+        "operationId": "receipt_api_console_v1_runs__identity__parallel_get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/parallel/comparisons": {
+      "post": {
+        "tags": [
+          "parallel-execution"
+        ],
+        "summary": "Comparison",
+        "operationId": "comparison_api_console_v1_parallel_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParallelComparison"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2781,6 +3700,104 @@
         }
       }
     },
+    "/api/console/v1/runs/{run_id}/quality-baseline": {
+      "get": {
+        "tags": [
+          "precision"
+        ],
+        "summary": "Quality Baseline",
+        "operationId": "quality_baseline_api_console_v1_runs__run_id__quality_baseline_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/precision/quality-baselines": {
+      "post": {
+        "tags": [
+          "precision"
+        ],
+        "summary": "Register Baseline",
+        "operationId": "register_baseline_api_console_v1_precision_quality_baselines_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BaselineRegistration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/precision/quality-benchmarks": {
+      "get": {
+        "tags": [
+          "precision"
+        ],
+        "summary": "Quality Benchmarks",
+        "operationId": "quality_benchmarks_api_console_v1_precision_quality_benchmarks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/precision/quality-jobs": {
       "post": {
         "tags": [
@@ -2892,6 +3909,401 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runtime/catalog": {
+      "get": {
+        "tags": [
+          "compiler-runtime"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_runtime_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runtime/runs": {
+      "get": {
+        "tags": [
+          "compiler-runtime"
+        ],
+        "summary": "Runs",
+        "operationId": "runs_api_console_v1_runtime_runs_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/runtime-graph": {
+      "get": {
+        "tags": [
+          "compiler-runtime"
+        ],
+        "summary": "Graph",
+        "operationId": "graph_api_console_v1_runs__run_id__runtime_graph_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/graph-views": {
+      "get": {
+        "tags": [
+          "compiler-runtime"
+        ],
+        "summary": "Graph Views",
+        "operationId": "graph_views_api_console_v1_runs__run_id__graph_views_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runtime/comparisons": {
+      "post": {
+        "tags": [
+          "compiler-runtime"
+        ],
+        "summary": "Compare",
+        "operationId": "compare_api_console_v1_runtime_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeComparison"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/memory/catalog": {
+      "get": {
+        "tags": [
+          "memory-management"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_memory_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/memory/capabilities": {
+      "get": {
+        "tags": [
+          "memory-management"
+        ],
+        "summary": "Capabilities",
+        "operationId": "capabilities_api_console_v1_memory_capabilities_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/memory/prefix/clear": {
+      "post": {
+        "tags": [
+          "memory-management"
+        ],
+        "summary": "Clear",
+        "operationId": "clear_api_console_v1_memory_prefix_clear_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearPrefix"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/memory/runs": {
+      "get": {
+        "tags": [
+          "memory-management"
+        ],
+        "summary": "Runs",
+        "operationId": "runs_api_console_v1_memory_runs_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{run_id}/memory-cache": {
+      "get": {
+        "tags": [
+          "memory-management"
+        ],
+        "summary": "Memory",
+        "operationId": "memory_api_console_v1_runs__run_id__memory_cache_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/memory/comparisons": {
+      "post": {
+        "tags": [
+          "memory-management"
+        ],
+        "summary": "Comparison",
+        "operationId": "comparison_api_console_v1_memory_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryComparison"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3636,6 +5048,20 @@
   },
   "components": {
     "schemas": {
+      "BaselineRegistration": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id"
+        ],
+        "title": "BaselineRegistration"
+      },
       "BenchmarkRequest": {
         "properties": {
           "deployment_id": {
@@ -3694,6 +5120,25 @@
         ],
         "title": "BenchmarkRequest"
       },
+      "ClearPrefix": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "expected_epoch"
+        ],
+        "title": "ClearPrefix"
+      },
       "ComparisonRequest": {
         "properties": {
           "run_ids": {
@@ -3712,6 +5157,174 @@
         ],
         "title": "ComparisonRequest"
       },
+      "CompressionRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/StructurePlan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "expected_epoch",
+          "plan"
+        ],
+        "title": "CompressionRequest"
+      },
+      "DecodingComparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_id": {
+            "type": "string",
+            "title": "Candidate Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_id"
+        ],
+        "title": "DecodingComparison"
+      },
+      "DecodingPlan": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "autoregressive",
+              "prompt_lookup",
+              "assistant"
+            ],
+            "title": "Method",
+            "default": "autoregressive"
+          },
+          "sampling": {
+            "type": "string",
+            "enum": [
+              "greedy",
+              "multinomial"
+            ],
+            "title": "Sampling",
+            "default": "greedy"
+          },
+          "temperature": {
+            "type": "number",
+            "maximum": 5.0,
+            "minimum": 0.05,
+            "title": "Temperature",
+            "default": 1.0
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 1024.0,
+            "minimum": 0.0,
+            "title": "Top K",
+            "default": 0
+          },
+          "top_p": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Top P",
+            "default": 1.0
+          },
+          "repetition_penalty": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Repetition Penalty",
+            "default": 1.0
+          },
+          "min_new_tokens": {
+            "type": "integer",
+            "maximum": 256.0,
+            "minimum": 0.0,
+            "title": "Min New Tokens",
+            "default": 0
+          },
+          "seed": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "default": 42
+          },
+          "draft_tokens": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Draft Tokens",
+            "default": 4
+          },
+          "lookup_min_ngram": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Lookup Min Ngram",
+            "default": 2
+          },
+          "lookup_max_ngram": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Lookup Max Ngram",
+            "default": 6
+          },
+          "lookup_window": {
+            "type": "integer",
+            "maximum": 8192.0,
+            "minimum": 16.0,
+            "title": "Lookup Window",
+            "default": 4096
+          },
+          "draft_deployment_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Deployment Id"
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Choices"
+          },
+          "constraint_backend": {
+            "type": "string",
+            "enum": [
+              "mask",
+              "gather"
+            ],
+            "title": "Constraint Backend",
+            "default": "gather"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DecodingPlan"
+      },
       "DownloadSelection": {
         "properties": {
           "plan_sha256": {
@@ -3726,6 +5339,43 @@
           "plan_sha256"
         ],
         "title": "DownloadSelection"
+      },
+      "DraftRelease": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "expected_epoch"
+        ],
+        "title": "DraftRelease"
+      },
+      "GraphCapture": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "onnx",
+              "inductor"
+            ],
+            "title": "Kind"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "GraphCapture"
       },
       "HTTPValidationError": {
         "properties": {
@@ -3813,10 +5463,55 @@
             "title": "Save Input",
             "default": false
           },
+          "fixed_output_length": {
+            "type": "boolean",
+            "title": "Fixed Output Length",
+            "default": false
+          },
           "capture_architecture": {
             "type": "boolean",
             "title": "Capture Architecture",
             "default": false
+          },
+          "runtime_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimePlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memory_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graph_capture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphCapture"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decoding_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecodingPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "observation_mode": {
             "type": "string",
@@ -3946,11 +5641,54 @@
                 "type": "null"
               }
             ]
+          },
+          "structure_artifact_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^l5_[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure Artifact Id"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "KernelSelection"
+      },
+      "LocalDeletion": {
+        "properties": {
+          "revision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision"
+        ],
+        "title": "LocalDeletion"
+      },
+      "LocalDirectory": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "LocalDirectory"
       },
       "Login": {
         "properties": {
@@ -4077,6 +5815,90 @@
           "transport"
         ],
         "title": "MachineConfig"
+      },
+      "MemoryComparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_id": {
+            "type": "string",
+            "title": "Candidate Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_id"
+        ],
+        "title": "MemoryComparison"
+      },
+      "MemoryPlan": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "model_default",
+              "dynamic",
+              "static",
+              "offloaded_dynamic",
+              "offloaded_static",
+              "recompute"
+            ],
+            "title": "Mode",
+            "default": "model_default"
+          },
+          "max_cache_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 131072.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Cache Tokens"
+          },
+          "prefix_reuse": {
+            "type": "boolean",
+            "title": "Prefix Reuse",
+            "default": false
+          },
+          "prefix_budget_bytes": {
+            "type": "integer",
+            "maximum": 536870912.0,
+            "minimum": 0.0,
+            "title": "Prefix Budget Bytes",
+            "default": 67108864
+          },
+          "prefix_max_entries": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Prefix Max Entries",
+            "default": 8
+          },
+          "prefix_max_tokens": {
+            "type": "integer",
+            "maximum": 8192.0,
+            "minimum": 1.0,
+            "title": "Prefix Max Tokens",
+            "default": 1024
+          },
+          "prefix_namespace": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.-]{1,64}$",
+            "title": "Prefix Namespace",
+            "default": "default"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "MemoryPlan"
       },
       "Message": {
         "properties": {
@@ -4226,6 +6048,167 @@
           "run_ids"
         ],
         "title": "ObservationComparisonRequest"
+      },
+      "ParallelComparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_id": {
+            "type": "string",
+            "title": "Candidate Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_id"
+        ],
+        "title": "ParallelComparison"
+      },
+      "ParallelPlan": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "single",
+              "dp",
+              "tp",
+              "layer_shard",
+              "prefill_decode"
+            ],
+            "title": "Strategy",
+            "default": "single"
+          },
+          "device_type": {
+            "type": "string",
+            "enum": [
+              "cuda",
+              "cpu"
+            ],
+            "title": "Device Type",
+            "default": "cuda"
+          },
+          "devices": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Devices"
+          },
+          "precision": {
+            "type": "string",
+            "enum": [
+              "float16",
+              "bfloat16",
+              "float32"
+            ],
+            "title": "Precision",
+            "default": "float16"
+          },
+          "prompts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Prompts"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "maximum": 128.0,
+            "minimum": 1.0,
+            "title": "Max Output Tokens",
+            "default": 32
+          },
+          "fixed_output_length": {
+            "type": "boolean",
+            "title": "Fixed Output Length",
+            "default": true
+          },
+          "trace_collectives": {
+            "type": "boolean",
+            "title": "Trace Collectives",
+            "default": false
+          },
+          "timeout_s": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 15.0,
+            "title": "Timeout S",
+            "default": 120
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ParallelPlan"
+      },
+      "ParallelRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ParallelPlan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "plan"
+        ],
+        "title": "ParallelRequest"
+      },
+      "PeerRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ParallelPlan"
+          },
+          "peer_machine_id": {
+            "type": "string",
+            "title": "Peer Machine Id"
+          },
+          "peer_deployment_id": {
+            "type": "string",
+            "title": "Peer Deployment Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "plan",
+          "peer_machine_id",
+          "peer_deployment_id"
+        ],
+        "title": "PeerRequest"
+      },
+      "PerplexityLimits": {
+        "properties": {
+          "max_mean_nll_increase": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Max Mean Nll Increase"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "max_mean_nll_increase"
+        ],
+        "title": "PerplexityLimits"
       },
       "PlanRequest": {
         "properties": {
@@ -4434,10 +6417,30 @@
             "type": "object",
             "title": "Quality Plan"
           },
+          "runtime_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimePlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "quality_limits": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/QualityLimits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ppl_limits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PerplexityLimits"
               },
               {
                 "type": "null"
@@ -4582,7 +6585,10 @@
               "unload",
               "generate",
               "quantize",
-              "scheduling"
+              "scheduling",
+              "compress",
+              "draft_unload",
+              "distributed"
             ],
             "title": "Kind"
           },
@@ -4661,6 +6667,57 @@
           "seq"
         ],
         "title": "RunRecord"
+      },
+      "RuntimeComparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_id": {
+            "type": "string",
+            "title": "Candidate Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_id"
+        ],
+        "title": "RuntimeComparison"
+      },
+      "RuntimePlan": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "eager",
+              "dynamo_eager",
+              "inductor"
+            ],
+            "title": "Mode",
+            "default": "eager"
+          },
+          "shape_policy": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "static",
+              "dynamic"
+            ],
+            "title": "Shape Policy",
+            "default": "auto"
+          },
+          "fullgraph": {
+            "type": "boolean",
+            "title": "Fullgraph",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RuntimePlan"
       },
       "SchedulingExperiment": {
         "properties": {
@@ -4808,6 +6865,29 @@
             "title": "Kv Capacity Tokens",
             "default": 8192
           },
+          "kv_layout": {
+            "type": "string",
+            "enum": [
+              "dense",
+              "block_pool"
+            ],
+            "title": "Kv Layout",
+            "default": "dense"
+          },
+          "kv_block_tokens": {
+            "type": "integer",
+            "maximum": 256.0,
+            "minimum": 1.0,
+            "title": "Kv Block Tokens",
+            "default": 16
+          },
+          "kv_pool_max_bytes": {
+            "type": "integer",
+            "maximum": 2147483648.0,
+            "minimum": 1048576.0,
+            "title": "Kv Pool Max Bytes",
+            "default": 268435456
+          },
           "prefill_chunk_tokens": {
             "type": "integer",
             "maximum": 4096.0,
@@ -4881,6 +6961,105 @@
         "additionalProperties": false,
         "type": "object",
         "title": "SchedulingLimits"
+      },
+      "StructureComparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_id": {
+            "type": "string",
+            "title": "Candidate Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_id"
+        ],
+        "title": "StructureComparison"
+      },
+      "StructurePlan": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "magnitude",
+              "wanda",
+              "mlp_channels",
+              "svd_low_rank"
+            ],
+            "title": "Method"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Targets"
+          },
+          "max_modules": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 1.0,
+            "title": "Max Modules",
+            "default": 4
+          },
+          "sparsity": {
+            "type": "number",
+            "maximum": 0.9,
+            "minimum": 0.0,
+            "title": "Sparsity",
+            "default": 0.5
+          },
+          "pattern": {
+            "type": "string",
+            "enum": [
+              "unstructured",
+              "2:4"
+            ],
+            "title": "Pattern",
+            "default": "unstructured"
+          },
+          "keep_ratio": {
+            "type": "number",
+            "maximum": 0.95,
+            "minimum": 0.1,
+            "title": "Keep Ratio",
+            "default": 0.5
+          },
+          "calibration": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Calibration"
+          },
+          "calibration_max_tokens": {
+            "type": "integer",
+            "maximum": 256.0,
+            "minimum": 8.0,
+            "title": "Calibration Max Tokens",
+            "default": 64
+          },
+          "seed": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "default": 42
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "title": "StructurePlan"
       },
       "ValidationError": {
         "properties": {

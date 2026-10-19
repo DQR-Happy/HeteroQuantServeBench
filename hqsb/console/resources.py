@@ -84,10 +84,10 @@ def resource_snapshot(service) -> dict:
             for row in deployments
         ],
         "limitations": [
-            "MemAvailable 是模型和其他进程占用后的系统可用量估计，不是保证可分配的 GPU 内存。",
+            "MemAvailable 估算模型与其他进程占用后的系统可用内存。",
             "RSS/PSS、allocator allocated/reserved 存在不同或重叠范围，不能相加；reserved 包含 allocated。",
-            "加载快照与最近一次推理快照不是实时 allocator 采样；未采集项保留为空。",
-            "本页主机数据属于 Console 控制节点，不能代表外部 API 提供商设备。",
+            "加载快照与最近一次推理快照分别标注采样时刻，待采集项显示为空。",
+            "本页主机数据取自 Console 控制节点，外部 API 设备指标由提供方采集。",
         ],
     }
 
@@ -113,7 +113,7 @@ def observation_capabilities(service) -> dict:
             "cpu_pages",
             "CPU VMA 与页状态样本",
             local,
-            "pages 模式；只读有界 pagemap 样本，不读取 PFN，不代表 GPU 页表。",
+            "pages 模式读取选定 CPU 虚拟页的 pagemap 状态。",
         ),
         (
             "request_phases",

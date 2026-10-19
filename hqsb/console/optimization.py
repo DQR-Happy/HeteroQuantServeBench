@@ -48,7 +48,7 @@ def optimization_report(run: dict, trace: dict) -> dict:
             "优先验证采集窗口内的热点",
             {"time_basis": key, "coverage": profile.get("coverage"), "operators": top},
             "按阶段、形状和真实 kernel 身份选择最小复现；用硬件计数器验证访存/算力假设。",
-            "独立无详录 baseline、数值正确性、模型回接和重复端到端实验；累计算子时间不等于请求墙钟占比。",
+            "独立无详录 baseline、数值正确性、模型回接和重复端到端实验；累计算子耗时与请求墙钟时间分别统计。",
         )
     elif run.get("kind") == "generate":
         add(
@@ -88,7 +88,7 @@ def optimization_report(run: dict, trace: dict) -> dict:
             "measurement_profile": metrics.get("measurement_profile"),
         },
         "预先固定数值和任务质量门，独立测量候选/基线/消融并保存失败。",
-        "单次交互与 profiler 墙钟都不证明正式 speedup；报告样本量、分布、工具扰动及适用范围。",
+        "性能比较记录样本量、耗时分布、工具开销和适用范围，并采用独立重复测量。",
         "P0",
     )
     return {
@@ -99,7 +99,7 @@ def optimization_report(run: dict, trace: dict) -> dict:
         "findings": findings,
         "constraints": [
             "仅根据已保存证据生成候选检查项；未自动修改部署或执行优化。",
-            "结果不代表质量通过、硬件因果成立或优化已经完成。",
+            "下一步可通过质量评测、硬件计数器与重复性能测量验证候选方案。",
         ],
         "trace": trace,
     }
@@ -109,7 +109,7 @@ def markdown_report(report: dict) -> str:
     lines = [
         f"# HQSB 优化检查方案 · {report['run_id']}",
         "",
-        "状态：待验证假设。此导出未执行优化，不是加速成果报告。",
+        "状态：待验证假设。此导出包含候选优化方案与验证步骤。",
         "",
     ]
     for finding in report["findings"]:

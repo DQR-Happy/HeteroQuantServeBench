@@ -31,11 +31,23 @@ def worker_main(connection, cancel, config, controls=None):
             command = connection.recv()
             try:
                 if command["kind"] == "load":
-                    selection = {k: v for k, v in command.get("payload", {}).items() if k in {"kernel_profile", "precision", "quantization"}}
+                    selection = {k: v for k, v in command.get("payload", {}).items() if k in {"kernel_profile", "precision", "quantization", "structure_artifact_id"}}
                     result = provider.load(**selection)
                 elif command["kind"] == "precision_capabilities":
                     from hqsb.backends.precision_runtime import probe, receipt
                     result = {**probe(), "effective": receipt(provider)}
+                elif command["kind"] == "structure_capabilities":
+                    from hqsb.backends.structure_modules import inspect
+                    result = inspect(provider.model)
+                elif command["kind"] == "decoding_status":
+                    from hqsb.backends.decoding_draft import summary
+                    result = summary(provider)
+                elif command["kind"] == "draft_unload":
+                    from hqsb.backends.decoding_draft import release
+                    result = {"metrics": {"decoding_draft_release": release(provider)}}
+                elif command["kind"] in {"memory_capabilities", "memory_cache_clear"}:
+                    from hqsb.backends.memory_session import capabilities, clear_prefix
+                    result = capabilities(provider) if command["kind"] == "memory_capabilities" else clear_prefix(provider)
                 elif command["kind"] == "token_budget":
                     result = provider.token_budget(command["payload"], cancel)
                 elif command["kind"] == "scheduling_capabilities":

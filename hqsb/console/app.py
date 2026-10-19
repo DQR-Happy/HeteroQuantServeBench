@@ -23,6 +23,10 @@ from hqsb.console.schemas import RunPage, RunRecord
 from hqsb.console.store import TERMINAL
 from hqsb.console.telemetry import Telemetry
 from hqsb.core.precision import PrecisionPlan, catalogue as precision_catalogue
+from hqsb.core.runtime_plan import RuntimePlan
+from hqsb.core.memory_plan import MemoryPlan
+from hqsb.core.graph_views import GraphCapture
+from hqsb.core.decoding_plan import DecodingPlan
 from hqsb.console.analysis_routes import analysis_router
 from hqsb.console.architecture_routes import architecture_router
 from hqsb.console.experiment_routes import experiment_router
@@ -48,7 +52,12 @@ class InferenceRequest(BaseModel):
     max_output_tokens: int = Field(128, ge=1, le=4096)
     deadline_ms: int = Field(120000, ge=1000, le=600000)
     save_input: bool = False
+    fixed_output_length: bool = False
     capture_architecture: bool = False
+    runtime_plan: RuntimePlan | None = None
+    memory_plan: MemoryPlan | None = None
+    graph_capture: GraphCapture | None = None
+    decoding_plan: DecodingPlan | None = None
     observation_mode: Literal["off", "basic", "operators", "memory", "pages"] = "basic"
     optimization: dict | None = None
     observation_plan: dict | None = None
@@ -69,6 +78,7 @@ class KernelSelection(BaseModel):
     kernel_profile: str | None = None
     precision: Literal["float32", "float16", "bfloat16"] | None = None
     quantization: PrecisionPlan | None = None
+    structure_artifact_id: str | None = Field(None, pattern=r"^l5_[0-9a-f]{32}$")
 
 
 class ComparisonRequest(BaseModel):
@@ -96,6 +106,12 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     from hqsb.console.scheduling_routes import scheduling_router
 
     scheduling = SchedulingCampaigns(settings, svc)
+    from hqsb.console.structure_jobs import StructureJobs
+    structure_jobs = StructureJobs(settings, svc)
+    from hqsb.console.parallel_jobs import ParallelJobs
+    parallel_jobs = ParallelJobs(settings, svc)
+    from hqsb.console.parallel_peers import PeerJobs
+    parallel_peers = PeerJobs(settings, svc, parallel_jobs, machines, connections)
     login_attempts: dict[str, list[float]] = {}
 
     @asynccontextmanager
@@ -104,10 +120,13 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             telemetry.start()
         yield
         telemetry.close()
+        await asyncio.to_thread(parallel_peers.close)
         await asyncio.to_thread(connections.close)
         await asyncio.to_thread(benchmarks.close)
         await asyncio.to_thread(scheduling.close)
         await asyncio.to_thread(model_hub.close)
+        await asyncio.to_thread(structure_jobs.close)
+        await asyncio.to_thread(parallel_jobs.close)
         await asyncio.to_thread(svc.close)
 
     app = FastAPI(
@@ -124,9 +143,17 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     app.state.machines = machines
     app.state.machine_connections = connections
     app.state.model_hub = model_hub
+    app.state.structure_jobs = structure_jobs
+    app.state.parallel_jobs = parallel_jobs
     app.include_router(machine_router(machines, connections), prefix=PREFIX)
     app.include_router(model_hub_router(model_hub), prefix=PREFIX)
     app.include_router(scheduling_router(scheduling), prefix=PREFIX)
+    from hqsb.console.structure_routes import structure_router
+    app.include_router(structure_router(settings, svc, structure_jobs), prefix=PREFIX)
+    from hqsb.console.decoding_routes import decoding_router
+    app.include_router(decoding_router(settings, svc), prefix=PREFIX)
+    from hqsb.console.parallel_routes import parallel_router
+    app.include_router(parallel_router(settings, svc, parallel_jobs, parallel_peers), prefix=PREFIX)
 
     def valid_session(cookie):
         try:
@@ -410,7 +437,9 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         return svc.submit(
             "generate",
             body.deployment_id,
-            body.model_dump(exclude={"deployment_id"} if body.capture_architecture else {"deployment_id", "capture_architecture"}, exclude_none=True),
+            body.model_dump(exclude={"deployment_id"}
+                | (set() if body.capture_architecture else {"capture_architecture"})
+                | (set() if body.fixed_output_length else {"fixed_output_length"}), exclude_none=True),
             idempotency_key,
         )
 
@@ -480,7 +509,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         evidence.scan()
         return {
             "items": evidence.sources,
-            "notice": "Source inventory is not proof of model-level activation.",
+            "notice": "Source inventory lists available implementations; execution receipts record active model paths.",
         }
 
     @app.get(PREFIX + "/historical/performance")
@@ -547,7 +576,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
         if format == "markdown":
             # JSON fenced text prevents output from being interpreted as executable HTML.
             body = (
-                f"# HQSB Console run {run_id}\n\nQuality: not evaluated. Interactive diagnostic, not a formal benchmark.\n\n```json\n"
+                f"# HQSB Console run {run_id}\n\nQuality: not evaluated. Interactive diagnostic. Formal measurements are available through benchmark runs.\n\n```json\n"
                 + json.dumps(row, ensure_ascii=False, indent=2).replace("```", "` ` `")
                 + "\n```\n"
             )
@@ -601,6 +630,10 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     app.include_router(analysis_router(settings, svc), prefix=PREFIX)
     from hqsb.console.precision_routes import precision_router
     app.include_router(precision_router(settings, svc), prefix=PREFIX)
+    from hqsb.console.runtime_routes import runtime_router
+    app.include_router(runtime_router(settings, svc), prefix=PREFIX)
+    from hqsb.console.memory_routes import memory_router
+    app.include_router(memory_router(settings, svc), prefix=PREFIX)
     app.include_router(architecture_router(svc), prefix=PREFIX)
     app.include_router(experiment_router(settings, svc), prefix=PREFIX)
     app.include_router(benchmark_router(benchmarks), prefix=PREFIX)
