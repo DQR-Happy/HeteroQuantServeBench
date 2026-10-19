@@ -1,0 +1,31 @@
+.memory-cache-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 20px;
+}
+.memory-cache-nav a {
+  padding: 10px 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+}
+.memory-cache-nav a[aria-current='page'] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent, #367e70);
+}
+.memory-cache-nav a:focus-visible {
+  outline: 2px solid var(--accent, #367e70);
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .memory-cache-nav {
+    gap: 4px 16px;
+  }
+}
+.memory-cache-output {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 320px;
+  overflow: auto;
+}
