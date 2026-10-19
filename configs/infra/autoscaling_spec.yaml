@@ -3,7 +3,7 @@ name: S13 autoscaling vocabulary
 description: 策略集合、指标单位、episode 形状与降载保护（E13-07 §3–§5）
 schema_version: 1.0.0
 status: FROZEN_VOCABULARY_ONLY
-notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+notes: 冻结结构与词汇；阈值、副本数和流量比例由 campaign 输入提供，测量值保存在运行记录中
 policies:
 - STATIC_S12_CAPACITY
 - CPU_ONLY

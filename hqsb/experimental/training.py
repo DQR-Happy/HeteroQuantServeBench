@@ -51,7 +51,7 @@ TITLE = "分布式训练语义、状态、通信与 Checkpoint Smoke"
 LEVEL = "P0"
 
 CLAIM_BOUNDARY = (
-    "只证明小模型、给定 topology 的训练能力；不证明模型质量更好，也不证明所选框架优于其他框架"
+    "验证指定小模型和 topology 的训练能力，模型质量与框架性能通过各自对照评估"
     "（E14-02 §13）。"
 )
 
@@ -128,7 +128,7 @@ class StrategyChoice:
         if self.strategy not in STRATEGIES:
             findings.append(f"strategy must be one of {', '.join(STRATEGIES)}")
         if self.world_size < 1:
-            findings.append("world_size must be >= 1 (launcher 参数不等于 actual world size)")
+            findings.append("world_size must be >= 1 (按实际 rank 记录 world size)")
         if self.shard_stage not in SHARD_STAGES:
             findings.append(f"shard_stage must be one of {', '.join(SHARD_STAGES)}")
         if self.strategy in ("fsdp", "zero") and self.shard_stage == "none":
@@ -279,7 +279,7 @@ def reconstruct_global_loss(
 def naive_rank_mean(rank_losses: Sequence[float]) -> Dict[str, Any]:
     """The *wrong* reduction, kept so the protocol's warning is executable.
 
-    ``E14-02`` §10: 优先检查 logging reduction，而非立即判数学错误 — the gap
+    ``E14-02`` §10: 先检查 logging reduction，再定位数值差异 — the gap
     between this and :func:`reconstruct_global_loss` is exactly that artefact.
     """
     if not rank_losses:
@@ -468,7 +468,7 @@ def attribute_memory_gap(
         "gap_ratio": gap / expected if expected else float("inf"),
         "unexplained_if_nonzero": gap > 0,
         "categories": {key: ledger.categories.get(key) for key in MEMORY_CATEGORIES},
-        "note": "activation/bucket/gather/fragmentation 使实测 > 理论 1/W；必须解释而非宣称",
+        "note": "activation/bucket/gather/fragmentation 使实测 > 理论 1/W；按各分量解释实测差异",
     }
 
 
@@ -596,7 +596,7 @@ class CheckpointInventory:
             )
         if not self.completion_marker:
             problems.append(
-                "no completion marker: 目录存在或 _SUCCESS 文件单独不构成完整性证明（step 30）"
+                "no completion marker: 需要核对完整提交标记与 manifest（step 30）"
             )
         if self.topology and self.topology_digest() != self.artifact.parallel_topology_digest:
             problems.append("checkpoint topology digest does not match the recorded parallel topology")
@@ -674,7 +674,7 @@ def reshard_capability(
         "reshard_supported": supported,
         "state": rec.CAP_AVAILABLE if supported else rec.CAP_UNAVAILABLE_CAPABILITY,
         "reason_code": "" if supported else "SHAPE_UNSUPPORTED",
-        "note": "" if supported else "记录 capability 限制，不把不支持的 reshard 当作通过",
+        "note": "" if supported else "记录 reshard 的 capability 状态与具体原因",
     }
 
 
@@ -847,7 +847,7 @@ class DistributedTrainingVerdict:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-02 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-02 interfaces (CPU interface smoke check)."""
     spec = GlobalBatchSpec(
         microbatch=1, accumulation=2, world_size=2,
         sample_ids=("s0", "s1", "s2", "s3"), token_counts=(10, 10, 10, 10),

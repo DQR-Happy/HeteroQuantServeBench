@@ -32,7 +32,7 @@ EXPERIMENT_ID = "E12-06"
 TITLE = "功耗窗口对齐、能量积分与请求/Token 能效"
 CLAIM_BOUNDARY = (
     "本实验通过证明同一有效工作量的能量被可靠测得，"
-    "不证明设备级能效等同于数据中心能效；不可测平台不得填估计值。"
+    "设备与数据中心能效分层统计，待测平台保留缺失状态。"
 )
 
 ENERGY_BOUNDARIES: Tuple[str, ...] = ("device", "accelerators", "node", "facility_adjusted")
@@ -48,7 +48,7 @@ BOUNDARY_LEGAL_CLAIMS: Mapping[str, str] = {
     "device": "device energy only",
     "accelerators": "accelerator-set energy",
     "node": "node energy",
-    "facility_adjusted": "scenario energy (a model, not a measurement)",
+    "facility_adjusted": "scenario energy (a model-based estimate)",
 }
 
 WINDOW_POLICIES: Tuple[str, ...] = (

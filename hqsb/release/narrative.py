@@ -284,7 +284,7 @@ def question_bank() -> Dict[str, List[Mapping[str, Any]]]:
             {"question": "CUDA/Ascend 结果如何比较才公平？TP 通信量如何算？", "category": "heterogeneous_distributed"},
         ],
         "failure": [
-            {"question": "如果 profile 证明 RMSNorm 不是热点怎么办？", "category": "failure"},
+            {"question": "如果 profile 显示主要热点位于其他算子，如何调整优化方向？", "category": "failure"},
             {"question": "新 GPU 上方向反转怎么办？", "category": "failure"},
         ],
         "contribution": [
@@ -378,7 +378,7 @@ class InterviewSession:
         if self.role_variant not in ROLE_VARIANTS:
             findings.append(f"InterviewSession: unknown role {self.role_variant!r}")
         if not self.reviewer_ids:
-            findings.append("InterviewSession: at least one reviewer is required (a self-review is not a review)")
+            findings.append("InterviewSession: at least one reviewer is required (use a separate reviewer)")
         if self.fact_errors or self.overclaims or self.attribution_mismatches:
             findings.append("InterviewSession: fact errors/overclaims/attribution mismatches are hard failures (§9)")
         return findings
@@ -499,7 +499,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
     (39, "执行矛盾证据测试", ("hero_replay.replay_verdict", "narrative.AnswerRubric")),
     (40, "执行 attribution 审计", ("contracts.ContributionRecord.problems", "narrative.InterviewSession")),
     (41, "汇总盲评和分歧", ("narrative.InterviewSession.reviewer_ids", "telemetry.TimeToEventSummary")),
-    (42, "修订表达而非事实", ("narrative.check_two_role_fact_diff", "claims.revise_claim")),
+    (42, "按已记录事实修订表达", ("narrative.check_two_role_fact_diff", "claims.revise_claim")),
     (43, "生成 FAQ 和证据索引", ("narrative.generate_faq",)),
     (44, "生成简历 bullet 候选", ("narrative.generate_resume_bullets",)),
     (45, "冻结 InterviewNarrativeRecord", ("narrative.freeze_narrative", "records.InterviewSessionResult")),
@@ -507,7 +507,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "3/10/30 分钟讲述与对抗技术问答"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-08 证明表达可验证且技术上可防守；不代表真实招聘结果，也不替代 E15-09 的独立复现"
+CLAIM_BOUNDARY = "E15-08 验证技术表达与证据的一致性；独立复现见 E15-09"
 
 
 def smoke_self_check() -> Dict[str, Any]:

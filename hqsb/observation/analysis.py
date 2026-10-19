@@ -1,6 +1,6 @@
 """Pure evidence projections; no device imports, inferred physical addresses or verdicts.
 
-This parser lives with evidence, not the core-only evaluation policy layer.
+This parser belongs to the evidence collection layer.
 """
 
 from hqsb.observation.contracts import metric
@@ -251,8 +251,8 @@ def analyze(directory):
         else {},
         "limitations": [
             "Process OS counters include the observer threads and metadata allocations.",
-            "OS and allocator scopes overlap and must not be added.",
-            "Snapshot allocation traces use sequence, not calibrated per-event timestamps.",
+            "OS and allocator scopes overlap and are reported separately.",
+            "Snapshot allocation traces use event sequence for ordering.",
             "No complete activation/workspace or physical GPU page attribution.",
             "Hardware cache counters require a separate Nsight capture.",
         ],
@@ -339,5 +339,5 @@ def compare(left, right, *, intervention="attention_requested"):
         "differences": diffs,
         "quality_status": "not_evaluated",
         "decision": "hold",
-        "notice": "Descriptive mechanisms only; no adoption or speedup claim without quality and paired uninstrumented measurements.",
+        "notice": "Mechanism differences are recorded here; quality and paired performance measurements support adoption decisions.",
     }

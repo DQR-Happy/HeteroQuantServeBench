@@ -52,7 +52,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--smoke",
         action="store_true",
-        help="run the model-free fixture through the gateway (labelled smoke, not an experiment)",
+        help="run the model-free fixture through the gateway (CPU interface smoke check)",
     )
     parser.add_argument(
         "--execute",

@@ -197,7 +197,7 @@ def require_upstream(states: Mapping[str, str], stage: str) -> None:
     if state not in UPSTREAM_COMPARABLE_STATES:
         raise ConfigError(
             f"upstream stage {stage} is {state}: it may not enter a formal comparison "
-            f"(a theoretical value is not a substitute)",
+            f"(requires a device measurement)",
             details={"stage": stage, "state": state},
         )
 

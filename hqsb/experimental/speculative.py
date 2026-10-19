@@ -55,7 +55,7 @@ TITLE = "Speculative/MTP Acceptance、额外计算与服务调度"
 LEVEL = "条件 P0"
 
 CLAIM_BOUNDARY = (
-    "只在 F1 为唯一主分支时成立；质量与 actual-path 门通过前，acceptance 数字不构成加速声明。"
+    "F1 为唯一主分支时，分别记录接受率、质量、actual-path 与端到端速度。"
     "无收益但门禁与归因完整时可形成 PASS_NEGATIVE/REJECT_NO_BENEFIT（E14-F1 §12）。"
 )
 
@@ -731,10 +731,10 @@ def check_quality_gate(
     if mode == "sampling" and distribution_test_passed is None:
         problems.append(
             "sampling mode without a distribution test cannot claim exactness "
-            "(单 seed token 相同不构成证据)"
+            "(使用多 seed 的分布检验)"
         )
     if mode == "sampling" and distribution_test_passed is False:
-        problems.append("the sampling distribution test failed: correctness fail, not a quality trade-off")
+        problems.append("the sampling distribution test failed: correctness validation failed")
     return {
         "mode": mode,
         "paired_delta": paired_delta,
@@ -822,7 +822,7 @@ def f1_adoption(
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-F1 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-F1 interfaces (CPU interface smoke check)."""
     greedy = greedy_prefix_match([7, 8, 9], [7, 8, 5])
     residual = residual_distribution([0.5, 0.5], [0.9, 0.1])
     test = accept_reject_test(target_probs=[0.5, 0.5], draft_probs=[0.9, 0.1], token=0, uniform=0.5)

@@ -25,8 +25,7 @@ from hqsb.core.errors import ConfigError
 EXPERIMENT_ID = "E13-03"
 TITLE = "Accelerator 资源调度、Capability/NUMA/Topology 与隔离"
 CLAIM_BOUNDARY = (
-    "本实验通过证明资源落位与隔离符合声明；不证明模型生命周期、容量控制、autoscaling 或多租户"
-    "整体安全（由 E13-04/E13-06/E13-07/E13-11 验证）。"
+    "验证资源落位与隔离；模型生命周期、容量、autoscaling 与多租户安全见 E13-04/E13-06/E13-07/E13-11。"
 )
 
 SCHEMA_VERSION = "1.0.0"

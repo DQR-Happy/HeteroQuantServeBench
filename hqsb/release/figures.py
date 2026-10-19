@@ -753,7 +753,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "Dashboard/图表→Raw 数据反向追溯与重生成"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-06 证明抽查与结构门下图表可追溯、可重建；不证明未抽数据的科学结论自动正确"
+CLAIM_BOUNDARY = "E15-06 验证抽查图表的可追溯性、结构与重建步骤"
 
 
 def smoke_self_check() -> Dict[str, Any]:

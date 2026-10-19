@@ -684,7 +684,7 @@ def implementation_roster(availability: Mapping[str, str]) -> List[Dict[str, Any
                 "note": (
                     ""
                     if identity
-                    else "a role without an artifact identity must stay NOT_AVAILABLE; a name is not an implementation"
+                    else "a role without an artifact identity must stay NOT_AVAILABLE; requires an implementation artifact identity"
                 ),
             }
         )

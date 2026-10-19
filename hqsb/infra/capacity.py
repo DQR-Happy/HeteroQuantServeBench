@@ -29,8 +29,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-06"
 TITLE = "S12 容量模型、Admission、Token/KV Budget 与 OOM Margin 验证"
 CLAIM_BOUNDARY = (
-    "本实验通过证明容量与准入在声明 workload 内安全；不证明 autoscaler 能及时增加容量，也不证明"
-    "节点/网络/存储故障恢复（由 E13-07/E13-09 验证）。"
+    "验证声明 workload 下的容量与准入；自动扩容和节点、网络、存储故障恢复见 E13-07/E13-09。"
 )
 
 SCHEMA_VERSION = "1.0.0"

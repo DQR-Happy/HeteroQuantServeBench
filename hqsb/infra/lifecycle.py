@@ -27,7 +27,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-05"
 TITLE = "Startup/Readiness/Liveness、Graceful Drain 与滚动重启"
 CLAIM_BOUNDARY = (
-    "本实验通过证明生命周期符合声明；不证明容量模型、autoscaler、故障矩阵或 canary 判定本身正确"
+    "验证声明的生命周期行为，容量、autoscaler、故障与 canary 分别评测"
     "（由 E13-06…E13-10 验证）。"
 )
 
@@ -35,7 +35,7 @@ SCHEMA_VERSION = "1.0.0"
 
 #: Probe semantics (§2): what each probe is allowed to decide.
 PROBE_SEMANTICS: Mapping[str, str] = {
-    "startup": "该进程是否仍在合法初始化，而不是卡死？",
+    "startup": "该进程的初始化是否持续取得进展？",
     "readiness": "现在接一个新请求是否安全且有能力满足合同？",
     "liveness": "进程是否不可恢复，重启比继续运行更安全？",
 }

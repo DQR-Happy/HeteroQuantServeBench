@@ -316,7 +316,7 @@ PROFILE_LAYER_FIELDS: Mapping[str, Tuple[str, ...]] = {
 
 #: Measurement strata (S14 README §18.3): what one independent repetition is.
 EXPERIMENT_UNITS: Mapping[str, str] = {
-    "training": "独立 run/seed/time block（step 不是独立重复）",
+    "training": "独立 run/seed/time block（按独立 run / seed / time block 分组）",
     "conversion": "独立 source checkpoint × conversion invocation",
     "rollout": "独立 prompt/group/trajectory",
     "runtime_service": "独立 workload episode/time block",

@@ -54,7 +54,7 @@ TITLE = "前沿方向 ADR、可证伪假设与跨层预注册"
 LEVEL = "P0"
 
 CLAIM_BOUNDARY = (
-    "只证明问题值得问且实验能给出可信答案；不生成任何算法 speedup，也不代表选中分支会有正收益"
+    "验证研究问题、实验可行性及结论的可复核性；算法收益由后续实验测量"
     "（E14-05 §11）。"
 )
 
@@ -306,7 +306,7 @@ class CandidateEstimand:
             for token in ("goodput", "slo", "quality", "capacity", "latency", "bytes", "tokens", "cost", "energy")
         ):
             findings.append(
-                f"{self.branch}: the estimand names no layer/denominator — '性能更好' 不是 estimand"
+                f"{self.branch}: the estimand names no layer/denominator — estimand 需要明确指标、观测层和分母"
             )
         if not self.baseline_id:
             findings.append(f"{self.branch}: an estimand without a baseline is a wish")
@@ -1157,7 +1157,7 @@ def uninstrumented_gates(gates: Sequence[Mapping[str, Any]]) -> Tuple[str, ...]:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-05 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-05 interfaces (CPU interface smoke check)."""
     registry = LiteratureRegistry(
         entries=tuple(
             LiteratureEntry(

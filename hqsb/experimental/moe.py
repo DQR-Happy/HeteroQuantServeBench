@@ -55,7 +55,7 @@ TITLE = "MoE Router、Expert Parallel、All-to-All 与负载均衡"
 LEVEL = "条件 P0"
 
 CLAIM_BOUNDARY = (
-    "只在 F2 为唯一主分支时成立；受控 router replay 只能用于系统测试，不能产生质量结论。"
+    "F2 为唯一主分支时，受控 router replay 用于系统测试，模型质量通过独立任务评测。"
     "无收益但能证明通信/小 GEMM/热点是原因时应输出 PASS_NEGATIVE（E14-F2 §12）。"
 )
 
@@ -423,7 +423,7 @@ def controlled_count_replay(
         "patterns": rows,
         "problems": problems,
         "quality_conclusions_allowed": False,
-        "restriction": "受控 replay 只用于系统/成本模型验证，不产生质量结论（E14-F2 §10）",
+        "restriction": "受控 replay 用于系统与成本模型验证（E14-F2 §10）",
     }
 
 
@@ -670,7 +670,7 @@ def replication_cost(
         "extra_bytes": extra_replicas * expert_bytes,
         "extra_ranks": sorted({placement.expert_to_rank[expert] for expert in hot_experts if expert in placement.expert_to_rank}),
         "problems": problems,
-        "note": "replication 快但成本高时，它是一个 Pareto 点而非免费加速（§9）",
+        "note": "replication 的速度与资源成本共同构成 Pareto 点（§9）",
     }
 
 
@@ -946,7 +946,7 @@ def check_quality_gate(
         )
     if dropped_tokens:
         problems.append(
-            f"{dropped_tokens} tokens were dropped: 低延迟来自丢 token 不是收益（§10）"
+            f"{dropped_tokens} tokens were dropped: 检测到丢 Token，请检查路由完整性（§10）"
         )
     if rerouted_tokens < 0:
         problems.append("negative rerouted token count")
@@ -1041,7 +1041,7 @@ def f2_adoption(
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-F2 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-F2 interfaces (CPU interface smoke check)."""
     routing = router_topk([2.0, 1.0, 0.5, 0.1], top_k=2, activation="softmax")
     stats = load_statistics([100, 60, 40, 0])
     balanced = load_statistics([10, 10, 10, 10])

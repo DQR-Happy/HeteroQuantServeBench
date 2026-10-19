@@ -661,7 +661,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "3–5 分钟 Demo、故障注入与诚实降级"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-07 证明演示在有限时间和故障下可靠、诚实；不证明观众已经理解技术（E15-08/E15-11）"
+CLAIM_BOUNDARY = "E15-07 验证演示的时间与故障处理，读者理解情况见 E15-08/E15-11"
 
 
 def smoke_self_check() -> Dict[str, Any]:

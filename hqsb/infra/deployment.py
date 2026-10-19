@@ -29,8 +29,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-02"
 TITLE = "空集群 Bootstrap、模型校验与 Cold→Ready→首个正确请求"
 CLAIM_BOUNDARY = (
-    "本实验通过证明自动部署与服务准入正确；不证明 placement 最优、容量安全、生命周期无丢请求、"
-    "自动扩缩稳定或故障可恢复（由 E13-03…E13-09 验证）。"
+    "验证自动部署与服务准入；placement、容量、生命周期、自动扩缩与故障恢复见 E13-03…E13-09。"
 )
 
 SCHEMA_VERSION = "1.0.0"

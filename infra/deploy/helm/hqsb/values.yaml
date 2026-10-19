@@ -103,7 +103,7 @@ rollout:
   progressDeadlineSeconds: 1800
 
 autoscaling:
-  enabled: false             # 默认关闭：E13-07 通过前采用固定副本，不声称弹性
+  enabled: false             # 默认关闭：E13-07 通过前采用固定副本，使用固定副本策略
   minReplicas: 2
   maxReplicas: 8
   behavior:
@@ -126,7 +126,7 @@ autoscaling:
 storage:
   modelCache:
     size: 200Gi              # POLICY_DEFAULT_UNVERIFIED
-    storageClass: ""         # 必须显式声明；hostPath 不构成租户边界
+    storageClass: ""         # 必须显式声明；租户隔离使用独立存储与访问策略
     accessMode: ReadWriteOnce
   retention:
     rollbackArtifacts: 2

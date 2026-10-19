@@ -829,7 +829,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "Clean CPU Quickstart 与最低门槛复现"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-02 只证明最低访问门槛真实、独立且可审计；不证明 CPU 推理性能或任何 kernel 正确性"
+CLAIM_BOUNDARY = "E15-02 验证最低访问门槛与独立执行步骤，性能及 kernel 正确性见对应测试"
 
 
 def smoke_self_check() -> Dict[str, Any]:

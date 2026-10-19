@@ -31,7 +31,7 @@ EXPERIMENT_ID = "E12-05"
 TITLE = "分层 Roofline、Amdahl、容量/互联模型与预测误差归因"
 CLAIM_BOUNDARY = (
     "本实验通过证明差异可以被可检验模型解释到声明程度，"
-    "不证明 Roofline 能完全预测复杂 LLM serving；predicted 与 measured 永不混列。"
+    "分别报告 predicted 与 measured，并分析预测误差。"
 )
 
 PEAK_EVIDENCE_LEVELS: Tuple[str, ...] = (
@@ -307,7 +307,7 @@ class Roof:
         if self.evidence_level == "SUSTAINABLE_MICRO" and not self.conditions:
             problems.append("a sustainable roof needs its power/clock/thermal conditions")
         if self.evidence_level == "SUSTAINABLE_MICRO" and self.interval_low is None:
-            problems.append("a sustainable roof needs an interval, not a single number")
+            problems.append("a sustainable roof requires a measured interval")
         return problems
 
     def as_dict(self) -> Dict[str, Any]:
@@ -838,7 +838,7 @@ def classify_bottleneck(
             "supporting": [],
             "against": against,
             "confidence": "low",
-            "reason": "no class has supporting evidence: a single utilization percentage is not a diagnosis",
+            "reason": "no class has supporting evidence: diagnosis requires supporting counters and workload evidence",
         }
     if len(supporting) > 1:
         return {

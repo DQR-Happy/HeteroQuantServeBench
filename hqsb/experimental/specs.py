@@ -373,7 +373,7 @@ def check_all(documents: Mapping[str, Any]) -> List[str]:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the spec layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the spec layer (CPU interface smoke check)."""
     payload = {
         "kind": "dependency-policy",
         "version": "v1",

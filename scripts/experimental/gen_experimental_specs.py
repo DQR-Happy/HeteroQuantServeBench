@@ -413,7 +413,7 @@ def statistics_plan() -> Dict[str, Any]:
         "kind": "statistics-plan",
         "version": "v1",
         "sources": [_MANUAL, f"{_PROTOCOL}/README.md"],
-        "note": "单位与重复在结果前冻结；token/step 不是独立重复",
+        "note": "单位与重复在结果前冻结；token/按独立 run / seed / time block 分组",
         "units": [{"unit": unit, "definition": definition} for unit, definition in sorted(rec.EXPERIMENT_UNITS.items())],
         "tests": [
             {"name": "paired_bootstrap", "use": "latency/quality paired 比较的置信区间"},

@@ -341,7 +341,7 @@ def release_policy(**overrides: Any) -> Dict[str, Any]:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the campaign layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the campaign layer (CPU interface smoke check)."""
     layout = run_layout("E15-01", "interface_only")
     problems: List[str] = []
     for entry in ("raw", "derived", "acceptance.json", "evidence_manifest.yaml"):

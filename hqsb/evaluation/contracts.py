@@ -139,7 +139,7 @@ FIELD_CATALOG: Tuple[FieldSpec, ...] = _specs(
         ("model.revision", "model_identity", FIELD_FORBIDDEN_DIFFERENCE, "revision 不同改变被测量对象"),
         ("tokenizer_id", "tokenizer", FIELD_INVARIANT, "tokenizer 不同则 tokens/s 不同分母"),
         ("tokenizer.chat_template_hash", "tokenizer", FIELD_INVARIANT, "模板改变输入语义"),
-        ("input_token_ids_hash", "input", FIELD_INVARIANT, "固定文本不等于固定 token"),
+        ("input_token_ids_hash", "input", FIELD_INVARIANT, "核对当前 tokenizer 生成的实际 Token"),
         ("generation.stop_policy", "generation", FIELD_INVARIANT, "EOS 提前停止改变实际工作量"),
         ("generation.output_token_accounting", "generation", FIELD_INVARIANT, "分母口径必须一致"),
         ("precision.weight_dtype", "precision", FIELD_INVARIANT, "权重 dtype 属于被测对象"),
@@ -151,7 +151,7 @@ FIELD_CATALOG: Tuple[FieldSpec, ...] = _specs(
         ("quality.threshold_policy", "quality", FIELD_INVARIANT, "平台不得私自放宽"),
         ("correctness_gate_id", "correctness", FIELD_INVARIANT, ""),
         ("workload_spec_id", "workload", FIELD_INVARIANT, "工作量必须相同"),
-        ("workload.layer", "workload", FIELD_FORBIDDEN_DIFFERENCE, "不同层不是同一估计量"),
+        ("workload.layer", "workload", FIELD_FORBIDDEN_DIFFERENCE, "按观测层分别对照估计量"),
         ("workload.scenario", "workload", FIELD_INVARIANT, ""),
         ("workload.batch", "workload", FIELD_ALLOWED_DIFFERENCE, "合法 sweep 维度"),
         ("workload.concurrency", "workload", FIELD_ALLOWED_DIFFERENCE, "closed-loop 场景维度"),
@@ -165,7 +165,7 @@ FIELD_CATALOG: Tuple[FieldSpec, ...] = _specs(
         ("backend.requested", "backend", FIELD_ALLOWED_DIFFERENCE, "候选实现差异"),
         ("backend.actual", "backend", FIELD_CONDITIONALLY_NORMALIZABLE, "actual 未知时不得比较"),
         ("backend.fallback_reason", "backend", FIELD_REPORT_ONLY, "记录用，不参与裁决"),
-        ("service.load_mode", "service", FIELD_FORBIDDEN_DIFFERENCE, "open-loop 与 closed-loop 不是同一估计量"),
+        ("service.load_mode", "service", FIELD_FORBIDDEN_DIFFERENCE, "open-loop 与 closed-loop 分别对照"),
         ("service.arrival_process", "service", FIELD_INVARIANT, ""),
         ("service.slo", "service", FIELD_INVARIANT, "goodput 依赖统一 SLO"),
         ("service.retry_policy", "service", FIELD_INVARIANT, ""),
@@ -182,7 +182,7 @@ FIELD_CATALOG: Tuple[FieldSpec, ...] = _specs(
         ("statistics.interval_method", "statistics", FIELD_INVARIANT, ""),
         ("statistics.stopping_rule", "statistics", FIELD_INVARIANT, ""),
         ("contract.policy_version", "statistics", FIELD_REPORT_ONLY, ""),
-        ("display_name", "model_identity", FIELD_REPORT_ONLY, "显示名不是 join key"),
+        ("display_name", "model_identity", FIELD_REPORT_ONLY, "关联使用模型身份，显示名用于展示"),
     ]
 )
 

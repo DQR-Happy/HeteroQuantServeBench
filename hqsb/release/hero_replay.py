@@ -916,7 +916,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "目标 GPU/NPU Hero Story 独立重放"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-03 是作者侧/受控新环境的重放，不等于独立第三方复现（E15-09 才验证独立性）"
+CLAIM_BOUNDARY = "E15-03 验证作者侧受控新环境重放，E15-09 验证独立第三方复现"
 
 
 def smoke_self_check() -> Dict[str, Any]:

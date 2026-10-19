@@ -23,7 +23,7 @@
 
 ### E13-01 可重建容器、SBOM、漏洞/秘密/许可证与供应链 Gate
 
-claim boundary: 本实验通过证明一个 release image 的来源与运行边界可信（digest/SBOM/扫描/非 root）；不证明该 release 已在集群完成模型服务、容量或可靠性验收。
+claim boundary: 本实验通过证明一个 release image 的来源与运行边界可信（digest/SBOM/扫描/非 root）；该 release 的模型服务、容量与可靠性由集群实验分别验收。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -68,7 +68,7 @@ claim boundary: 本实验通过证明一个 release image 的来源与运行边�
 
 ### E13-02 空集群 Bootstrap、模型校验与 Cold→Ready→首个正确请求
 
-claim boundary: 本实验通过证明自动部署与服务准入正确；不证明 placement 最优、容量安全、生命周期无丢请求、自动扩缩稳定或故障可恢复（由 E13-03…E13-09 验证）。
+claim boundary: 验证自动部署与服务准入；placement、容量、生命周期、自动扩缩与故障恢复见 E13-03…E13-09。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -113,7 +113,7 @@ claim boundary: 本实验通过证明自动部署与服务准入正确；不证�
 
 ### E13-03 Accelerator 资源调度、Capability/NUMA/Topology 与隔离
 
-claim boundary: 本实验通过证明资源落位与隔离符合声明；不证明模型生命周期、容量控制、autoscaling 或多租户整体安全（由 E13-04/E13-06/E13-07/E13-11 验证）。
+claim boundary: 验证资源落位与隔离；模型生命周期、容量、autoscaling 与多租户安全见 E13-04/E13-06/E13-07/E13-11。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -158,7 +158,7 @@ claim boundary: 本实验通过证明资源落位与隔离符合声明；不证�
 
 ### E13-04 模型制品下载、Cache、原子激活、版本切换与回滚
 
-claim boundary: 本实验通过证明模型制品生命周期与版本一致性；不证明 rolling 请求无损、canary 判断正确或跨区域灾备（由 E13-05/E13-10 验证）。
+claim boundary: 验证模型制品生命周期与版本一致性；滚动发布和 canary 决策见 E13-05/E13-10。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -203,7 +203,7 @@ claim boundary: 本实验通过证明模型制品生命周期与版本一致性�
 
 ### E13-05 Startup/Readiness/Liveness、Graceful Drain 与滚动重启
 
-claim boundary: 本实验通过证明生命周期符合声明；不证明容量模型、autoscaler、故障矩阵或 canary 判定本身正确（由 E13-06…E13-10 验证）。
+claim boundary: 验证声明的生命周期行为，容量、autoscaler、故障与 canary 分别评测（由 E13-06…E13-10 验证）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -248,7 +248,7 @@ claim boundary: 本实验通过证明生命周期符合声明；不证明容量�
 
 ### E13-06 S12 容量模型、Admission、Token/KV Budget 与 OOM Margin 验证
 
-claim boundary: 本实验通过证明容量与准入在声明 workload 内安全；不证明 autoscaler 能及时增加容量，也不证明节点/网络/存储故障恢复（由 E13-07/E13-09 验证）。
+claim boundary: 验证声明 workload 下的容量与准入；自动扩容和节点、网络、存储故障恢复见 E13-07/E13-09。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -293,7 +293,7 @@ claim boundary: 本实验通过证明容量与准入在声明 workload 内安全
 
 ### E13-07 SLO/Queue/Token 多指标 Autoscaling、阶跃/突发/降载与控制稳定性
 
-claim boundary: 本实验通过证明弹性控制在声明 workload 内稳定；不证明底层故障都能恢复，也不证明新 release 一定安全（由 E13-09/E13-10 验证）。
+claim boundary: 验证声明 workload 下的弹性控制稳定性；故障恢复和新版本发布见 E13-09/E13-10。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -338,7 +338,7 @@ claim boundary: 本实验通过证明弹性控制在声明 workload 内稳定；
 
 ### E13-08 Request→Queue→Runtime→Accelerator→System 可观测性、告警与 RCA
 
-claim boundary: 本实验通过证明系统可被观测与定位；不证明所有故障已恢复或发布策略正确（由 E13-09/E13-10 验证行动闭环）。
+claim boundary: 验证系统的观测与定位能力，故障恢复和发布策略分别评测（由 E13-09/E13-10 验证行动闭环）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -383,7 +383,7 @@ claim boundary: 本实验通过证明系统可被观测与定位；不证明所�
 
 ### E13-09 进程、Pod、节点、设备、Cache、存储、网络、制品、OOM、Thermal 故障注入与恢复
 
-claim boundary: 本实验通过证明已测故障的真实行为；不证明系统对未建模故障、区域级灾难或恶意攻击自动可靠。
+claim boundary: 验证已列故障场景的检测、恢复行为与结果。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -428,7 +428,7 @@ claim boundary: 本实验通过证明已测故障的真实行为；不证明系�
 
 ### E13-10 Correctness/Performance Canary、自动 Gate、渐进发布与回滚
 
-claim boundary: 本实验通过证明已测退化类别可由当前 canary policy 安全治理；不证明未知退化、极低频长尾或区域级发布风险被消除。
+claim boundary: 按已列退化场景验证 canary policy，记录检测、发布决策与恢复结果。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -473,7 +473,7 @@ claim boundary: 本实验通过证明已测退化类别可由当前 canary polic
 
 ### E13-11 多租户认证、授权、配额、Secrets、脱敏、网络隔离与滥用防护
 
-claim boundary: 本实验通过只证明声明威胁模型内的控制有效；不等于抵抗所有侧信道、节点管理员攻击或获得安全认证。
+claim boundary: 本实验按声明的威胁模型验证控制措施，并记录攻击场景与结果。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|

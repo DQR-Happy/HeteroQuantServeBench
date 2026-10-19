@@ -300,7 +300,7 @@ class LinkEntry:
             findings.append(f"LinkEntry({self.target}): unknown link type {self.link_type!r}")
         if self.link_type == "permanent_evidence" and not is_digest(_digest_in(self.target)):
             findings.append(
-                f"LinkEntry({self.target}): an evidence link must carry a sha256 digest (a link alone is not evidence)"
+                f"LinkEntry({self.target}): an evidence link must carry a sha256 digest (include the linked artifact hash)"
             )
         return findings
 
@@ -1089,7 +1089,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "可执行文档、双语一致性与能力矩阵对账"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-04 通过说明文档与当前候选一致且可执行，不说明陌生读者一定能快速理解（E15-11）"
+CLAIM_BOUNDARY = "E15-04 核对文档与当前候选的一致性和可执行性，读者使用体验见 E15-11"
 
 
 def smoke_self_check() -> Dict[str, Any]:

@@ -56,7 +56,7 @@ EXPERIMENT_ID = "E12-01"
 TITLE = "候选矩阵逐格可比性审计与 Comparison Contract"
 CLAIM_BOUNDARY = (
     "本实验通过只证明'比较问题被定义正确并有合格候选'，"
-    "不证明任一候选更快、更省电或更便宜；不可比项不得进入排名/Pareto。"
+    "可比候选按速度、能耗与成本分别评估，再形成排名与 Pareto 集。"
 )
 
 POLICY_VERSION = "s12_policy_1.0.0"

@@ -34,7 +34,7 @@ EXPERIMENT_ID = "E12-04"
 TITLE = "多进程、多时段、多日重复性、漂移与噪声控制"
 CLAIM_BOUNDARY = (
     "本实验通过证明测量不确定性得到诚实量化，"
-    "不保证所有平台都达到相同稳定水平，也不能用 best-of-N 替代稳定性。"
+    "按平台分别记录稳定性，并使用全部重复样本统计。"
 )
 
 STABILITY_DIMENSIONS: Tuple[str, ...] = (

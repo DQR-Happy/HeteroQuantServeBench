@@ -82,7 +82,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--smoke",
         action="store_true",
-        help="run the CPU-only interface self-check (labelled smoke, not an experiment)",
+        help="run the CPU-only interface self-check (CPU interface smoke check)",
     )
     parser.add_argument(
         "--probe",

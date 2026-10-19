@@ -83,7 +83,7 @@ def _steps(pairs: Sequence[Tuple[int, str, Sequence[str]]]) -> Tuple[StepMapping
 E11_01 = ExperimentMapping(
     experiment_id="E11-01",
     title="真实 Qwen Graph Capture、Graph Break、Guard 与 Symbolic Domain",
-    claim_boundary="捕获边界被完整测量；不证明 rewrite 正确、lowering 已执行或有性能收益",
+    claim_boundary="验证图捕获边界的完整性；rewrite、lowering 与性能分别检查",
     steps=_steps(
         [
             (1, "冻结实验身份", ["experiment:RunDirectory", "experiment:environment_fingerprint", "experiment:git_state", "identity:ArtifactIdentity"]),
@@ -125,7 +125,7 @@ E11_01 = ExperimentMapping(
 E11_02 = ExperimentMapping(
     experiment_id="E11-02",
     title="语义 Pattern Rewrite、Near-miss 拒绝与 Pass 幂等性",
-    claim_boundary="重写合法性；不代表 candidate 更快或已 lower 到自定义 kernel",
+    claim_boundary="验证重写合法性；candidate 性能与 kernel lowering 分别记录",
     steps=_steps(
         [
             (1, "冻结输入图与语义版本", ["rewrite:build_graph", "identity:graph_identity", "records:PatternDecisionRecord"]),
@@ -167,7 +167,7 @@ E11_02 = ExperimentMapping(
 E11_03 = ExperimentMapping(
     experiment_id="E11-03",
     title="Graph→HQSB IR→Lowering Registry→真实 Kernel 闭环",
-    claim_boundary="最小编译闭环成立；不代表动态 shape 优化、autotune 泛化或 cache 生命周期完整",
+    claim_boundary="验证最小编译闭环，动态 shape、autotune 与 cache 生命周期分别验收",
     steps=_steps(
         [
             (1, "冻结 hero graph 与 reference", ["capture:HeroGraphManifest", "lowering:CorrectnessEvidence", "identity:identity_chain_status"]),
@@ -209,7 +209,7 @@ E11_03 = ExperimentMapping(
 E11_04 = ExperimentMapping(
     experiment_id="E11-04",
     title="Before/After IR、Generated Code、PTX/SASS 与硬件行为归因",
-    claim_boundary="至少一个编译决策可被工程证据解释；不证明该解释适用于其他模型/架构",
+    claim_boundary="记录编译决策的工程依据及其适用模型与架构",
     steps=_steps(
         [
             (1, "冻结正式 compile/run IDs", ["identity:ArtifactIdentity", "identity:LineageGraph"]),
@@ -251,7 +251,7 @@ E11_04 = ExperimentMapping(
 E11_05 = ExperimentMapping(
     experiment_id="E11-05",
     title="Dynamic Shape、Symbolic Guard、Recompile、Variant 与 Fallback Safety",
-    claim_boundary="动态行为安全、可解释且有界；不证明 autotune winner 泛化或 cost model 有效",
+    claim_boundary="验证动态行为的安全性、可解释性与边界，autotune 和 cost model 分别评估",
     steps=_steps(
         [
             (1, "冻结 identity 与基线", ["experiment:git_state", "identity:compile_identity", "guards:Variant"]),

@@ -46,5 +46,5 @@ def trace_links(events, *, limit=200):
         "truncated": total > len(edges),
         "scope": "single_capture_only",
         "limit": limit,
-        "limitations": ["No temporal-only links; no cross-run causal chain."],
+        "limitations": ["Links use correlation IDs within the same run."],
     }

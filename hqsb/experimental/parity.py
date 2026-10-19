@@ -46,7 +46,7 @@ TITLE = "Checkpoint→转换/Merge→Quant→Runtime 的训推一致性"
 LEVEL = "P0"
 
 CLAIM_BOUNDARY = (
-    "只证明转换 DAG、分层语义门与负向拒绝；不证明训练改善质量，也不证明转换后的 runtime 更快"
+    "验证转换 DAG、分层语义检查和异常处理，模型质量与 runtime 性能分别评估"
     "（E14-03 §12）。"
 )
 
@@ -675,7 +675,7 @@ def required_serving_artifact_fields() -> Dict[str, Any]:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-03 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-03 interfaces (CPU interface smoke check)."""
     mapping = validate_mapping(
         [
             TensorMappingRow("model.layers.0.q_proj.weight", "layers.0.attn.qkv.weight", "concat",

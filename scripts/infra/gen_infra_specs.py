@@ -51,7 +51,7 @@ SPEC_DIR = os.path.join(REPO_ROOT, "configs", "infra")
 COMMON: Dict[str, Any] = {
     "schema_version": "1.0.0",
     "status": "FROZEN_VOCABULARY_ONLY",
-    "notes": "只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入",
+    "notes": "冻结结构与词汇；阈值、副本数和流量比例由 campaign 输入提供，测量值保存在运行记录中",
 }
 
 

@@ -463,7 +463,7 @@ def require_usable(states: Mapping[str, str], stage: str, *, candidate_id: str =
         raise ConfigError(
             f"upstream stage {stage} is {state}"
             + (f" for candidate {candidate_id}" if candidate_id else "")
-            + ": it may not enter a formal comparison (a theoretical value is not a substitute)",
+            + ": it may not enter a formal comparison (requires a device measurement)",
             details={"stage": stage, "state": state, "candidate_id": candidate_id},
         )
 

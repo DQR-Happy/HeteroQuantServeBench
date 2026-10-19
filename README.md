@@ -2,7 +2,7 @@
 
 HQSB 是面向 NVIDIA CUDA 与 Ascend/CANN 的推理优化实验项目：从模型基线和 profiling，追踪算子、量化、Runtime、Serving 到跨硬件评估的证据链。
 
-**当前状态：可运行的 CUDA/模型基线 + 多阶段契约与研究脚手架，尚未完成 S00–S15 全部实验验收。** 后期模块中的 `smoke`、接口解析通过、配置审计通过，均不代表模型级优化或生产部署已验证。S03/S04 的部分原始实验还有 FAIL，S04.5 未闭环，S05-02/03/04 仍为 BLOCKED。
+**当前状态：可运行的 CUDA/模型基线 + 多阶段契约与研究脚手架，尚未完成 S00–S15 全部实验验收。** 后期模块中的 `smoke`、接口解析通过、配置审计通过，分别记录对应检查的结果，模型级优化与部署验收见各阶段报告。S03/S04 的部分原始实验还有 FAIL，S04.5 未闭环，S05-02/03/04 仍为 BLOCKED。
 
 - [项目现状总览](docs/project_status.md)：逐阶段状态、已修复问题、剩余缺口。
 - 内部工作文档不随公开仓库发布：使用说明书、逐文件/API 索引、全仓库审查报告与独立功能测试报告仅在本地保留。
@@ -29,13 +29,13 @@ Mac 用于编辑和版本管理；运行、构建、测试与硬件探测全部�
 ./scripts/remote_run.sh python3 scripts/check_docs.py
 ```
 
-默认开发执行端为 `3090-inf:/root/HeteroQuantServeBench`。Mac 只编辑与管理版本，运行、构建和测试继续通过代理。`HQSB_REMOTE_HOST`、`HQSB_REMOTE_DIR` 可覆盖目标；Jetson 通过 `--target jetson` 显式同步。自动保存不等同于已验证同步。工作台 SSH / HTTP 机器管理及切换见[机器连接说明](infra/README.machine-connections.md)。
+默认开发执行端为 `3090-inf:/root/HeteroQuantServeBench`。Mac 只编辑与管理版本，运行、构建和测试继续通过代理。`HQSB_REMOTE_HOST`、`HQSB_REMOTE_DIR` 可覆盖目标；Jetson 通过 `--target jetson` 显式同步。执行前请确认远端文件版本与本地一致。工作台 SSH / HTTP 机器管理及切换见[机器连接说明](infra/README.machine-connections.md)。
 
 新增 4090D / Linux x86_64 CUDA 后端的初始化流程见 [CUDA Console 部署说明](infra/README.cuda-console.md)。通过 `HQSB_REMOTE_HOST=4090D-hqsb` 选择该端，或使用 `scripts/sync_to_jetson.sh --target 4090d` 同步；Jetson 执行端继续保留。`scripts/console/bootstrap_cuda.sh` 复用目标 CUDA PyTorch，在隔离环境安装已锁定的模型依赖、校验权重、按实际 SM 构建算子并构建前端。通用服务配置为 `configs/console/cuda.example.yaml`。
 
 4090D 多厂商模型、ModelScope 权重校验、模型切换及观测边界见 [多模型接入说明](infra/README.modelscope-models.md)，目标配置为 `configs/console/4090d-models.yaml`。
 
-CPU 回归表示“不使用加速器”，并不表示“只安装 core 就能跑所有测试”：部分测试需要 CPU 可用的 torch 等 benchmark 依赖。Jetson 必须保留 NVIDIA 提供的 torch wheel，勿直接用普通 PyPI torch 替换。首次安装、CUDA 构建和模型运行见使用说明书。
+CPU 回归在主机上执行，部分测试需要 CPU 版 torch 等 benchmark 依赖。Jetson 必须保留 NVIDIA 提供的 torch wheel，勿直接用普通 PyPI torch 替换。首次安装、CUDA 构建和模型运行见使用说明书。
 
 ## 主要工作流
 
@@ -57,13 +57,23 @@ flowchart LR
 
 ## Web Console
 
+L3 入口位于 `/model-architecture` 的“计算图与 L3 执行”，支持按请求选择 Eager、Dynamo 捕获和 Inductor 编译，调整形状/Fullgraph 策略，查看真实 FX 图、模块/权重关联、编译复用与独立 PPL 对照。首批编译范围与观测边界见 [L3 使用与模块说明](infra/README.l3-runtime.md)。
+
 L4 在线精度与量化入口为 `/precision`，支持浮点基线、RTN、GPTQ、AWQ、SmoothQuant、bitsandbytes INT8/NF4/FP4、能力门禁下的 FP8，以及单请求 KV INT2/INT4。实际执行语义、接口、质量对照与未验收边界见 [L4 使用与模块说明](infra/README.l4-precision.md)。
+
+L5 入口为 `/model-structure/build`、`/model-structure/artifacts`、`/model-structure/evaluation` 三个子页，支持幅值/Wanda 评分剪枝、真实 MLP 缩维与 SVD 双矩阵低秩执行；独立 CPU 制作紧凑制品，显式加载，比较原始模型的 PPL/NLL、参数和生成性能变化。实际支持范围与训练/稀疏内核等未接入内容见 [L5 使用与模块说明](infra/README.l5-structure.md)。
+
+L7 入口为 `/decoding/run`、`/decoding/draft`、`/decoding/compare`：接入真实自回归采样、提示词查找/独立草稿模型的贪心推测验证、有限候选 Mask/Gather 约束。记录目标/草稿 Forward、接受率、KV 回滚、驻留成本和同负载逐 Token 对照；原交互推理保留。Teacher-forcing PPL 不作为解码策略质量分数，具体契约与未接方向见 [L7 使用与模块说明](infra/README.l7-decoding.md)。
+
+L9 入口为 `/parallel/run`、`/parallel/topology`、`/parallel/peers`、`/parallel/compare`：支持独立副本 DP、原生 TP、顺序按层跨卡、同机 P/D 的实际 KV 传输及已登记双节点请求 DP。保存每 rank 分片/内存/通信凭据和逐 Token 对照；没有可见多 GPU 时明确拒绝，不将 CPU 诊断当作多卡验收。模块、接口、预算与未接方向见 [L9 使用说明](infra/README.l9-parallel.md)。
+
+L6 入口为 `/memory-cache/configure` 和 `/memory-cache/records`：动态/静态 KV、CPU 卸载与预取、关闭缓存重计算、有界前缀复用，以及严格身份对照。L8 调度页可选真实 GPU 块池并查看拼装/写回、尾部浪费和回收；当前 Attention 仍需稠密还原。详见 [L6 使用、模块与观测边界](infra/README.l6-memory.md)。
 
 `web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认开发服务运行在 `3090-inf`，可在界面通过 SSH / HTTP 选择其他 HQSB 节点；未验证的量化与自定义算子模型回接不会在页面中假装可用。
 
 Console v0.2 增加阶段与逐 token 观测、有限窗口 CPU/CUDA profiler、trace 查询/下载、内存归因与张量账本、历史 kernel 证据钻取，以及真实 RTN-W4/W8 制品任务。量化制品与在线低比特部署分开，优化导出保留为待验证假设。测试范围见内部 v0.2 验收报告（未随仓库发布）。
 
-v0.2.1 新增侧栏「内存与数据流」：共享 DRAM 与 allocator 结构、可点击权重矩形图、逐层 KV 图、请求流程与实际 CUDA copy 方向。默认回放已有真实采集，模型卸载后仍可查看绑定加载记录；显式 memcpy 字节不等于全部内存读写。验证见内部可视化验收报告（未随仓库发布）。
+v0.2.1 新增侧栏「内存与数据流」：共享 DRAM 与 allocator 结构、可点击权重矩形图、逐层 KV 图、请求流程与实际 CUDA copy 方向。默认回放已有真实采集，模型卸载后仍可查看绑定加载记录；显式 memcpy 字节按拷贝活动统计，kernel 内存访问见硬件计数器。验证见内部可视化验收报告（未随仓库发布）。
 
 启动与开发见 [Console 入口说明](web/console/README.md)，逐页操作与指标口径见内部前端使用说明书（未随仓库发布）。Console 使用独立版本的交互计时，不改变既有 C4/C6/C7 基准契约。
 
@@ -89,12 +99,12 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-observation-20261014
   --mode memory --isl 128 --osl 16 \
   --manifest docs/benchmark/model_sha256_manifest.txt
 
-# 每个样本独立进程，AB/BA 交替；保留失败记录，不自动宣称低开销
+# 每个样本独立进程，AB/BA 交替；记录采集开销与失败原因
 ./scripts/remote_run.sh python3 scripts/observation/run_campaign.py \
   --kind overhead --mode basic --pairs 10 --isl 128 --osl 64 \
   --manifest docs/benchmark/model_sha256_manifest.txt
 
-# 描述性机制对照：释放空闲块 / 保留 allocator 缓存，不宣称加速
+# 机制对照：释放空闲块 / 保留 allocator 缓存
 ./scripts/remote_run.sh python3 scripts/observation/run_campaign.py \
   --kind cleanup --mode memory --pairs 1 --isl 128 --osl 9 \
   --manifest docs/benchmark/model_sha256_manifest.txt
@@ -108,7 +118,7 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-observation-20261014
 
 原始 JSONL、SHA-256 和冻结 manifest 存在 `experiment_results/OBS/` 或 Console 私有 `captures/<run_id>/observations/`；高频数据不写入 SQLite 或 SSE。采集失败、工具缺失、权限不足和记录丢失均保留状态。Tegra 的计数器权限使用既有管理员运行方式，不修改系统全局权限。
 
-内存口径不能相加；CPU 页样本不是 GPU 页表；allocator 虚拟地址不是物理地址。Nsight 计数器属于单独诊断运行的选定 kernel。当前机制比较始终保留质量 `not_evaluated` 与采用决策 `hold`，模型优化是否更好还需要质量门和独立性能实验。模块接口、已执行验收和剩余边界见内部实现与验收记录（未随仓库发布）。
+各内存口径分别统计；页样本来自 CPU pagemap，allocator 地址用于关联进程内分配。Nsight 计数器属于单独诊断运行的选定 kernel。当前机制比较始终保留质量 `not_evaluated` 与采用决策 `hold`，模型优化是否更好还需要质量门和独立性能实验。模块接口、已执行验收和剩余边界见内部实现与验收记录（未随仓库发布）。
 
 ## 优化实验：计划、生效凭据与质量对照（G01–G08）
 
@@ -125,9 +135,9 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-g01-g08-20261014
   --manifest docs/benchmark/model_sha256_manifest.txt
 ```
 
-CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存注册计划、每次尝试、命令、日志/结果哈希及失败记录。参考配置是软件/机制闭环 fixture，不是任务质量基准。质量采用逐位置完整词表 float32 logits、teacher-forced NLL/PPL、greedy 自由生成和可选 exact-match；超 token/字节预算明确失败，不截断后标为完整。API 同 worker 重复样本不满足独立进程性能门。完整数值相等也不能自动证明模型任务准确率足够。
+CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存注册计划、每次尝试、命令、日志/结果哈希及失败记录。参考配置用于检查软件与机制观测闭环，任务质量使用对应数据集评测。质量采用逐位置完整词表 float32 logits、teacher-forced NLL/PPL、greedy 自由生成和可选 exact-match；超 token/字节预算明确失败，不截断后标为完整。正式性能验收使用独立进程重复样本；数值一致性与任务准确率分别评估。
 
-`ObservationPlan.sources` 可以组合 allocator/pages/operators；保留旧五种模式默认行为。详细数据走有界文件，SQLite/SSE 只保留任务和摘要。优化凭据与质量原件通过监督者封存、fsync 和 SHA-256 核验后提供认证下载；取消/错误保留 partial。来源缺失不是零，生成上下文分叉后的机制仅作描述。源码补丁、模型身份、dtype/kernel 的比较必须精确预先声明；它们的比较支持不表示对应优化执行器已接入。
+`ObservationPlan.sources` 可以组合 allocator/pages/operators；保留旧五种模式默认行为。详细数据走有界文件，SQLite/SSE 只保留任务和摘要。优化凭据与质量原件通过监督者封存、fsync 和 SHA-256 核验后提供认证下载；取消/错误保留 partial。来源缺失项标记为待采集，生成上下文分叉后的机制仅作描述。源码补丁、模型身份、dtype/kernel 的比较必须精确预先声明；各优化执行器的接入状态见能力目录。
 
 接口和边界详见内部 G01–G08 实施与验证记录（未随仓库发布）。
 
@@ -135,7 +145,7 @@ CLI 在每个样本的独立进程中加载同一模型，AB/BA 交替，保存�
 
 导航中的「优化实验」（`/optimization`）使用同源接口，测试阶段默认免登录：注册并冻结 JSON 配置 → 选择已就绪的 PyTorch 部署 → 串行执行未提交的 performance/diagnostic/quality 槽位 → 查看后端比较报告 → 从运行详情下载封存原件。`GET /experiments` 提供分页计划索引，`GET /experiments/{id}/jobs` 提供槽位状态。刷新按原实验 ID 恢复；接受过的槽位，包括失败和取消，不会自动重提。离开页面停止后续自动提交，已接受任务仍可在运行记录取消；显式停止会等待提交返回 ID 后请求取消。
 
-普通推理工作台可以选择 allocator 清理策略，并传给已有优化配置解析。运行详情新增「优化与质量凭据」，同时展示 requested/resolved/effective、独立质量协议和经过 SHA-256 验证的下载链接。机制报告提供指标筛选与原始 seq；缺失保持未知，质量 fixture 不能代表通用准确率，同 worker 性能不能替代独立进程验收。
+普通推理工作台可以选择 allocator 清理策略，并传给已有优化配置解析。运行详情新增「优化与质量凭据」，同时展示 requested/resolved/effective、独立质量协议和经过 SHA-256 验证的下载链接。机制报告提供指标筛选与原始 seq；缺失保持未知，质量样本用于检查评测链路，正式质量与性能验收采用任务数据集和独立进程。
 
 2026-10-16 的 Jetson 测试服务位于独立 checkout `/home/jetson/work/HQSB-benchmark-ui-20261016`，监听 `127.0.0.1:8768`，沿用 `/home/jetson/work/HQSB-g01-g08-20261014/.console/connected/` 的运行和实验数据；原 8767 实例保留。当前默认开发服务已迁至 3090；如需查看 Jetson 原服务，可使用独立转发入口：
 
@@ -161,13 +171,13 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-benchmark-ui-20261016
 
 进入“评测 → 性能与质量对照”（`/benchmarks`），默认预选四个版本化用例：算术短答案、JSON 结构化提取、上下文检索、开放解释。输入原文可展开，输入及计划保存 SHA-256。选择一个基线和最多三个候选方案，统一 greedy 与输出预算，直接开始对照。默认候选为 RMSNorm half2 v2 和局部融合 v1；原生制品不可用时对应候选禁用。`/playground` 保留为交互推理案例，`/optimization` 保留为高级预注册实验。
 
-每个方案、每个用例先预热一次，再测量 1–5 次。服务端按方案串行切换和重载模型，刷新或离开浏览器不改变执行；同一时刻只允许一轮对照占用控制面，结束或取消后尝试恢复原部署。服务重启将未结束对照标为 `interrupted`，保留已接受任务，不自动重提，也不承诺恢复重启前的模型进程。
+每个方案、每个用例先预热一次，再测量 1–5 次。服务端按方案串行切换和重载模型，刷新或离开浏览器不改变执行；同一时刻只允许一轮对照占用控制面，结束或取消后尝试恢复原部署。服务重启将未结束对照标为 `interrupted`，保留已接受任务，不自动重提，重新加载模型后可继续创建对照。
 
-按用例分别展示输出、参考答案正确率、基线 Token 一致率、首 Token、生成 E2E、Decode 吞吐、输入/输出 Token 数与峰值分配内存。前三个用例按固定答案评分，开放解释没有客观分；一致率不等于正确率，达到输出预算会显示可能截断。只有完整且生效凭据、输入 Token、实际输出数量和模型/源码/分词器身份可对齐时才显示 E2E 相对值。计时不含加载、分词、预热、归档和评分；同 worker 快速比较不能替代独立进程 AB/BA 正式性能验收。
+按用例分别展示输出、参考答案正确率、基线 Token 一致率、首 Token、生成 E2E、Decode 吞吐、输入/输出 Token 数与峰值分配内存。前三个用例按固定答案评分，开放解释没有客观分；一致率与参考答案正确率分别统计，达到输出预算会显示可能截断。只有完整且生效凭据、输入 Token、实际输出数量和模型/源码/分词器身份可对齐时才显示 E2E 相对值。计时不含加载、分词、预热、归档和评分；正式性能验收采用独立进程 AB/BA 对照。
 
 `GET /benchmark-catalog` 返回固定输入、目录与默认值；`POST /benchmarks` 冻结并执行，`GET /benchmarks`、`GET /benchmarks/{id}` 和 `POST /benchmarks/{id}/cancel` 提供历史、详情与取消。浏览器仅提交固定 ID 和有界预算，不能提交自定义路径或提示词。计划、角色、repeat、run ID、输出与投影凭据原子保存到数据目录 `benchmarks/bench_*.json`；生成原件继续使用已有 SQLite 运行记录与封存 capture。每次运行的 `config.benchmark_links` 反向关联本轮对照、用例和方案。可选内存/KV/系统页诊断独立执行，排除在性能统计之外；缺失指标保持未知。
 
-2026-10-16 已在 Jetson 验证 Qwen3-1.7B 的 native / RMSNorm half2 v2 / 局部融合 v1 三方案四用例，共 12 次预热、12 次测量，核对全部测量凭据与封存原件。另验证独立内存诊断、在运行中取消、原方案恢复、刷新不重提、桌面/小屏及免登录；升级前 143 条运行记录 SHA-256 未变。检索用例三方案均输出错误值 `blue39`，保留正确率 0 与一致率 1；开放任务保持未评分。私有原始证据与功能验收位于 `reports/console/benchmark-ui/`，不构成优化采用或通用质量结论。
+2026-10-16 已在 Jetson 验证 Qwen3-1.7B 的 native / RMSNorm half2 v2 / 局部融合 v1 三方案四用例，共 12 次预热、12 次测量，核对全部测量凭据与封存原件。另验证独立内存诊断、在运行中取消、原方案恢复、刷新不重提、桌面/小屏及免登录；升级前 143 条运行记录 SHA-256 未变。检索用例三方案均输出错误值 `blue39`，保留正确率 0 与一致率 1；开放任务保持未评分。私有原始证据与功能验收位于 `reports/console/benchmark-ui/`，优化采用与应用质量可进一步通过正式对照和任务评测确认。
 
 ### 推理界面的算子替换
 
@@ -175,4 +185,4 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-benchmark-ui-20261016
 
 “本次运行凭据与观测”显示 requested/resolved/effective、实际算子版本、Prefill/Decode 逻辑调用计数、未执行站点和 fallback，并提供封存的计划、绑定、汇总及执行凭据下载。阶段/token/allocator 摘要与内存、KV、OS 页、GPU profiler 的详细页面关联到同一个 run ID。逻辑调用证明与 GPU 活动、物理访存、质量和性能验收各有独立口径。
 
-`GET /api/console/v1/kernels/profiles?deployment_id=<id>` 提供部署级目录与制品文件身份检查；仅目录可读不代表模型加载通过。管理员通过 `kernel_manifest` 配置原生库的固定 manifest，浏览器不能提交库路径。当前服务绑定内容寻址制品；缺失或哈希不符的方案会禁用，worker 加载时仍校验 ABI、torch/CUDA/SM 及模型适配。默认继续免登录，默认加载方案仍为 `framework-native`。
+`GET /api/console/v1/kernels/profiles?deployment_id=<id>` 提供部署级目录与制品文件身份检查；目录检查后可加载模型验证。管理员通过 `kernel_manifest` 配置原生库的固定 manifest，浏览器不能提交库路径。当前服务绑定内容寻址制品；缺失或哈希不符的方案会禁用，worker 加载时仍校验 ABI、torch/CUDA/SM 及模型适配。默认继续免登录，默认加载方案仍为 `framework-native`。

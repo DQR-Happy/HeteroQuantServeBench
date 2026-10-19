@@ -58,7 +58,7 @@ TITLE = "VLM、Diffusion/DiT 或 Audio 的跨模型形态 Profiling"
 LEVEL = "P1"
 
 CLAIM_BOUNDARY = (
-    "只证明一个模型/任务/平台上的方法迁移，不声称通用多模态平台；未执行时必须标 N/A_BY_ADR，"
+    "验证指定模型、任务与平台上的方法迁移；未执行时标记 N/A_BY_ADR，"
     "并在文档中同步缩小能力声明（E14-06 §11）。"
 )
 
@@ -610,7 +610,7 @@ def streaming_semantics(
             "applicable": False,
             "status": rec.N_A_BY_ADR,
             "problems": [],
-            "note": "不适用时显式声明 N/A，而不是省略（step 30）",
+            "note": "不适用项记录为 N/A（step 30）",
         }
     if modality not in ("audio", "vlm"):
         problems.append(f"streaming declared for {modality!r}, which has no streaming path in this design")
@@ -845,7 +845,7 @@ def multimodal_adoption(
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-06 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-06 interfaces (CPU interface smoke check)."""
     choice = ModalityChoice(
         modality="audio", candidate_workload="streaming ASR",
         rationale="音频有独立的实时因子与 chunk 语义", job_relevance="端侧/流式",

@@ -225,7 +225,7 @@ def usage(record: dict) -> str:
             "由相邻 CMake target 编译/链接；仅在对应远端硬件执行，不单独在 Mac 编译。"
         )
     if path.endswith((".yaml", ".yml", ".json")):
-        return "作为配置、schema 或样例传给同域 runner/loader；冻结配置不是测量结果，不直接执行。"
+        return "作为配置、schema 或样例传给同域 runner/loader；冻结配置由对应 runner 读取并执行，测量结果保存在运行记录中。"
     return "阅读/引用资源；结合所在目录的工作流使用，不作为程序入口。"
 
 
@@ -299,7 +299,7 @@ def main() -> int:
         "",
         "本目录由 `scripts/audit/project_inventory.py` 在 Jetson 静态解析生成，不导入业务模块。",
         "作用来自文件/类/函数原始说明，依赖与消费者来自显式 AST import；动态注册、字符串路径和反射不一定被覆盖。",
-        "它是全文件导航，不代表逐行人工验证或所有 API 已完成真实硬件集成。设计与操作顺序请先读 [使用说明书](../使用说明书.md)。",
+        "它提供全文件导航，API 的硬件集成状态见对应验证记录。设计与操作顺序请先读 [使用说明书](../使用说明书.md)。",
         "",
         f"覆盖 {len(records)} 个源码/配置/文档/测试文件；生成目录自身不递归列入。机器可读明细：`inventory.json`。",
         "",

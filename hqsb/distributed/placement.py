@@ -1,8 +1,7 @@
 """PlacementPlan: parallel coordinates → rank → device/CPU/NIC (E10-01).
 
 The plan is an *intent*; the acceptance criterion is the comparison with what
-the processes actually bound to (details README §7: "环境变量写了 device 0
-不等于进程实际只访问 device 0").
+the processes actually bound to (details README §7: "配置中的 device 0 需与进程实际访问设备对照").
 
 Everything here is pure data plus validation: building the plan, generating the
 launcher/rank table from the same object, comparing planned vs actual rank

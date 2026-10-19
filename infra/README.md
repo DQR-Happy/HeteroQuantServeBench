@@ -1,9 +1,9 @@
 # `infra/` — S13 部署与可观测性资产（模板，未验证）
 
 > 状态：**`IMPLEMENTED_UNVERIFIED` / `DESIGN_ONLY`（模板未构建、未部署）**
-> 本目录的每个文件都是 E13-01…E13-11 执行时**要被构建、渲染、部署、扫描**的输入，
-> 不是执行结果。任何"镜像已构建""Helm 已发布""告警已生效"的表述都必须等到
-> `docs/reports/S13_阶段验收报告.md` 中的实验层由 `BLOCKED` 变为有 raw 证据的判定。
+> 本目录提供 E13-01…E13-11 的构建、渲染、部署和扫描输入。
+> 镜像、Helm 与告警的执行状态记录在 `docs/reports/S13_阶段验收报告.md`，
+> 每项判定关联相应 raw 证据。
 
 ## 目录与用途
 
@@ -21,12 +21,11 @@
 
 `values.yaml`、`alerts.yaml`、`dashboards.yaml` 中出现的数值一律是**策略默认值**，
 以标记 `POLICY_DEFAULT_UNVERIFIED` 标注，并由
-`tests/unit/infra/test_infra_assets.py` 断言该标记存在。它们**不是测量结果**，
-正式 run 时必须由 campaign 输入（`preregistration/*.yaml`）覆盖并在报告中冻结。
+`tests/unit/infra/test_infra_assets.py` 检查该标记。正式运行使用 campaign
+输入（`preregistration/*.yaml`）覆盖默认值，并将实际配置冻结到报告中。
 
 ## 与实验的关系
 
-这些资产让"从空环境部署""生命周期不丢请求""发布有 gate 和回滚"具备可执行对象；
-它们本身**不构成** E13-02/E13-05/E13-10 的通过证据——那需要真实的
-cluster events、probe timeline、rollout 记录与 canary 决策（见
+这些资产用于环境部署、生命周期管理、发布门禁与回滚。
+E13-02/E13-05/E13-10 按 cluster events、probe timeline、rollout 记录与 canary 决策验收（见
 `docs/stage_experiments/details/S13/*`）。

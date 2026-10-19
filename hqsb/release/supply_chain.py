@@ -414,7 +414,7 @@ def verify_provenance(
         "checks": checks,
         "failed": failed,
         "ok": not failed,
-        "note": "验证失败是 hard fail，不退回“checksum 对就行”；provenance 也不是“没有漏洞”的保证",
+        "note": "验证失败记录为 hard fail；provenance 与漏洞扫描分别核验",
     }
 
 
@@ -999,7 +999,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 TITLE = "Tag→Release 制品、Provenance、SBOM 与许可证"
 LEVEL = "P0"
 CLAIM_BOUNDARY = (
-    "E15-05 证明发布资产可绑定、可验证、可合法分发；不证明源码无恶意或无漏洞"
+    "E15-05 验证发布资产的身份、完整性与分发许可，源码安全由对应审计评估"
 )
 
 

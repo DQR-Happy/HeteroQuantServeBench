@@ -36,7 +36,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-11"
 TITLE = "多租户认证、授权、配额、Secrets、脱敏、网络隔离与滥用防护"
 CLAIM_BOUNDARY = (
-    "本实验通过只证明声明威胁模型内的控制有效；不等于抵抗所有侧信道、节点管理员攻击或获得安全认证。"
+    "本实验按声明的威胁模型验证控制措施，并记录攻击场景与结果。"
 )
 
 SCHEMA_VERSION = "1.0.0"

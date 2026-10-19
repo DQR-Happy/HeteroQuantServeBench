@@ -374,7 +374,7 @@ class PolicySnapshot:
         if self.transfer_event_id and not self.transfer_verified:
             problems.append(
                 "PolicySnapshot: a weight transfer event must be verified in the inference engine "
-                "(E14-04 step 23: 传输 API 成功不等于部分 rank/参数已更新)"
+                "(E14-04 step 23: 核对各 rank 与参数的更新完成状态)"
             )
         return problems
 

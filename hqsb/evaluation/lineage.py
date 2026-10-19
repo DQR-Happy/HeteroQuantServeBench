@@ -42,7 +42,7 @@ EXPERIMENT_ID = "E12-10"
 TITLE = "Dashboard/报告点到 Raw 的端到端 Lineage、校验与一键重生成"
 CLAIM_BOUNDARY = (
     "本实验通过证明 S12 报告是可追溯、可重建的 evidence product，"
-    "不证明外部团队无需任何硬件/权限即可复现所有设备测量。"
+    "设备测量的复现需具备报告所列硬件与权限。"
 )
 
 ENTITY_TYPES: Tuple[str, ...] = (

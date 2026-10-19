@@ -30,7 +30,7 @@ EXPERIMENT_ID = "E12-07"
 TITLE = "云租赁/自建 TCO、Cost per Token、容量密度与敏感性"
 CLAIM_BOUNDARY = (
     "本实验通过只证明'在这些明确假设下成本如何'，"
-    "不证明未来价格或实际采购条件不变；无可靠价格时不得声称 TCO。"
+    "按记录日期与采购条件计算 TCO，价格缺失时保留对应状态。"
 )
 
 SCENARIO_KINDS: Tuple[str, ...] = (

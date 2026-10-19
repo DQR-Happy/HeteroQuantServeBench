@@ -460,7 +460,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "真实上游 Issue/PR/文档贡献"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-10 证明真实、可核验的上游协作；merged 不是唯一通过标准"
+CLAIM_BOUNDARY = "E15-10 按公开协作记录与评审过程核验上游贡献"
 
 
 def smoke_self_check() -> Dict[str, Any]:

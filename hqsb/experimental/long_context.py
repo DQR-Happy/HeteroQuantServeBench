@@ -163,7 +163,7 @@ def kv_capacity(
         "blocks": blocks,
         "block_tokens": block_tokens,
         "block_overhead_ratio": block_overhead_ratio,
-        "note": "单请求最大长度不等于服务容量（step 24）",
+        "note": "单请求最大长度与并发服务容量分别测量（step 24）",
     }
 
 
@@ -359,7 +359,7 @@ def calibrate_bytes_per_token(
         "theoretical_bytes_per_token": theoretical,
         "ratio": ratio,
         "consistent": 0.8 <= ratio <= 1.5 if theoretical else False,
-        "note": "偏离理论值必须由 block/对齐/metadata 解释，而不是记成随机噪声",
+        "note": "结合 block、对齐与 metadata 分析实测值相对理论值的偏差",
     }
 
 
@@ -742,7 +742,7 @@ def reconcile_prediction(
         "ttft_ratio": measured_ttft_ms / predicted_ttft_ms,
         "bytes_per_token_used": bytes_per_token_used,
         "explained": abs(measured_ttft_ms / predicted_ttft_ms - 1.0) <= 0.2,
-        "note": "“显存少了所以快”不是解释；必须用 bytes/token、block waste 与 kernel profile 重建（step 37）",
+        "note": "结合 bytes/token、block waste 与 kernel profile 分析内存和速度变化（step 37）",
     }
 
 
@@ -813,7 +813,7 @@ def f3_adoption(
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-F3 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-F3 interfaces (CPU interface smoke check)."""
     geometry = kv_bytes_per_token(
         layers=28, kv_heads_per_rank=4, head_dim=128, storage="int8",
         scale_group_size=64, metadata_bytes_per_group=2,

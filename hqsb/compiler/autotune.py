@@ -583,7 +583,7 @@ def per_shape_oracle(
         "best_median": round(_median(best.raw_timing_samples), 6),
         "oracle_scope": oracle_scope,
         "candidates_considered": len(eligible),
-        "note": "this oracle is the best of the frozen candidate set, not a hardware optimum",
+        "note": "this oracle selects the best member of the frozen candidate set",
     }
 
 

@@ -34,7 +34,7 @@ EXPERIMENT_ID = "E12-08"
 TITLE = "业务画像约束下的 Pareto Frontier、稳健性与部署建议"
 CLAIM_BOUNDARY = (
     "本实验通过证明部署建议来自透明约束和非支配关系，"
-    "不证明业务偏好永远不变，也不给脱离 workload 的总冠军。"
+    "部署建议关联指定 workload 与业务偏好。"
 )
 
 PROFILE_IDS: Tuple[str, ...] = (

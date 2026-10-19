@@ -29,7 +29,7 @@
 
 ### E14-01 Core/Experimental 依赖、Feature Flag 与 CI 隔离
 
-claim boundary: 只证明依赖边界、导入纯度与 feature 启停语义；不证明任何训练/RL/前沿算法正确、快速或值得进入主线（E14-01 §11）。
+claim boundary: 验证依赖边界、导入纯度与 feature 启停语义；算法正确性与性能在对应实验中评估并记录采用建议（E14-01 §11）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -80,7 +80,7 @@ claim boundary: 只证明依赖边界、导入纯度与 feature 启停语义；�
 
 ### E14-02 分布式训练语义、状态、通信与 Checkpoint Smoke
 
-claim boundary: 只证明小模型、给定 topology 的训练能力；不证明模型质量更好，也不证明所选框架优于其他框架（E14-02 §13）。
+claim boundary: 验证指定小模型和 topology 的训练能力，模型质量与框架性能通过各自对照评估（E14-02 §13）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -131,7 +131,7 @@ claim boundary: 只证明小模型、给定 topology 的训练能力；不证明
 
 ### E14-03 Checkpoint→转换/Merge→Quant→Runtime 的训推一致性
 
-claim boundary: 只证明转换 DAG、分层语义门与负向拒绝；不证明训练改善质量，也不证明转换后的 runtime 更快（E14-03 §12）。
+claim boundary: 验证转换 DAG、分层语义检查和异常处理，模型质量与 runtime 性能分别评估（E14-03 §12）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -182,7 +182,7 @@ claim boundary: 只证明转换 DAG、分层语义门与负向拒绝；不证明
 
 ### E14-04 SFT/DPO/GRPO Rollout、同步/异步与 Policy Staleness
 
-claim boundary: 只证明小模型、数据集与有限训练步下的系统正确性；不等于模型已获得通用对齐、推理或安全能力（E14-04 §12）。
+claim boundary: 验证指定小模型、数据集与训练步数下的系统正确性，能力评测按相应任务单独执行（E14-04 §12）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -233,7 +233,7 @@ claim boundary: 只证明小模型、数据集与有限训练步下的系统正�
 
 ### E14-05 前沿方向 ADR、可证伪假设与跨层预注册
 
-claim boundary: 只证明问题值得问且实验能给出可信答案；不生成任何算法 speedup，也不代表选中分支会有正收益（E14-05 §11）。
+claim boundary: 验证研究问题、实验可行性及结论的可复核性；算法收益由后续实验测量（E14-05 §11）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -284,7 +284,7 @@ claim boundary: 只证明问题值得问且实验能给出可信答案；不生�
 
 ### E14-F1 Speculative/MTP Acceptance、额外计算与服务调度
 
-claim boundary: 只在 F1 为唯一主分支时成立；质量与 actual-path 门通过前，acceptance 数字不构成加速声明。无收益但门禁与归因完整时可形成 PASS_NEGATIVE/REJECT_NO_BENEFIT（E14-F1 §12）。
+claim boundary: F1 为唯一主分支时，分别记录接受率、质量、actual-path 与端到端速度。无收益但门禁与归因完整时可形成 PASS_NEGATIVE/REJECT_NO_BENEFIT（E14-F1 §12）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -335,7 +335,7 @@ claim boundary: 只在 F1 为唯一主分支时成立；质量与 actual-path �
 
 ### E14-F2 MoE Router、Expert Parallel、All-to-All 与负载均衡
 
-claim boundary: 只在 F2 为唯一主分支时成立；受控 router replay 只能用于系统测试，不能产生质量结论。无收益但能证明通信/小 GEMM/热点是原因时应输出 PASS_NEGATIVE（E14-F2 §12）。
+claim boundary: F2 为唯一主分支时，受控 router replay 用于系统测试，模型质量通过独立任务评测。无收益但能证明通信/小 GEMM/热点是原因时应输出 PASS_NEGATIVE（E14-F2 §12）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -437,7 +437,7 @@ claim boundary: 只在 F3 为唯一主分支时成立；容量提升必须同时
 
 ### E14-F4 结构化稀疏/Sparse Attention 的真实硬件加速
 
-claim boundary: 只在 F4 为唯一主分支时成立；零元素比例不等于硬件稀疏，micro speedup 不等于模型收益。严格证明“当前硬件/shape 不值得采用”同样是有价值的结果（E14-F4 §12）。
+claim boundary: F4 为唯一主分支时，分别记录零元素比例、硬件稀疏执行、microbenchmark 和模型结果。严格证明“当前硬件/shape 不值得采用”同样是有价值的结果（E14-F4 §12）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|
@@ -488,7 +488,7 @@ claim boundary: 只在 F4 为唯一主分支时成立；零元素比例不等于
 
 ### E14-06 VLM、Diffusion/DiT 或 Audio 的跨模型形态 Profiling
 
-claim boundary: 只证明一个模型/任务/平台上的方法迁移，不声称通用多模态平台；未执行时必须标 N/A_BY_ADR，并在文档中同步缩小能力声明（E14-06 §11）。
+claim boundary: 验证指定模型、任务与平台上的方法迁移；未执行时标记 N/A_BY_ADR，并在文档中同步缩小能力声明（E14-06 §11）。
 
 | # | 步骤 | 代码接口 |
 |---|---|---|

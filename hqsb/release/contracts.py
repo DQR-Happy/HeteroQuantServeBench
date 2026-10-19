@@ -888,7 +888,7 @@ def check_credibility_factors(present: Mapping[str, bool]) -> Dict[str, Any]:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the contract layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the contract layer (CPU interface smoke check)."""
     problems: List[str] = []
     candidate = ReleaseCandidateSnapshot(
         candidate_id="cand-1",

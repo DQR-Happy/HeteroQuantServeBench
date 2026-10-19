@@ -553,7 +553,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "第三方 Clean-room Reproduction 与修复复测"
 LEVEL = "P0"
-CLAIM_BOUNDARY = "E15-09 代表至少一次受控、独立的主要结果复现；不代表所有用户、所有设备或未来版本都能自动复现"
+CLAIM_BOUNDARY = "E15-09 记录一次受控、独立的主要结果复现及对应设备、版本和复现条件"
 
 
 def smoke_self_check() -> Dict[str, Any]:

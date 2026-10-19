@@ -910,7 +910,7 @@ def resource_pareto(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     return {
         "dimensions": list(keys),
         "pareto_front": [dict(row) for row in best],
-        "note": "a faster candidate with exploding memory is a trade-off, not a free optimisation",
+        "note": "evaluate candidate speed together with memory growth",
     }
 
 

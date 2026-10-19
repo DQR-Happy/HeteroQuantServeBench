@@ -146,7 +146,7 @@ def toolchain_export_plan(snapshot: TargetSnapshot) -> Dict[str, Any]:
         "missing_tools": capability["missing"],
         "sass_binding_rule": (
             "every disassembly must be produced from the formal run binary hash; recompiling a "
-            "'similar' artifact is not evidence"
+            "requires the matching artifact identity"
         ),
     }
 

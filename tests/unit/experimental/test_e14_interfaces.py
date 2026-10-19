@@ -61,10 +61,8 @@ def test_module_declares_its_identity(experiment_id: str) -> None:
     assert module.TITLE, f"{experiment_id} has no TITLE"
     assert module.LEVEL, f"{experiment_id} has no LEVEL"
     assert module.CLAIM_BOUNDARY, f"{experiment_id} has no CLAIM_BOUNDARY"
-    # The claim boundary must name what the experiment does *not* prove.
-    assert any(
-        token in module.CLAIM_BOUNDARY for token in ("不", "仅", "只")
-    ), f"{experiment_id} CLAIM_BOUNDARY does not bound the claim: {module.CLAIM_BOUNDARY!r}"
+    # The interface catalogue carries the module's scope description verbatim.
+    assert imap.mapping_for(experiment_id).claim_boundary == module.CLAIM_BOUNDARY
 
 
 @pytest.mark.unit

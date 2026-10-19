@@ -713,7 +713,7 @@ def build_experiment_record(experiment_id: str, *, git: Optional[Mapping[str, An
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the scaffolding (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the scaffolding (CPU interface smoke check)."""
     problems: List[str] = []
     run = RunDirectory("/tmp/hqsb-s15-smoke", "E15-01", "interface_only")
     created = run.create()

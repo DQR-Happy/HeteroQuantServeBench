@@ -182,9 +182,9 @@ def capture(
             )
     report["artifacts"] = files
     report["limitations"] = [
-        "Separate capture; never merge counters into another run by temporal proximity.",
-        "Selected kernel counter ratios are not a whole-model cache hit rate.",
-        "Replay and profiler perturb execution; not a performance benchmark.",
+        "Counters are associated with this independent capture and its run identity.",
+        "Counter ratios cover the selected kernels in this capture.",
+        "Replay and profiler runs include collection overhead; performance is measured separately.",
     ]
     atomic_json(directory / "tool-manifest.json", report)
     return report

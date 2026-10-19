@@ -33,7 +33,7 @@ EXPERIMENT_ID = "E13-01"
 TITLE = "可重建容器、SBOM、漏洞/秘密/许可证与供应链 Gate"
 CLAIM_BOUNDARY = (
     "本实验通过证明一个 release image 的来源与运行边界可信（digest/SBOM/扫描/非 root）；"
-    "不证明该 release 已在集群完成模型服务、容量或可靠性验收。"
+    "该 release 的模型服务、容量与可靠性由集群实验分别验收。"
 )
 
 SCHEMA_VERSION = "1.0.0"

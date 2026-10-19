@@ -29,7 +29,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-09"
 TITLE = "进程、Pod、节点、设备、Cache、存储、网络、制品、OOM、Thermal 故障注入与恢复"
 CLAIM_BOUNDARY = (
-    "本实验通过证明已测故障的真实行为；不证明系统对未建模故障、区域级灾难或恶意攻击自动可靠。"
+    "验证已列故障场景的检测、恢复行为与结果。"
 )
 
 SCHEMA_VERSION = "1.0.0"

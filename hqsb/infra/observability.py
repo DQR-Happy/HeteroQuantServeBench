@@ -32,7 +32,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-08"
 TITLE = "Request→Queue→Runtime→Accelerator→System 可观测性、告警与 RCA"
 CLAIM_BOUNDARY = (
-    "本实验通过证明系统可被观测与定位；不证明所有故障已恢复或发布策略正确"
+    "验证系统的观测与定位能力，故障恢复和发布策略分别评测"
     "（由 E13-09/E13-10 验证行动闭环）。"
 )
 

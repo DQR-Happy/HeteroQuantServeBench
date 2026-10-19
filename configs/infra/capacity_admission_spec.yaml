@@ -3,7 +3,7 @@ name: S13 capacity/admission vocabulary
 description: 内存账本组件、admission 策略与 reason code、扫参与功能轴（E13-06 §2–§5）
 schema_version: 1.0.0
 status: FROZEN_VOCABULARY_ONLY
-notes: 只冻结结构与词汇，不含任何测量值；阈值/副本数/流量比例属于 campaign 输入
+notes: 冻结结构与词汇；阈值、副本数和流量比例由 campaign 输入提供，测量值保存在运行记录中
 memory_components:
 - M_weights_resident
 - M_engine_kernel_graph

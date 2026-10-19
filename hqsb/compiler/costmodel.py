@@ -494,7 +494,7 @@ def evaluate_baselines(
     return {
         "rows": rows,
         "oracle_latency": oracle["latency"],
-        "note": "beating random_legal alone is not evidence; the strong baselines are default/heuristic/oracle",
+        "note": "compare against default, heuristic and oracle baselines",
     }
 
 

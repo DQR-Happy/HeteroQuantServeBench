@@ -29,7 +29,7 @@ EXPERIMENT_ID = "E12-02"
 TITLE = "跨平台 Capability 自动探测与运行证据矩阵"
 CLAIM_BOUNDARY = (
     "本实验通过只证明当前 SUT 能执行所需最小能力，"
-    "不证明其性能、稳定性、能效或成本优越；未验证能力不得写成 supported。"
+    "各项能力按验证状态展示，性能、稳定性、能效与成本分别评估。"
 )
 
 SCHEMA_VERSION = "1.0.0"

@@ -283,7 +283,7 @@ def role_block_analysis(sessions: Sequence[ParticipantSession], *, coded: Mappin
     return {
         "sessions": len(sessions),
         "by_participant": {key: by_block[key] for key in sorted(by_block)},
-        "note": "两个岗位 block 分开呈现；不把一个群体的最优结构强加给另一个群体，也不计算虚假的总体百分比",
+        "note": "两个岗位 block 分别呈现并按各自群体统计",
     }
 
 
@@ -416,7 +416,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 
 TITLE = "目标岗位读者 5 分钟首屏理解实验"
 LEVEL = "P1"
-CLAIM_BOUNDARY = "E15-11 只能改变信息架构；不改变成熟度或性能数字，不提供统计代表性"
+CLAIM_BOUNDARY = "E15-11 按目标读者的任务体验调整信息架构，并保留原始成熟度与性能数据"
 
 
 def smoke_self_check() -> Dict[str, Any]:

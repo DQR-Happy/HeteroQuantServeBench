@@ -1,4 +1,4 @@
-"""Real stdlib HTTP/SSE binding smoke test (labelled smoke, not an experiment)."""
+"""Real stdlib HTTP/SSE binding smoke test (CPU interface smoke check)."""
 
 from __future__ import annotations
 

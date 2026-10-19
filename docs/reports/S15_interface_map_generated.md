@@ -26,7 +26,7 @@
 
 ## E15-01 — 全局 Claim Ledger、声明扫描与证据门禁
 
-> claim boundary: E15-01 只证明“当前候选公开陈述有证据且无已知越界”；不证明证据已被独立第三方复现（E15-09）
+> claim boundary: E15-01 核对当前候选公开陈述与证据的一致性，独立复现见 E15-09
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -78,7 +78,7 @@
 
 ## E15-02 — Clean CPU Quickstart 与最低门槛复现
 
-> claim boundary: E15-02 只证明最低访问门槛真实、独立且可审计；不证明 CPU 推理性能或任何 kernel 正确性
+> claim boundary: E15-02 验证最低访问门槛与独立执行步骤，性能及 kernel 正确性见对应测试
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -130,7 +130,7 @@
 
 ## E15-03 — 目标 GPU/NPU Hero Story 独立重放
 
-> claim boundary: E15-03 是作者侧/受控新环境的重放，不等于独立第三方复现（E15-09 才验证独立性）
+> claim boundary: E15-03 验证作者侧受控新环境重放，E15-09 验证独立第三方复现
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -182,7 +182,7 @@
 
 ## E15-04 — 可执行文档、双语一致性与能力矩阵对账
 
-> claim boundary: E15-04 通过说明文档与当前候选一致且可执行，不说明陌生读者一定能快速理解（E15-11）
+> claim boundary: E15-04 核对文档与当前候选的一致性和可执行性，读者使用体验见 E15-11
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -234,7 +234,7 @@
 
 ## E15-05 — Tag→Release 制品、Provenance、SBOM 与许可证
 
-> claim boundary: E15-05 证明发布资产可绑定、可验证、可合法分发；不证明源码无恶意或无漏洞
+> claim boundary: E15-05 验证发布资产的身份、完整性与分发许可，源码安全由对应审计评估
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -286,7 +286,7 @@
 
 ## E15-06 — Dashboard/图表→Raw 数据反向追溯与重生成
 
-> claim boundary: E15-06 证明抽查与结构门下图表可追溯、可重建；不证明未抽数据的科学结论自动正确
+> claim boundary: E15-06 验证抽查图表的可追溯性、结构与重建步骤
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -338,7 +338,7 @@
 
 ## E15-07 — 3–5 分钟 Demo、故障注入与诚实降级
 
-> claim boundary: E15-07 证明演示在有限时间和故障下可靠、诚实；不证明观众已经理解技术（E15-08/E15-11）
+> claim boundary: E15-07 验证演示的时间与故障处理，读者理解情况见 E15-08/E15-11
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -390,7 +390,7 @@
 
 ## E15-08 — 3/10/30 分钟讲述与对抗技术问答
 
-> claim boundary: E15-08 证明表达可验证且技术上可防守；不代表真实招聘结果，也不替代 E15-09 的独立复现
+> claim boundary: E15-08 验证技术表达与证据的一致性；独立复现见 E15-09
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -435,14 +435,14 @@
 | 39 | 执行矛盾证据测试 | `hero_replay.replay_verdict`, `narrative.AnswerRubric` |
 | 40 | 执行 attribution 审计 | `contracts.ContributionRecord.problems`, `narrative.InterviewSession` |
 | 41 | 汇总盲评和分歧 | `narrative.InterviewSession.reviewer_ids`, `telemetry.TimeToEventSummary` |
-| 42 | 修订表达而非事实 | `narrative.check_two_role_fact_diff`, `claims.revise_claim` |
+| 42 | 按已记录事实修订表达 | `narrative.check_two_role_fact_diff`, `claims.revise_claim` |
 | 43 | 生成 FAQ 和证据索引 | `narrative.generate_faq` |
 | 44 | 生成简历 bullet 候选 | `narrative.generate_resume_bullets` |
 | 45 | 冻结 InterviewNarrativeRecord | `narrative.freeze_narrative`, `records.InterviewSessionResult` |
 
 ## E15-09 — 第三方 Clean-room Reproduction 与修复复测
 
-> claim boundary: E15-09 代表至少一次受控、独立的主要结果复现；不代表所有用户、所有设备或未来版本都能自动复现
+> claim boundary: E15-09 记录一次受控、独立的主要结果复现及对应设备、版本和复现条件
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -494,7 +494,7 @@
 
 ## E15-10 — 真实上游 Issue/PR/文档贡献
 
-> claim boundary: E15-10 证明真实、可核验的上游协作；merged 不是唯一通过标准
+> claim boundary: E15-10 按公开协作记录与评审过程核验上游贡献
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|
@@ -546,7 +546,7 @@
 
 ## E15-11 — 目标岗位读者 5 分钟首屏理解实验
 
-> claim boundary: E15-11 只能改变信息架构；不改变成熟度或性能数字，不提供统计代表性
+> claim boundary: E15-11 按目标读者的任务体验调整信息架构，并保留原始成熟度与性能数据
 
 | 步骤 | 协议步骤 | 代码接口 |
 |---|---|---|

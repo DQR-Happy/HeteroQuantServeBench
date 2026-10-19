@@ -35,9 +35,9 @@ SCHEMA_VERSION = "1.0.0"
 #: S14's additions to the C6 result contract.
 C6_EXTENSION_FIELDS: Mapping[str, Tuple[str, str]] = {
     "training_run_id": ("E14-02", "哪次训练产生了这一行"),
-    "training_step": ("E14-02", "训练步（不是独立重复单位）"),
+    "training_step": ("E14-02", "训练步（重复统计按独立 run / seed 分组）"),
     "rank": ("E14-02", "数据并行 rank"),
-    "world_size": ("E14-02", "实际 world size（不是 launcher 参数）"),
+    "world_size": ("E14-02", "运行时实际 world size"),
     "policy_snapshot_id": ("E14-04", "生成该样本的策略版本"),
     "staleness_steps": ("E14-04", "consume_step - produce_policy_step"),
     "frontier_study_contract_id": ("E14-05", "该行所属的冻结协议"),
@@ -50,12 +50,12 @@ C6_EXTENSION_FIELDS: Mapping[str, Tuple[str, str]] = {
     "kv_physical_bytes": ("E14-F3", "KV 物理字节（含 block/对齐）"),
     "kv_metadata_bytes": ("E14-F3", "KV scale/zero/索引元数据字节"),
     "truncated_tokens": ("E14-F3", "被截断的 token 数（非零即不支持该长度）"),
-    "acceptance": ("E14-F1", "接受率（不等于加速）"),
-    "tokens_per_expert": ("E14-F2", "每 expert token 数（分布，不是均值）"),
+    "acceptance": ("E14-F1", "候选 Token 接受率"),
+    "tokens_per_expert": ("E14-F2", "各 expert 的 Token 数分布"),
     "imbalance_cv": ("E14-F2", "expert 负载变异系数"),
     "imbalance_gini": ("E14-F2", "expert 负载 Gini"),
     "max_to_mean_ratio": ("E14-F2", "最热 expert/mean"),
-    "task_native_metric": ("E14-06", "任务原生指标名（不是 token/s）"),
+    "task_native_metric": ("E14-06", "任务原生指标名称"),
     "evidence_level": ("E14-08", "MAP_ONLY | DEVICE_MEASURED"),
     "idempotency_key_hash": ("E14-07", "工具调用的幂等键"),
 }
@@ -68,8 +68,8 @@ C7_EXTENSION_FIELDS: Mapping[str, Tuple[str, str]] = {
         "weight_active | runtime_iteration | kernel | collective | service_request | service_stream",
     ),
     "span_kind": ("E14-07", "model | tool | orchestration | memory | queue | retry_wait"),
-    "waiting": ("E14-07", "该 span 是否主要是等待而非执行"),
-    "on_critical_path": ("E14-07", "是否在关键路径（span 求和不等于 E2E）"),
+    "waiting": ("E14-07", "该 span 的主要耗时是否为等待"),
+    "on_critical_path": ("E14-07", "是否位于端到端关键路径"),
     "clock_domain": ("S14 README §24.1", "单调时钟域；跨进程/节点必须声明对齐策略"),
     "modality_phase": ("E14-06", "preprocess | encode | project | denoise | decode | postprocess"),
     "policy_snapshot_id": ("E14-04", "该 span 由哪一版策略产生"),
@@ -443,7 +443,7 @@ def schema_audit() -> Dict[str, Any]:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the projection layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the projection layer (CPU interface smoke check)."""
     checks: Dict[str, Any] = {"status": "smoke", "claim_allowed": False}
     checks["c6_fields"] = len(C6_EXTENSION_FIELDS)
     checks["c7_fields"] = len(C7_EXTENSION_FIELDS)

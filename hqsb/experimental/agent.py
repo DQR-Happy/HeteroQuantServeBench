@@ -245,7 +245,7 @@ DANGEROUS_ARGUMENT_TOKENS: Tuple[str, ...] = ("../", "..\\", "/etc/", "~/.ssh", 
 def validate_tool_call(call: Mapping[str, Any], contracts: Mapping[str, ToolContract]) -> Dict[str, Any]:
     """Steps 14–15: schema, required fields, ranges, enum and permission — *before* execution.
 
-    ``E14-07`` §10: 模型生成合法 JSON 不等于工具调用安全; the validator therefore
+    ``E14-07`` §10: 工具调用需进一步校验权限、参数和执行范围; the validator therefore
     refuses unknown fields and dangerous arguments rather than filling defaults.
     """
     problems: List[str] = []
@@ -731,7 +731,7 @@ def reconstruct_critical_path(
         "parallel_slack_ns": span_sum - wall,
         "idle_gap_ns": wall - duration,
         "problems": problems,
-        "note": "span 求和不等于 E2E：必须给出 critical path 与 idle gap（step 18）",
+        "note": "分别记录 E2E、critical path 与 idle gap（step 18）",
     }
 
 
@@ -1056,7 +1056,7 @@ def agent_workload_decision(
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-07 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-07 interfaces (CPU interface smoke check)."""
     contract = ToolContract(
         tool_id="t1", name="search", safety_level="read_only",
         parameters={"query": {"type": "string", "maxLength": 64}},

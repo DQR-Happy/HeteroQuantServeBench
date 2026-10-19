@@ -523,7 +523,7 @@ class FrozenInputs:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the identity layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the identity layer (CPU interface smoke check)."""
     problems: List[str] = []
     fact = {
         "claim_type": "performance",

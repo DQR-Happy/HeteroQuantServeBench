@@ -237,7 +237,7 @@ class RuntimeCapabilityMap:
         findings: List[str] = []
         for name in ("runtime_id", "source_version"):
             if not getattr(self, name):
-                findings.append(f"RuntimeCapabilityMap: {name} is required (当前版本，而非营销支持列表)")
+                findings.append(f"RuntimeCapabilityMap: {name} is required (当前安装版本的实际能力)")
         if not self.formats:
             findings.append("RuntimeCapabilityMap: model formats must be listed")
         if not self.dtypes:
@@ -331,7 +331,7 @@ def estimate_memory_and_package(
             "runtime_library_bytes": runtime_library_bytes,
             "app_assets_bytes": app_assets_bytes,
         },
-        "note": "这是估算，不是实测；在采用决策中必须标 MAP_ONLY（step 11/12）",
+        "note": "此项为容量估算，采用决策标记为 MAP_ONLY（step 11/12）",
     }
 
 
@@ -790,7 +790,7 @@ def power_energy(
             "available": False,
             "source": source,
             "reason_code": "NOT_IMPLEMENTED",
-            "problems": ["an estimate is not a measurement"],
+            "problems": ["requires DEVICE_MEASURED evidence"],
         }
     if not calibrated:
         problems.append(f"source {source!r} is not declared calibrated")
@@ -859,7 +859,7 @@ def background_disturbance(rows: Sequence[Mapping[str, Any]], *, deadline_ms: fl
         "worst_deadline_miss_rate": worst,
         "deadline_ms": deadline_ms,
         "problems": problems,
-        "note": "实验室空机平均值不能代表真实端侧（step 32）",
+        "note": "分别记录空载与实际端侧负载的测量结果（step 32）",
     }
 
 
@@ -1072,13 +1072,13 @@ def edge_adoption(
     problems.extend(isolation_problems)
     if route == rec.EDGE_ROUTES[0]:
         if evidence_level != "DEVICE_MEASURED":
-            problems.append("route A requires DEVICE_MEASURED evidence; a technology map is not an adapter")
+            problems.append("route A requires DEVICE_MEASURED evidence; requires a device execution adapter")
         if not correctness.get("quality_eligible"):
             problems.append("device correctness/quality gate failed")
         if not timing.get("complete"):
             problems.append("cold/warm/sustained timing is incomplete")
         if not partition.get("accelerated_op_fraction"):
-            problems.append("no accelerated op fraction: 'NPU enabled' is not evidence")
+            problems.append("no accelerated op fraction: requires actual accelerated-operator coverage")
         if package.get("problems"):
             problems.append("package/startup gate failed")
         decision = rec.ADOPT_EXPERIMENTAL if not problems else (
@@ -1118,7 +1118,7 @@ def edge_adoption(
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-08 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-08 interfaces (CPU interface smoke check)."""
     route = RouteChoice(
         route="ROUTE_B_TECHNOLOGY_MAP", has_device=False, has_measurement_tooling=False,
         has_permission=False, rationale="no target device available",

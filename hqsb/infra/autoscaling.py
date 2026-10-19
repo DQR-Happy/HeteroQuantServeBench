@@ -32,8 +32,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-07"
 TITLE = "SLO/Queue/Token 多指标 Autoscaling、阶跃/突发/降载与控制稳定性"
 CLAIM_BOUNDARY = (
-    "本实验通过证明弹性控制在声明 workload 内稳定；不证明底层故障都能恢复，也不证明新 release 一定"
-    "安全（由 E13-09/E13-10 验证）。"
+    "验证声明 workload 下的弹性控制稳定性；故障恢复和新版本发布见 E13-09/E13-10。"
 )
 
 SCHEMA_VERSION = "1.0.0"

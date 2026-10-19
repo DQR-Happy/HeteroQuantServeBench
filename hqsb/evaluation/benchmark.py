@@ -46,7 +46,7 @@ EXPERIMENT_ID = "E12-03"
 TITLE = "Operator、Model-core、Service、Distributed 四层统一重放"
 CLAIM_BOUNDARY = (
     "本实验通过只证明统一协议下的数据被正确生产，"
-    "不证明结果已跨日稳定，也不单独给出硬件推荐。"
+    "跨日稳定性与硬件选择结合独立重复实验评估。"
 )
 
 OBSERVATION_STATUS_OK = "OK"

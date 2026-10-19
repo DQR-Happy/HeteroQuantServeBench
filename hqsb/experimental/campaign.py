@@ -319,7 +319,7 @@ def isolation_clause(operation: str) -> str:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the campaign layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the campaign layer (CPU interface smoke check)."""
     layout = run_layout("E14-01", "interface_only")
     problems: List[str] = []
     try:

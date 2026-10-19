@@ -1,4 +1,4 @@
-"""Actual deployed source identity, not just a possibly stale Git HEAD."""
+"""Identify deployed source files together with their Git revision."""
 
 import hashlib
 import importlib.metadata

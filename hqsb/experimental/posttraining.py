@@ -55,7 +55,7 @@ TITLE = "SFT/DPO/GRPO Rollout、同步/异步与 Policy Staleness"
 LEVEL = "P0"
 
 CLAIM_BOUNDARY = (
-    "只证明小模型、数据集与有限训练步下的系统正确性；不等于模型已获得通用对齐、推理或安全能力"
+    "验证指定小模型、数据集与训练步数下的系统正确性，能力评测按相应任务单独执行"
     "（E14-04 §12）。"
 )
 
@@ -794,7 +794,7 @@ def check_heldout_quality(
     if hacked:
         problems.append(
             f"train reward rose by {reward_gain:.4f} while held-out fell by {abs(delta):.4f}: "
-            "reward hacking / overfitting, not a PASS"
+            "reward hacking / overfitting detected"
         )
     return {
         "train_reward_gain": reward_gain,
@@ -900,7 +900,7 @@ class PostTrainingVerdict:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-04 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-04 interfaces (CPU interface smoke check)."""
     logits = [[2.0, 0.0, -1.0], [0.0, 2.0, -1.0]]
     sft = sft_loss(logits, [0, 1], [0, 1])
     dpo = dpo_loss({"chosen": -1.0, "rejected": -3.0}, {"chosen": -2.0, "rejected": -2.0}, beta=0.1)

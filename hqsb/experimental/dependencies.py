@@ -61,8 +61,8 @@ TITLE = "Core/Experimental 依赖、Feature Flag 与 CI 隔离"
 LEVEL = "P0"
 
 CLAIM_BOUNDARY = (
-    "只证明依赖边界、导入纯度与 feature 启停语义；不证明任何训练/RL/前沿算法正确、快速"
-    "或值得进入主线（E14-01 §11）。"
+    "验证依赖边界、导入纯度与 feature 启停语义；算法正确性与性能在对应实验中评估"
+    "并记录采用建议（E14-01 §11）。"
 )
 
 #: Dependency layers (``E14-01`` step 2).
@@ -1145,7 +1145,7 @@ class DependencyBoundaryVerdict:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-01 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-01 interfaces (CPU interface smoke check)."""
     registry = FeatureFlagRegistry(default_feature_flags())
     problems: List[str] = []
     _resolved, unknown_problems = registry.resolve({"train.distribued": True})

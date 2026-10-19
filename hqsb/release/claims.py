@@ -1380,7 +1380,7 @@ PROTOCOL_STEPS: Tuple[Tuple[int, str, Tuple[str, ...]], ...] = (
 TITLE = "全局 Claim Ledger、声明扫描与证据门禁"
 LEVEL = "P0"
 CLAIM_BOUNDARY = (
-    "E15-01 只证明“当前候选公开陈述有证据且无已知越界”；不证明证据已被独立第三方复现（E15-09）"
+    "E15-01 核对当前候选公开陈述与证据的一致性，独立复现见 E15-09"
 )
 
 

@@ -281,7 +281,7 @@ def audit_all_ok(reports: Sequence[Mapping[str, Any]]) -> bool:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the spec layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the spec layer (CPU interface smoke check)."""
     problems: List[str] = []
     good = {
         "kind": "release-policy",

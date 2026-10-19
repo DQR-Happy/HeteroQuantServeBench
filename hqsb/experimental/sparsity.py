@@ -59,7 +59,7 @@ TITLE = "结构化稀疏/Sparse Attention 的真实硬件加速"
 LEVEL = "条件 P0"
 
 CLAIM_BOUNDARY = (
-    "只在 F4 为唯一主分支时成立；零元素比例不等于硬件稀疏，micro speedup 不等于模型收益。"
+    "F4 为唯一主分支时，分别记录零元素比例、硬件稀疏执行、microbenchmark 和模型结果。"
     "严格证明“当前硬件/shape 不值得采用”同样是有价值的结果（E14-F4 §12）。"
 )
 
@@ -133,7 +133,7 @@ class SparseTransform:
         if self.route == ROUTES[0] and self.pattern == "unstructured":
             findings.append(
                 "SparseTransform: unstructured sparsity cannot claim a hardware sparse path "
-                "(2:4 是硬件契约，不是任意 50% 稀疏)"
+                "(2:4 要求每组四个元素保留两个非零元素)"
             )
         if self.route == ROUTES[1] and self.per_layer:
             findings.append("SparseTransform: per_layer sparsity belongs to route A; route B changes the mask")
@@ -338,7 +338,7 @@ def sparse_gemm_reference(
         "shape": [len(dense_a), columns],
         "result": result,
         "logical_sparsity": zeros / elements if elements else 0.0,
-        "note": "这是算法参考（dense 执行稀疏权重），不是 kernel 结果",
+        "note": "此项为 dense 执行稀疏权重的算法参考",
     }
 
 
@@ -359,7 +359,7 @@ def check_actual_dispatch(
     problems: List[str] = []
     if not actual_kernel:
         problems.append(
-            "no actual kernel recorded: 环境变量或配置名不是执行证据（step 11）"
+            "no actual kernel recorded: 需要记录实际 kernel 调用（step 11）"
         )
     if requested and requested == actual_kernel and fallback:
         problems.append("the dispatch reports both hit and fallback for the same kernel")
@@ -433,7 +433,7 @@ class SparseExecutionRecord:
             findings.append("SparseExecutionRecord: logical_sparsity is unmeasured")
         if self.pattern_compliance is None:
             findings.append(
-                "SparseExecutionRecord: pattern_compliance is unmeasured (逻辑稀疏不是执行稀疏)"
+                "SparseExecutionRecord: pattern_compliance is unmeasured (需要采集实际稀疏执行模式)"
             )
         if not self.actual_kernel:
             findings.append("SparseExecutionRecord: actual_kernel is required")
@@ -994,7 +994,7 @@ def f4_adoption(
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the E14-F4 interfaces (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the E14-F4 interfaces (CPU interface smoke check)."""
     compliance = pattern_compliance({"w": [[1, 2, 0, 0], [0, 3, 4, 0]]}, n=2, m=4)
     broken = pattern_compliance({"w": [[1, 2, 3, 0]]}, n=2, m=4)
     reference = sparse_gemm_reference(

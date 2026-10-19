@@ -1441,7 +1441,7 @@ class Finding:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the vocabulary layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the vocabulary layer (CPU interface smoke check)."""
     problems = validate_state_machines()
     # Negative controls: a conclusion without evidence must be refused.
     negative_controls: Dict[str, List[str]] = {}

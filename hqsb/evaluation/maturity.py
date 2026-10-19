@@ -30,7 +30,7 @@ EXPERIMENT_ID = "E12-09"
 TITLE = "软件成熟度、开发/维护成本与可复核 Rubric"
 CLAIM_BOUNDARY = (
     "本实验通过证明工程成熟度被可复核地评价，"
-    "不证明任何软件栈已达到生产级可靠性；后者需要 S13 的部署与故障实验。"
+    "生产可靠性通过 S13 的部署与故障实验评估。"
 )
 
 MATURITY_DIMENSIONS: Tuple[str, ...] = (

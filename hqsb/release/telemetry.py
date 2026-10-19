@@ -373,7 +373,7 @@ def summarise_segments(segments: Iterable[SegmentTiming]) -> Dict[str, Any]:
 
 
 def smoke_self_check() -> Dict[str, Any]:
-    """CPU-only self-check of the telemetry layer (labelled smoke, not an experiment)."""
+    """CPU-only self-check of the telemetry layer (CPU interface smoke check)."""
     problems: List[str] = []
     log = ActionLog(path="/tmp/hqsb-s15-action-log.jsonl")
     log.append(

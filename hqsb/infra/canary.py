@@ -35,8 +35,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-10"
 TITLE = "Correctness/Performance Canary、自动 Gate、渐进发布与回滚"
 CLAIM_BOUNDARY = (
-    "本实验通过证明已测退化类别可由当前 canary policy 安全治理；不证明未知退化、极低频长尾或区域级"
-    "发布风险被消除。"
+    "按已列退化场景验证 canary policy，记录检测、发布决策与恢复结果。"
 )
 
 SCHEMA_VERSION = "1.0.0"

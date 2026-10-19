@@ -30,8 +30,7 @@ from hqsb.infra import records as rec
 EXPERIMENT_ID = "E13-04"
 TITLE = "模型制品下载、Cache、原子激活、版本切换与回滚"
 CLAIM_BOUNDARY = (
-    "本实验通过证明模型制品生命周期与版本一致性；不证明 rolling 请求无损、canary 判断正确或"
-    "跨区域灾备（由 E13-05/E13-10 验证）。"
+    "验证模型制品生命周期与版本一致性；滚动发布和 canary 决策见 E13-05/E13-10。"
 )
 
 SCHEMA_VERSION = "1.0.0"
