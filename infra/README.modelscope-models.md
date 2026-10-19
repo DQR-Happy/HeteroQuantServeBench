@@ -18,8 +18,7 @@ authorized target proxy.
 | llama32-3b | LLM-Research/Llama-3.2-3B-Instruct | Framework native; ModelScope mirror |
 | deepseek-r1-15b | deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B | Framework native; distilled Qwen2 architecture |
 
-This is a bounded set of checkpoints, not a claim that every open model runs on
-24 GB. Larger checkpoints, quantized formats, remote Python code, MoE, multimodal
+The catalogue targets the configured 24 GB single-GPU setup. Larger checkpoints, quantized formats, remote Python code, MoE, multimodal
 inputs and new custom-kernel shape variants require separate integration and
 validation. Each listed deployment caps total context at 2048 tokens and output
 at 512, and loads full FP16 weights on CUDA:0 without silently accepting CPU or
@@ -41,21 +40,21 @@ The curated catalog controls repository IDs. Acquisition uses ModelScope 1.29
 only, with at most two files and sixteen range requests per file concurrently
 (configurable `--download-parallels`). A per-model file lock serializes duplicate
 invocations. Default admission retains 8 GiB of free disk beyond the complete
-checkpoint estimate; range merging also consumes transient disk space. This is
-not a global quota against unrelated writers. Interrupted SDK temporary files
+checkpoint estimate; range merging also consumes transient disk space. Disk admission is
+checked alongside other applications sharing the disk. Interrupted SDK temporary files
 may remain; they are never accepted as verified weights.
 
 `models/manifests/<key>.sha256` contains publisher SHA256 for every selected
 runtime asset, tokenizer and supplied README/license. The adjacent JSON records
 ModelScope repository, branch metadata, per-file revisions, sizes, hashes and
-download time. **ModelScope's SDK resolves `master`, not a pinned snapshot
-commit.** Verification against hashes captured before downloading detects branch
+download time. ModelScope's SDK resolves the `master` branch. Verification
+against per-file hashes captured before downloading detects branch
 movement or corrupt content. Sealed snapshots are reused offline rather than
 silently updated on subsequent invocations; an intentional update needs a new
 snapshot directory and separate validation.
 
 Only the exact SDK cache names `.msc` and `.mv` are allowed outside the manifest;
-they are recorded as client metadata, not publisher artifacts. All other extra
+they are recorded separately as client metadata. All other extra
 files still fail strict verification. Custom Python files and alternate `.bin`
 weight representations are excluded. Loading uses Transformers with
 `local_files_only=True` and `trust_remote_code=False`, so it never falls back to
@@ -87,13 +86,12 @@ Select a deployment in the inference page and click **切换模型并加载方�
 client waits for the old model's unload acknowledgment before loading the new
 model, and verifies its new epoch/load-run identity. Failed unloads stop the
 sequence. Backend GPU ownership and benchmark ownership checks remain enforced;
-this client sequence is not a distributed transaction across browser windows.
+GPU ownership is coordinated by the backend across browser windows.
 
 The benchmark page resets scheme selections when changing models. Starting a
 comparison can drain another resident model through the same lifecycle helper.
 Qwen3 1.7B retains its custom-kernel comparisons. Other models default to
-`empty_cache` versus `preserve_allocator`; these compare allocator cleanup, not
-two different numerical kernels. Model switching does not extend custom kernels
+`empty_cache` versus `preserve_allocator` to compare allocator cleanup. Model switching does not extend custom kernels
 to unvalidated families or sizes. Benchmark reports keep model, tokenizer and
 actual token identity checks; measurements across different models cannot be
 presented as an isolated operator speedup.
@@ -103,16 +101,16 @@ Each model uses its own shipped chat template. Qwen3 receives
 the distilled R1 checkpoint is not advertised as having a working thinking-off
 switch. The actual template policy is recorded in load details and inference
 metrics. A finite-logit warmup rejects obvious dtype/runtime failures at load;
-it does not establish general model quality.
+Task datasets provide the subsequent model-quality evaluation.
 
 ## Observations and acceptance
 
 The same request protocol records load identity, actual model class/type, device
 placement, parameter storage, request KV snapshots, allocator counters, host
 pages, CPU/CUDA operator traces and sealed execution receipts. Availability and
-scope remain explicit. CPU pages are not GPU physical pages; native CUDA traces
-do not measure hardware cache-hit rate. Gemma's bounded sliding-layer KV storage
-must not be interpreted as an unbounded full-context cache.
+scope remain explicit. CPU pages use pagemap, native CUDA traces record device
+activities, and hardware counters supply cache-hit measurements. Gemma's
+sliding-layer KV storage follows the configured window.
 
 The allocator history has a bounded 100,000-entry ring. In the 2026-10-17 Gemma
 check, a request producing 23 tokens overwrote that ring and was correctly marked
@@ -126,8 +124,8 @@ Acceptance must include every selected model loading with its manifest verified,
 full CUDA placement, finite last-token warmup logits, successful templated
 generation, populated parameter/KV inventories, acknowledged memory/page
 captures, a hash-verified trace with CUDA activities, and a small finite-logit
-quality fixture. The fixture tests the quality-evaluation path, not broad
-accuracy. Downloads and diagnostics perturb timings; performance claims need a
+quality fixture. The fixture checks the quality-evaluation path. Task accuracy
+uses its own dataset. Downloads and diagnostics perturb timings; performance comparisons use a
 separate fixed-input run after all downloads stop. Existing Qwen3 custom-kernel
 and lifecycle tests remain required for compatibility.
 

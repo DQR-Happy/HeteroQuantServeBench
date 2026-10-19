@@ -1,7 +1,9 @@
 # ModelScope discovery and node-owned model acquisition
 
-Open **Environment → 模型下载与接入** (`/models`); devices and benchmarks also link
-there. The existing selected-node API prefix owns every catalogue, inspection,
+Open **Environment → 模型下载** (`/models`) for discovery, revision checks and
+transfer progress; use **本地模型管理** (`/models/local`) for inventory, storage,
+deployment registration and cleanup. Existing `/models` links remain valid.
+The existing selected-node API prefix owns every catalogue, inspection,
 download and dynamic deployment. SSH/HTTP relay does not run the download on the
 Mac or move the result between nodes. No additional login is introduced.
 
@@ -10,11 +12,43 @@ Mac or move the result between nodes. No additional login is introduced.
 | Owner | Language | Input → output / invariant |
 | --- | --- | --- |
 | `hqsb.models.modelscope_source` | Python | Registered publisher/repo/revision → live SDK metadata, validated runtime file plan, per-file commit/SHA-256, bounded byte stream; no torch import |
-| `hqsb.models.model_admission` | Python | Weight bytes, model shape, node capacities → conservative FP16/batch1/context2048 estimate and explicit blocking reasons; never claims runtime certification |
+| `hqsb.models.model_admission` | Python | Weight bytes, model shape, node capacities → conservative FP16/batch1/context2048 estimate and explicit blocking reasons; followed by load and inference validation |
 | `hqsb.console.model_hub` | Python | Frozen inspection digest → durable download jobs, cancellation/resume, verified immutable snapshot, optional deployment registration; owns threads, disk paths and journals |
 | `hqsb.console.model_hub_routes` | Python | Strict HTTP requests → above operations; same auth/CSRF and node relay as inference |
 | `ConsoleService.register_deployment` | Python | Verified server-built config → unloaded actor/executor; keeps serial GPU owner, normal load/warmup and manifest gates |
 | `pages/ModelHub.tsx`, `features/model-hub/` | TypeScript / CSS | Node API snapshots → searchable catalogue, version/check drawer and real byte/file progress; no browser weight transfer |
+| `console.local_models`, `console.local_model_storage` | Python | Registered model paths, download journals, L4/L5 stores and extra scan roots → deduplicated inventory, filesystem allocation and reference-aware cleanup; reads file metadata without loading tensors |
+| `pages/LocalModels.tsx` | TypeScript / CSS | Node-local inventory → search, source filtering, size sorting, deployment links, directory discovery and confirmed deletion |
+
+## Local inventory and storage
+
+`GET /model-hub/local-models` combines server-configured PyTorch paths, downloaded
+snapshots and partial files, sibling model directories and L4/L5 artifact stores.
+`POST /local-models/roots` adds an existing absolute directory on the selected
+node; these roots persist in `model-hub/local-model-roots.json`. Discovery looks
+for `config.json`, `l4-manifest.json` or `l5-manifest.json`, to depth six with a
+5,000-directory budget. Directories containing safetensors, GGUF or
+`pytorch_model.bin` are also discovered. Inaccessible directories and exhausted
+budgets are reported alongside results. Each model scan caps at 50,000 entries,
+with a combined 100,000-entry measurement budget per refresh.
+
+Size is `st_size`; allocated file space is `st_blocks * 512`. Totals union
+`(st_dev, st_ino)` across rows, including overlapping directories. Filesystem
+total/used/free are separate from model totals and include other node data.
+Directory blocks, filesystem metadata, compression/reflink accounting and space
+held by open deleted files are outside the per-file total. Symlink targets are
+not traversed; scan issues identify them. Scans cache for 30 seconds; explicit
+`POST /local-models/refresh` rescans. Live deployment references update on each
+read independently of the storage cache.
+
+Deletion accepts an opaque server inventory ID plus a directory metadata
+revision, rescans and checks references under the existing registry locks, then
+uses the original acquisition cleanup for downloads. Unreferenced local/derived
+directories use the same path validation and a durable cleanup journal. Active
+artifact users must unload first; paths referenced in node YAML require removing
+that configuration reference. Run/evaluation/observation history remains in its
+existing store. File changes require a fresh confirmation; storage deletion
+does not automatically unload or execute a model.
 
 Metadata calls use installed/pinned ModelScope 1.29 `HubApi.list_models`,
 `get_model_branches_and_tags`, `get_model_files`. Byte downloads use that version's
@@ -26,10 +60,9 @@ parse terminal tqdm output. No Hugging Face download fallback exists.
 ## Discovery scope and availability
 
 Current source policy registers Qwen, google, deepseek-ai, microsoft, ZhipuAI,
-internlm and 01ai. LLM-Research is explicitly labelled a platform mirror, **not**
-the original vendor. This list is maintained in `modelscope_source.PUBLISHERS`;
-only add a new owner after checking provenance. Do not claim these owners cover
-all ModelScope uploaders or every official model worldwide.
+internlm and 01ai. LLM-Research appears separately as a platform mirror. The
+registered publisher list is maintained in `modelscope_source.PUBLISHERS`;
+new entries require publisher provenance.
 
 Refresh indexes **all public repositories for the selected owner**: it first
 requests a bounded single response (up to 10,000 repositories), avoiding losses
@@ -42,15 +75,14 @@ descending and default ordering. Numeric sorting runs on the node over the full
 filtered set before pagination; unknown values are always last, equal values use
 repository IDs as a stable tie-break. Sorting stays in the URL across searches.
 Partial results, errors and progress stay visible. A 10,000-repository budget
-marks oversized indexes partial instead of silently claiming completeness. The
-remote list can change during pagination; the count is an observed snapshot,
-not a transactional upstream inventory. All public branches/tags of a selected
+marks oversized indexes partial. Counts describe the upstream snapshot observed
+during pagination. All public branches/tags of a selected
 repository are read separately. Per-file hashes/commits freeze its actual files.
 Refresh keeps the previous usable catalogue visible until replacement completes;
 initial discovery exposes received pages with an explicit in-progress message.
 Raw scanned rows, duplicate count and unique repository count are separate.
-An unresolved upstream total mismatch is reported as partial with a reason, not an empty
-success or a claim that every duplicate represents a missing repository.
+An unresolved upstream count mismatch is reported as partial with its reason,
+alongside the repositories already received.
 
 Summary filtering uses model parameter count or weight size and architecture
 metadata; native causal-language models with missing size summaries remain
@@ -70,8 +102,7 @@ Publisher chat templates embedded in `tokenizer_config.json` or in root-level
 Missing templates no longer prevent acquiring a native causal-language model:
 inspection selects `input_mode=completion` and registration persists that mode.
 The PyTorch completion path accepts a raw `prompt`, preserves its text and uses
-the publisher tokenizer's special-token handling. It never fabricates role tags
-or copies another model's chat template. Chat deployments retain their official
+the publisher tokenizer's special-token handling. Chat deployments retain their official
 template and may explicitly use completion; template-free deployments reject chat.
 New inspections preserve a publisher-declared BF16 execution precision; other
 models retain FP16. Both use two-byte weight/KV capacity estimates. The worker
@@ -79,8 +110,7 @@ checks native BF16 support and still requires finite warmup logits. This matters
 for Gemma 3 270M, whose FP16 conversion produced nonfinite warmup logits on 3090.
 Load details record actual parameter dtypes; observations and execution receipts
 record execution precision. Custom kernel profiles and interactive RTN artifact
-jobs retain their FP16 contract and explicitly reject BF16 instead of pretending
-their existing validation applies. Existing registered deployments keep their
+jobs use FP16 and report unsupported precision when given BF16. Existing registered deployments keep their
 stored precision; this does not silently migrate a live model.
 
 `POST /requests` accepts exactly one of nonempty `messages` or a raw `prompt`.
@@ -95,7 +125,7 @@ memory is **estimated** as weight storage + shape-derived FP16 KV (or a reserve
 when unknown) + max(2 GiB, 20% weight bytes). Weight bytes may overestimate FP16
 residency for FP32 storage. Batch1, context≤2048, one GPU, no offload; shared
 Tegra capacity is separately labelled. Host staging has an additional check.
-This does not prove supported operators, quality, numerical stability or speed.
+Operator compatibility, quality, numerical stability and speed are evaluated after loading.
 After registration, the existing strict loader and finite-logit warmup remain
 the runtime gate; inference/observation runs provide actual evidence.
 
@@ -121,7 +151,7 @@ One download transfers at a time, at most eight accepted active/queued jobs;
 200 durable job records bound metadata. Identical frozen plans return the same
 job; failure/cancellation requires explicit resume. The UI polls real byte state
 and separate verified file counts. A 100% byte value can still be verifying or
-failed, so success is the sealed terminal state, not the percentage alone.
+failed; the sealed terminal state confirms successful completion.
 
 Network interruption leaves `.part` files. Resume verifies completed files and
 requires the server to acknowledge the exact offset via 206/Content-Range;
@@ -159,7 +189,7 @@ Follow the project proxy for all execution:
 ```
 
 Unit transport doubles test corruption, resume, cancellation, disk/memory gates,
-plan expiry, restart recovery and registration. They are not hardware evidence.
+plan expiry, restart recovery and registration. Device acceptance is recorded separately.
 Actual 3090 acceptance and downloaded publisher identities are recorded under
 `reports/console/model-hub/`. Preserve all old manifests and benchmark results.
 

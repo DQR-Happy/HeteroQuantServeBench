@@ -1,6 +1,6 @@
 """Curated ModelScope text-model artifacts, independent of torch and the UI.
 
-These are candidate checkpoints, not hardware certifications. Only Qwen3 1.7B
+These checkpoints are candidates for per-device validation. Only Qwen3 1.7B
 matches the separately source/shape-pinned HQSB custom-kernel adapter.
 """
 

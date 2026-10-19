@@ -1,7 +1,9 @@
 """Acquisition invariants with a byte transport double; not GPU/model evidence."""
 import hashlib
 import json
+import shutil
 from pathlib import Path
+from types import SimpleNamespace
 import threading
 import time
 
@@ -82,7 +84,10 @@ def capacity():
 
 
 @pytest.fixture
-def setup(tmp_path):
+def setup(tmp_path, monkeypatch):
+    # The transport/capacity fixture models a 50 GiB disk. Match the download
+    # worker's live disk boundary as well, independent of the target's free space.
+    monkeypatch.setattr(shutil, "disk_usage", lambda _: SimpleNamespace(total=100 * GIB, used=50 * GIB, free=capacity()["disk_free_bytes"]))
     settings = Settings(data_dir=tmp_path / "state", evidence_root=tmp_path, web_dist=tmp_path / "dist",
                         model_download_dir=tmp_path / "models", deployments=[DeploymentConfig(id="baseline", name="baseline")])
     service = ConsoleService(settings, actor_factory=Actor)
@@ -168,6 +173,18 @@ def test_hash_failure_cannot_publish_or_register(setup):
     Source.corrupt = False
     hub.resume(first["id"])
     assert wait(hub, first["id"])["state"] == "completed"
+
+
+def test_live_disk_shortage_cannot_publish_after_capacity_preflight(setup, monkeypatch):
+    _, service, hub = setup
+    digest = hub.inspect("Qwen/Test", "master")["plan_sha256"]
+    monkeypatch.setattr(shutil, "disk_usage", lambda _: SimpleNamespace(free=0))
+    job = hub.start(digest)
+    row = wait(hub, job["id"])
+    assert row["state"] == "failed"
+    assert "MODEL_DISK_BUDGET" in row["error"]
+    assert not (hub.models / digest).exists()
+    assert service.states["baseline"]["state"] == "unloaded"
 
 
 def test_restart_marks_active_download_interrupted(setup):
@@ -574,3 +591,350 @@ def test_resource_filter_excludes_known_unsupported_weight_formats(setup):
     result = hub.catalog('Qwen', only_fit=True)
     assert [row['model_id'] for row in result['items']] == ['Qwen/Test']
     assert hub.catalog('Qwen', only_fit=False)['total'] == 2
+
+
+def completed_artifact(hub):
+    digest = hub.inspect("Qwen/Test", "master")["plan_sha256"]
+    return wait(hub, hub.start(digest)["id"])
+
+
+def test_delete_registered_snapshot_preserves_history_and_can_download_again(setup):
+    settings, service, hub = setup
+    row = completed_artifact(hub)
+    registered = hub.register(row["id"])
+    deployment = registered["deployment_id"]
+    historical, _ = service.store.create("generate", {"deployment_id": deployment, "model": "Qwen/Test"}, "history", "digest")
+    provenance = Path(row["manifest_path"]).with_suffix(".provenance.json")
+    assert registered["deletion"]["allowed"]
+    result = hub.delete(row["id"], row["plan_sha256"])
+    assert result["state"] == "deleted"
+    assert not Path(row["snapshot_path"]).exists()
+    assert deployment not in service.configs
+    assert deployment not in service.actors
+    assert deployment not in json.loads((hub.root / "deployments.json").read_text())
+    assert service.store.get(historical["id"]) == historical
+    assert Path(row["manifest_path"]).exists() and provenance.exists()
+    assert hub.delete(row["id"], row["plan_sha256"])["state"] == "deleted"
+    hub.close()
+    another = ConsoleService(settings, actor_factory=Actor)
+    recovered = ModelHub(settings, another, source_factory=Source, capacity=capacity)
+    try:
+        assert deployment not in another.configs
+        new = completed_artifact(recovered)
+        assert new["id"] != row["id"]
+        assert new["state"] == "completed"
+        assert recovered.register(new["id"])["deployment_id"] == deployment
+    finally:
+        recovered.close()
+        another.close()
+
+
+@pytest.mark.parametrize("state,epoch", [("ready", "loaded"), ("loading", None), ("unloaded", "stale")])
+def test_delete_requires_unload_with_direct_deployment_link(setup, state, epoch):
+    _, service, hub = setup
+    row = completed_artifact(hub)
+    deployment = hub.register(row["id"])["deployment_id"]
+    service.states[deployment].update(state=state, epoch=epoch)
+    status = hub.list_jobs()["items"][0]["deletion"]
+    assert not status["allowed"]
+    assert status["next"]["to"] == f"/devices#deployment-{deployment}"
+    with pytest.raises(ServiceError):
+        hub.delete(row["id"], row["plan_sha256"])
+    assert Path(row["snapshot_path"]).exists()
+    service.states[deployment].update(state="unloaded", epoch=None)
+    assert hub.delete(row["id"], row["plan_sha256"])["state"] == "deleted"
+
+
+@pytest.mark.parametrize("busy", ["pending", "benchmark_owner"])
+def test_delete_waits_for_node_tasks(setup, busy):
+    _, service, hub = setup
+    row = completed_artifact(hub)
+    setattr(service, busy, 1)
+    try:
+        with pytest.raises(ServiceError):
+            hub.delete(row["id"], row["plan_sha256"])
+        assert Path(row["snapshot_path"]).exists()
+    finally:
+        setattr(service, busy, 0 if busy == "pending" else None)
+
+
+def test_delete_static_alias_is_blocked(setup):
+    settings, service, hub = setup
+    row = completed_artifact(hub)
+    config = DeploymentConfig(id="static-alias", name="Static", provider="pytorch", model_path=row["snapshot_path"])
+    settings.deployments.append(config)
+    service.register_deployment(config)
+    with pytest.raises(ServiceError):
+        hub.delete(row["id"], row["plan_sha256"])
+    assert Path(row["snapshot_path"]).exists()
+
+
+def test_delete_cleans_cancelled_and_quarantined_bytes(setup):
+    _, _, hub = setup
+    Source.slow = True
+    first = hub.start(hub.inspect("Qwen/Test", "master")["plan_sha256"])
+    with pytest.raises(ServiceError):
+        hub.delete(first["id"], first["plan_sha256"])
+    hub.cancel(first["id"])
+    row = wait(hub, first["id"])
+    partial = hub.models / ("partial-" + row["plan_sha256"])
+    partial.mkdir(parents=True, exist_ok=True)
+    (partial / "model.safetensors.part").write_bytes(b"partial")
+    quarantine = hub.models / "quarantine"
+    quarantine.mkdir()
+    owned = quarantine / (row["id"] + "-" + "a" * 32)
+    owned.write_bytes(b"corrupt")
+    other = quarantine / ("download-" + "b" * 32 + "-" + "c" * 32)
+    other.write_bytes(b"other")
+    assert str(owned) in hub.list_jobs()["items"][0]["deletion"]["paths"]
+    hub.delete(row["id"], row["plan_sha256"])
+    assert not partial.exists() and not owned.exists()
+    assert other.read_bytes() == b"other"
+
+
+def test_delete_rejects_changed_identity_and_root_symlink(setup, tmp_path):
+    _, _, hub = setup
+    row = completed_artifact(hub)
+    with pytest.raises(ServiceError):
+        hub.delete(row["id"], "f" * 64)
+    snapshot = Path(row["snapshot_path"])
+    external = tmp_path / "external"
+    snapshot.rename(external)
+    snapshot.symlink_to(external, target_is_directory=True)
+    with pytest.raises(ServiceError):
+        hub.delete(row["id"], row["plan_sha256"])
+    assert (external / "model.safetensors").exists()
+
+
+def test_delete_inner_symlink_preserves_external_file(setup, tmp_path):
+    _, _, hub = setup
+    row = completed_artifact(hub)
+    external = tmp_path / "keep"
+    external.write_text("keep")
+    (Path(row["snapshot_path"]) / "link").symlink_to(external)
+    hub.delete(row["id"], row["plan_sha256"])
+    assert external.read_text() == "keep"
+
+
+def test_failed_delete_can_retry_after_actor_close_failure(setup, monkeypatch):
+    _, service, hub = setup
+    row = completed_artifact(hub)
+    deployment = hub.register(row["id"])["deployment_id"]
+    actor = service.actors[deployment]
+    with monkeypatch.context() as context:
+        def fail():
+            raise OSError("fixture close error")
+        context.setattr(actor, "close", fail)
+        with pytest.raises(ServiceError) as caught:
+            hub.delete(row["id"], row["plan_sha256"])
+        assert caught.value.code == "MODEL_DELETE_FAILED"
+    assert hub.list_jobs()["items"][0]["state"] == "delete_failed"
+    assert hub.list_jobs()["items"][0]["deletion"]["allowed"]
+    assert hub.delete(row["id"], row["plan_sha256"])["state"] == "deleted"
+
+
+def test_interrupted_deletion_recovers_without_resurrecting_deployment(setup):
+    settings, _, hub = setup
+    row = completed_artifact(hub)
+    deployment = hub.register(row["id"])["deployment_id"]
+    hub._update(row["id"], state="deleting", delete_deployment_ids=[deployment])
+    another = ConsoleService(settings, actor_factory=Actor)
+    recovered = ModelHub(settings, another, source_factory=Source, capacity=capacity)
+    try:
+        assert deployment not in another.configs
+        assert recovered.jobs[row["id"]]["state"] == "delete_failed"
+        assert recovered.delete(row["id"], row["plan_sha256"])["state"] == "deleted"
+    finally:
+        recovered.close()
+        another.close()
+
+
+def test_delete_route_checks_csrf_identity_and_keeps_readable_history(setup):
+    settings, service, hub = setup
+    row = completed_artifact(hub)
+    app = create_app(settings, service=service, monitor=False)
+    path = PREFIX + f"/model-hub/downloads/{row['id']}/delete"
+    with TestClient(app) as client:
+        assert client.post(path, json={"plan_sha256": row["plan_sha256"]}).status_code == 403
+        headers = {"X-HQSB-Client": "console"}
+        assert client.post(path, json={"plan_sha256": "f" * 64}, headers=headers).status_code == 409
+        response = client.post(path, json={"plan_sha256": row["plan_sha256"]}, headers=headers)
+        assert response.status_code == 200
+        assert response.json()["state"] == "deleted"
+        assert client.get(PREFIX + "/deployments").status_code == 200
+
+
+def local_inventory(setup):
+    from hqsb.console.local_models import LocalModels
+    settings, service, hub = setup
+    service.configs['baseline'].model_path = str(settings.data_dir / 'configured-model')
+    return LocalModels(hub)
+
+
+def test_local_inventory_merges_download_and_deployment_paths(setup):
+    local = local_inventory(setup)
+    row = completed_artifact(setup[2])
+    deployment = setup[2].register(row['id'])['deployment_id']
+    report = local.snapshot()
+    matches = [r for r in report['items'] if r['path'] == row['snapshot_path']]
+    assert len(matches) == 1
+    item = matches[0]
+    assert item['kind'] == 'download'
+    assert item['logical_bytes'] == sum(map(len, CONTENTS.values()))
+    assert item['allocated_bytes'] >= item['logical_bytes']
+    assert item['references'][0]['id'] == deployment
+    assert item['deletion']['allowed']
+    setup[1].states[deployment].update(state='ready', epoch='test')
+    # Runtime references update even while filesystem accounting is cached.
+    assert not next(r for r in local.snapshot()['items'] if r['id'] == item['id'])['deletion']['allowed']
+
+
+def test_local_inventory_extra_roots_persist_and_discover_nested_model(setup, tmp_path):
+    from hqsb.console.local_models import LocalModels
+    local = local_inventory(setup)
+    directory = tmp_path / 'other-models' / 'vendor' / 'model'
+    directory.mkdir(parents=True)
+    (directory / 'config.json').write_text('{"model_type":"llama"}')
+    (directory / 'weights.bin').write_bytes(b'x' * 100)
+    report = local.add_root(str(directory.parent.parent))
+    row = next(r for r in report['items'] if r['path'] == str(directory))
+    assert row['model_type'] == 'llama'
+    assert row['deletion']['allowed']
+    recovered = LocalModels(setup[2])
+    assert str(directory.parent.parent) in recovered.snapshot()['roots']
+
+
+def test_local_inventory_deduplicates_hardlinks_across_models(setup, tmp_path):
+    import os
+    local = local_inventory(setup)
+    parent = tmp_path / 'shared'
+    for name in ('first', 'second'):
+        directory = parent / name
+        directory.mkdir(parents=True)
+        (directory / 'config.json').write_text('{}')
+    weight = parent / 'first' / 'model.bin'
+    weight.write_bytes(b'a' * 10000)
+    os.link(weight, parent / 'second' / 'model.bin')
+    report = local.add_root(str(parent))
+    rows = [r for r in report['items'] if r['path'].startswith(str(parent))]
+    assert len(rows) == 2
+    assert report['logical_bytes'] == 10004
+    assert sum(r['logical_bytes'] for r in rows) == 20004
+    assert len(report['volumes']) == 1
+
+
+def test_local_delete_checks_snapshot_and_preserves_other_files(setup, tmp_path):
+    local = local_inventory(setup)
+    directory = tmp_path / 'manual-model'
+    directory.mkdir()
+    config = directory / 'config.json'
+    config.write_text('{}')
+    report = local.add_root(str(directory))
+    row = next(r for r in report['items'] if r['path'] == str(directory))
+    config.write_text('{"changed":true}')
+    with pytest.raises(ServiceError) as caught:
+        local.delete(row['id'], row['revision'])
+    assert caught.value.code == 'MODEL_DIRECTORY_CHANGED'
+    row = next(r for r in local.snapshot()['items'] if r['id'] == row['id'])
+    sentinel = tmp_path / 'keep'
+    sentinel.write_text('keep')
+    assert local.delete(row['id'], row['revision'])['state'] == 'deleted'
+    assert not directory.exists() and sentinel.read_text() == 'keep'
+    assert any(local.hub.root.glob('local-*.cleanup.json'))
+
+
+def test_local_delete_download_updates_original_journal(setup):
+    local = local_inventory(setup)
+    job = completed_artifact(setup[2])
+    setup[2].register(job['id'])
+    row = next(r for r in local.snapshot()['items'] if r.get('download_id') == job['id'])
+    local.delete(row['id'], row['revision'])
+    assert setup[2].jobs[job['id']]['state'] == 'deleted'
+    assert all(r.get('download_id') != job['id'] for r in local.snapshot()['items'])
+    assert local.snapshot()['logical_bytes'] == 0
+
+
+def test_local_inventory_lists_derived_artifact_and_blocks_loaded_reference(setup):
+    settings, service, _ = setup
+    local = local_inventory(setup)
+    directory = settings.data_dir / 'l4-artifacts' / ('l4_' + 'a' * 32)
+    directory.mkdir(parents=True)
+    (directory / 'l4-manifest.json').write_text(json.dumps({'artifact_id': directory.name}))
+    report = local.snapshot()
+    row = next(r for r in report['items'] if r['path'] == str(directory))
+    assert row['kind'] == 'l4'
+    service.states['baseline'].update(state='ready', epoch='fixture', quantization={'artifact_id': directory.name})
+    row = next(r for r in local.snapshot()['items'] if r['id'] == row['id'])
+    assert row['references'][0]['id'] == 'baseline'
+    assert not row['deletion']['allowed']
+    with pytest.raises(ServiceError):
+        local.delete(row['id'], row['revision'])
+    service.states['baseline'].update(state='unloaded', epoch=None)
+    assert local.delete(row['id'], row['revision'])['state'] == 'deleted'
+
+
+def test_local_inventory_keeps_missing_configured_models_visible(setup):
+    local = local_inventory(setup)
+    row = local.snapshot()['items'][0]
+    assert row['kind'] == 'configured' and not row['exists']
+    assert row['logical_bytes'] == row['allocated_bytes'] == 0
+    assert not row['deletion']['allowed']
+
+
+def test_local_storage_api_uses_existing_csrf_and_strict_request_contract(setup, tmp_path):
+    settings, service, _ = setup
+    local_inventory(setup)
+    directory = tmp_path / 'extra'
+    directory.mkdir()
+    (directory / 'config.json').write_text('{}')
+    app = create_app(settings, service=service, monitor=False)
+    base = PREFIX + '/model-hub/local-models'
+    with TestClient(app) as client:
+        assert client.get(base).status_code == 200
+        assert client.post(base + '/roots', json={'path': str(directory)}).status_code == 403
+        headers = {'X-HQSB-Client': 'console'}
+        assert client.post(base + '/roots', json={'path': '/', 'extra': 1}, headers=headers).status_code == 422
+        assert client.post(base + '/roots', json={'path': '/'}, headers=headers).status_code == 422
+        report = client.post(base + '/roots', json={'path': str(directory)}, headers=headers).json()
+        row = next(r for r in report['items'] if r['path'] == str(directory))
+        assert client.post(base + '/' + row['id'] + '/delete', json={'revision':'f' * 64}, headers=headers).status_code == 409
+        assert client.post(base + '/' + row['id'] + '/delete', json={'revision':row['revision']}, headers=headers).status_code == 200
+        assert not directory.exists()
+
+
+def test_local_l5_inventory_recovers_source_name_and_variant_from_run(setup):
+    local = local_inventory(setup)
+    run, _ = setup[1].store.create('compress', {'deployment': {'model': 'Vendor/Original'}}, 'l5-local-name', 'recipe')
+    directory = setup[0].data_dir / 'l5-artifacts' / ('l5_' + 'b' * 32)
+    directory.mkdir(parents=True)
+    (directory / 'l5-manifest.json').write_text(json.dumps({'artifact_id':directory.name, 'creation_run_id':run['id'], 'recipe':{'method':'low_rank'}}))
+    row = next(r for r in local.snapshot()['items'] if r['path'] == str(directory))
+    assert row['model_id'] == 'Vendor/Original'
+    assert row['variant'] == 'low_rank'
+
+
+def test_local_inventory_handles_untyped_model_metadata_without_runtime_failure(setup, tmp_path):
+    local = local_inventory(setup)
+    directory = tmp_path / 'untyped'
+    directory.mkdir()
+    (directory / 'l4-manifest.json').write_text(json.dumps({'artifact_id':{}, 'model_type':[], 'recipe':{'method':{}}, 'creation_run_id':[]}))
+    row = next(r for r in local.add_root(str(directory))['items'] if r['path'] == str(directory))
+    assert row.get('artifact_id') is None
+    assert row['deletion']['allowed']
+
+
+def test_local_inventory_refreshes_paths_when_download_changes_state(setup):
+    local = local_inventory(setup)
+    hub = setup[2]
+    completed = completed_artifact(hub)
+    destination = Path(completed['snapshot_path'])
+    partial = destination.with_name('partial-' + completed['plan_sha256'])
+    destination.rename(partial)
+    hub._update(completed['id'], state='interrupted', snapshot_path=None)
+    cached = next(r for r in local.snapshot()['items'] if r.get('download_id') == completed['id'])
+    assert cached['path'] == str(partial)
+    partial.rename(destination)
+    hub._update(completed['id'], state='completed', snapshot_path=str(destination))
+    row = next(r for r in local.snapshot()['items'] if r.get('download_id') == completed['id'])
+    assert row['path'] == str(destination)
+    assert row['logical_bytes'] == sum(map(len, CONTENTS.values()))

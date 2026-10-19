@@ -28,7 +28,7 @@ UNSUPPORTED_FORMAT = re.compile(r"mlx|gguf|gptq|awq|fp[48]|int[48]|[2468]bit", r
 def native_causal_types():
     """Read installed Transformers' data table without importing torch/CUDA.
 
-    This is structural engine compatibility, not a model execution certificate.
+    This check evaluates structural engine compatibility; model execution is validated after loading.
     Only literal mapping entries are accepted; no installed source is executed.
     """
     path = distribution("transformers").locate_file("transformers/models/auto/modeling_auto.py")

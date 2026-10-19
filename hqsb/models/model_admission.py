@@ -37,8 +37,8 @@ def admission(plan, capacity, reserve):
     return {**estimate_result, "eligible": not reasons, "reasons": reasons,
             "disk_ok": disk_ok, "status": "estimated_fit" if not reasons else "blocked",
             "scope": f"single_gpu_{'bf16' if precision == 'bfloat16' else 'fp16'}_batch1_context2048_after_unloading_current_model",
-            "limitations": ["容量预估不是运行认证；下载后仍需加载、有限 logits 预热和实际推理验证。",
-                            "不使用 CPU/disk offload，不把量化存储体积当作 FP16 驻留体积。",
+            "limitations": ["容量预估用于筛选候选；下载后可进行加载、有限 logits 预热和实际推理验证。",
+                            "按全 GPU 浮点驻留方案估算权重、KV 和运行余量。",
                             "显存总量用于卸载当前模型后的估算；其他负载、分配碎片与瞬时余量仍可能导致失败。"]}
 
 

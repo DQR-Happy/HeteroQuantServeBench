@@ -20,6 +20,7 @@ import uuid
 from hqsb.console.config import DeploymentConfig
 from hqsb.console.resources import host_memory
 from hqsb.console.service import ServiceError
+from hqsb.console.model_hub_storage import artifact_paths, remove_artifacts
 from hqsb.console.telemetry import nvidia_sample
 from hqsb.core.optimization import fingerprint
 from hqsb.models.manifest import verify_or_raise
@@ -82,6 +83,16 @@ class ModelHub:
             self.jobs[item["id"]] = item
         registration = self.root / "deployments.json"
         self.registered = json.loads(registration.read_text()) if registration.exists() else {}
+        interrupted = set()
+        for item in self.jobs.values():
+            if item["state"] in {"deleting", "delete_failed"}:
+                interrupted.update(item.get("delete_deployment_ids", []))
+                if item["state"] == "deleting":
+                    item.update(state="delete_failed", error="上次删除被服务重启中断，请重试删除")
+                    save_json(self.root / (item["id"] + ".json"), item)
+        if interrupted:
+            self.registered = {key: raw for key, raw in self.registered.items() if key not in interrupted}
+            save_json(registration, self.registered)
         for raw in self.registered.values():
             self.service.register_deployment(DeploymentConfig.model_validate(raw))
 
@@ -103,7 +114,7 @@ class ModelHub:
         return {"publishers": [{"id": key, "name": value[0], "provenance": value[1]} for key, value in PUBLISHERS.items()],
                 "capacity": self.capacity(), "disk_reserve_bytes": self.settings.model_download_reserve_bytes,
                 "runtime": "FP16 / batch 1 / context ≤ 2048 / native Transformers / no offload",
-                "scope": "登记发布方的公开仓库；平台镜像单列。目录不代表覆盖 ModelScope 所有上传者，也不代表运行认证。"}
+                "scope": "目录收录登记发布方的公开仓库，平台镜像单列；模型可在下载后加载验证。"}
 
     def refresh(self, owner):
         if owner not in PUBLISHERS:
@@ -238,9 +249,75 @@ class ModelHub:
         with self.lock:
             return {"items": [self._public(item) for item in sorted(self.jobs.values(), key=lambda row: row["created_at"], reverse=True)]}
 
-    @staticmethod
-    def _public(item):
-        return deepcopy({key: value for key, value in item.items() if key != "plan"})
+    def _public(self, item):
+        return {**deepcopy({key: value for key, value in item.items() if key != "plan"}),
+                "deletion": self.deletion_status(item)}
+
+    def deletion_status(self, item):
+        """Describe deletion prerequisites using the same registry lock as submission."""
+        result = {"allowed": False, "reason": "", "deployment_ids": [], "paths": []}
+        if item["state"] == "deleted":
+            return {**result, "reason": "本地文件已删除，可重新选择版本下载"}
+        if item["state"] in ACTIVE or item["state"] == "deleting":
+            return {**result, "reason": "请先取消下载并等待任务停止，再清理本地文件"}
+        if any(row["plan_sha256"] == item["plan_sha256"] and row["state"] in ACTIVE for row in self.jobs.values()):
+            return {**result, "reason": "相同制品仍有下载任务，请先取消并等待停止"}
+        if self.closed.is_set():
+            return {**result, "reason": "节点服务正在关闭，请等待重新连接"}
+        try:
+            paths = artifact_paths(self.models, item)
+        except (OSError, ValueError) as exc:
+            return {**result, "reason": str(exc)}
+        result["paths"] = [str(path) for path in paths if path.exists()]
+        with self.service.lock:
+            for identity, cfg in self.service.configs.items():
+                if cfg.provider != "pytorch":
+                    continue
+                model = Path(cfg.model_path).expanduser().resolve()
+                if not any(model == path or model.is_relative_to(path) or path.is_relative_to(model) for path in paths):
+                    continue
+                result["deployment_ids"].append(identity)
+                link = {"to": f"/devices#deployment-{identity}", "label": "打开对应部署"}
+                if (identity not in self.registered and identity not in item.get("delete_deployment_ids", [])) or any(cfg.id == identity for cfg in self.settings.deployments):
+                    return {**result, "reason": "该制品被节点配置中的部署引用，请先移除对应配置并重启服务", "next": link}
+                state = self.service.states[identity]
+                if state["state"] not in {"unloaded", "failed"} or state.get("epoch"):
+                    return {**result, "reason": f"{cfg.name} 当前为 {state['state']}，请先在设备与部署页卸载", "next": link}
+            if self.service.pending or self.service.benchmark_owner or self.service.closed:
+                return {**result, "reason": "当前节点有任务正在执行，请等待任务结束后删除", "next": {"to": "/runs", "label": "查看运行任务"}}
+        return {**result, "allowed": True}
+
+    def delete(self, identity, plan_sha):
+        with self.lock, self.service.lock:
+            item = self.jobs[identity]
+            if plan_sha != item["plan_sha256"]:
+                raise ServiceError("MODEL_DELETE_IDENTITY", "制品身份已变化，请刷新后重新确认", 409)
+            if item["state"] == "deleted":
+                return self._public(item)
+            siblings = [row for row in self.jobs.values() if row["plan_sha256"] == plan_sha and row["state"] != "deleted"]
+            if any(row["state"] in ACTIVE for row in siblings):
+                raise ServiceError("MODEL_DELETE_BUSY", "相同制品仍有下载任务，请先取消并等待停止", 409)
+            status = self.deletion_status(item)
+            if not status["allowed"]:
+                raise ServiceError("MODEL_DELETE_BLOCKED", status["reason"], 409)
+            identities = sorted(set(status["deployment_ids"]) | set(item.get("delete_deployment_ids", [])))
+            for row in siblings:
+                self._update(row["id"], state="deleting", delete_deployment_ids=identities)
+            try:
+                registration = {key: raw for key, raw in self.registered.items() if key not in identities}
+                save_json(self.root / "deployments.json", registration)
+                self.registered = registration
+                self.service.retire_deployments(identities)
+                for row in siblings:
+                    remove_artifacts(artifact_paths(self.models, row))
+            except (OSError, ValueError, RuntimeError, ServiceError) as exc:
+                for row in siblings:
+                    self._update(row["id"], state="delete_failed", error=f"删除未完成：{exc}"[:600])
+                raise ServiceError("MODEL_DELETE_FAILED", "删除未完成，请检查原因后重试：" + str(exc)[:400], 409) from exc
+            for row in siblings:
+                self._update(row["id"], state="deleted", deleted_at=time.time(), deployment_id=None,
+                             error=None, current_file=None, bytes_per_second=None, downloaded_bytes=0, verified_files=0)
+            return self._public(item)
 
     def _update(self, identity, **changes):
         with self.lock:
@@ -254,7 +331,7 @@ class ModelHub:
             if self.closed.is_set():
                 raise ServiceError("SHUTTING_DOWN", "服务正在关闭", 503)
             for item in self.jobs.values():
-                if item["plan_sha256"] == plan_sha:
+                if item["plan_sha256"] == plan_sha and item["state"] != "deleted":
                     return self._public(item)
             entry = self.inspections.get(plan_sha)
             if not entry or time.time() - entry[0] > 1800:

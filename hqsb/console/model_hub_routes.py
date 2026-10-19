@@ -18,8 +18,36 @@ class DownloadSelection(BaseModel):
     plan_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class LocalDirectory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: str = Field(min_length=1, max_length=1024)
+
+
+class LocalDeletion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 def model_hub_router(hub):
     router = APIRouter(prefix="/model-hub", tags=["model-hub"])
+    from hqsb.console.local_models import LocalModels
+    local = LocalModels(hub)
+
+    @router.get("/local-models")
+    def local_models():
+        return local.snapshot()
+
+    @router.post("/local-models/refresh")
+    def refresh_local_models():
+        return local.snapshot(refresh=True)
+
+    @router.post("/local-models/roots")
+    def add_local_root(body: LocalDirectory):
+        return local.add_root(body.path)
+
+    @router.post("/local-models/{identity}/delete")
+    def delete_local_model(identity: str, body: LocalDeletion):
+        return local.delete(identity, body.revision)
 
     @router.get("/config")
     def config():
@@ -74,5 +102,11 @@ def model_hub_router(hub):
     @router.post("/downloads/{identity}/register")
     def register(identity: str):
         return remote(lambda: hub.register(identity))
+
+    @router.post("/downloads/{identity}/delete")
+    def delete(identity: str, body: DownloadSelection):
+        result = hub.delete(identity, body.plan_sha256)
+        local.cached_at = 0
+        return result
 
     return router
