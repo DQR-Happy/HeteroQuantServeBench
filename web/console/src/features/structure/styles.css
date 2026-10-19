@@ -1,0 +1,20 @@
+.structure-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 20px;
+}
+.structure-nav a {
+  padding: 10px 0;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+}
+.structure-nav a[aria-current='page'] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+.structure-targets {
+  width: 100%;
+  margin: 12px 0;
+}
