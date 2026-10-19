@@ -1,0 +1,105 @@
+{
+  "id": "wikitext2-mini-v1",
+  "source": {
+    "dataset": "WikiText-2",
+    "variant": "wikitext-2-raw-v1",
+    "split": "test",
+    "url": "https://huggingface.co/datasets/Salesforce/wikitext",
+    "original_repository_revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+    "archive_url": "https://huggingface.co/datasets/ggml-org/ci/resolve/927b3642933080f1b0e811e2f916e14c292992f9/wikitext-2-raw-v1.zip",
+    "mirror_repository_revision": "927b3642933080f1b0e811e2f916e14c292992f9",
+    "archive_sha256": "ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11",
+    "mirror_provenance": "Download mirror used by ggml-org/llama.cpp scripts/get-wikitext-2.sh",
+    "sha256": "3398bbbde545d1dd1d5e1a5f27ac0421a5d1983c60a545973552fbfa43cee7f5",
+    "original_text_sha256": "173c87a53759e0201f33e0ccf978e510c2042d7f2cb78229d9a50d79b9e7dd08",
+    "row_count": 4358
+  },
+  "selection": {
+    "seed": "hqsb-wikitext2-mini-v1",
+    "algorithm": "8 equal contiguous eligible-article strata; min SHA256 article and paragraph per stratum",
+    "heading_rule": "level-one heading bounded by blank rows; exclude equations embedded in prose",
+    "eligible_paragraph_characters": [
+      400,
+      4096
+    ],
+    "article_count": 60,
+    "eligible_article_count": 60,
+    "text_changes": "strip surrounding whitespace only",
+    "model_scores_used": false
+  },
+  "license": "CC-BY-SA; see ATTRIBUTION.md for upstream license declarations",
+  "samples": [
+    {
+      "id": "wt2-test-line-385",
+      "article": "Second Battle of Naktong Bulge",
+      "article_index": 6,
+      "line_index": 385,
+      "stratum": 0,
+      "text": "At 09 : 00 Walker requested the US Air Force to make a maximum effort along the Naktong River from Toksong @-@ dong , just above the US 2nd Division boundary , southward and to a depth of 15 miles ( 24 km ) west of the river . He wanted the Air Force to isolate the battlefield and prevent further North Korean reinforcements and supplies from moving across the river in support of the North Korean spearhead units . The Far East Command requested the US Navy to join in the air effort , and the US Seventh Fleet turned back from its strikes in the Inch 'on @-@ Seoul area and sped southward at full steam toward the southern battle front . Walker came to the US 2nd Division front at 12 : 00 and ordered the division to hold at all costs . He had already ordered ground reinforcements to the Yongsan area .",
+      "text_sha256": "24c5cea6d06298d65bd9abbe7037d7be0f15e87657c720cb69c374b01c23e1a6"
+    },
+    {
+      "id": "wt2-test-line-956",
+      "article": "Dvorak technique",
+      "article_index": 13,
+      "line_index": 956,
+      "stratum": 1,
+      "text": "The Dvorak technique ( developed between 1969 and 1984 by Vernon Dvorak ) is a widely used system to estimate tropical cyclone intensity ( which includes tropical depression , tropical storm , and hurricane / typhoon / intense tropical cyclone intensities ) based solely on visible and infrared satellite images . Within the Dvorak satellite strength estimate for tropical cyclones , there are several visual patterns that a cyclone may take on which define the upper and lower bounds on its intensity . The primary patterns used are curved band pattern ( T1.0 @-@ T4.5 ) , shear pattern ( T1.5 @-@ T3.5 ) , central dense overcast ( CDO ) pattern ( T2.5 @-@ T5.0 ) , central cold cover ( CCC ) pattern , banding eye pattern ( T4.0 @-@ T4.5 ) , and eye pattern ( T4.5 - T8.0 ) .",
+      "text_sha256": "f66a9a0b7ea724274adf20648e11fd54ccf783bf803ca04c7324558edef44a65"
+    },
+    {
+      "id": "wt2-test-line-1321",
+      "article": "Operation Eastern Exit",
+      "article_index": 20,
+      "line_index": 1321,
+      "stratum": 2,
+      "text": "Operation Eastern Exit was the codename given to the military evacuation of the United States embassy in Mogadishu , the capital of Somalia , in January 1991 . In late December 1990 , violence quickly enveloped the city as armed militants began clashing with government soldiers . On 1 January 1991 , the US Ambassador to Somalia , James Keough Bishop , contacted the Department of State requesting an evacuation of the embassy , which was approved the following day . United States Central Command began planning and mobilizing forces that evening . The initial plan was to evacuate with a military transport plane through the Mogadishu International Airport , but this was later abandoned . A helicopter evacuation via the USS Guam and USS Trenton was the remaining option .",
+      "text_sha256": "24a383eff32126a3065a052430619952ba0a2f048145f2e51822c3cf73b132ec"
+    },
+    {
+      "id": "wt2-test-line-2245",
+      "article": "No. 20 Squadron RAAF",
+      "article_index": 29,
+      "line_index": 2245,
+      "stratum": 3,
+      "text": "No. 20 Squadron was reactivated on 1 April 2015 to support airfield operations at RAAF Base Woomera , South Australia . Consisting of nine uniformed personnel and one Australian Public Service member under the command of Squadron Leader Simon Bartlett , the squadron formed part of No. 96 Wing , a component of Combat Support Group ( CSG ) . The airfield had previously been managed under the auspices of Aerospace Operational Support Group , but a command @-@ and @-@ control review commissioned by the Chief of Air Force recommended that , in common with other RAAF airfields , it should be administered by CSG . RAAF Base Woomera , incorporating Woomera Village , was one of two Air Force units formally established on 12 January 2015 as part of a reorganisation of the Woomera Range Complex , the other unit being RAAF Woomera Test Range .",
+      "text_sha256": "8b01bc98975eacd1c77a43e0ae962c522a7b2bd69d698ba4986993d028292ade"
+    },
+    {
+      "id": "wt2-test-line-2714",
+      "article": "American Beauty ( 1999 film )",
+      "article_index": 35,
+      "line_index": 2714,
+      "stratum": 4,
+      "text": "Turan cited Ball 's lack of constraint when writing the film as the reason for its uniqueness , in particular the script 's subtle changes in tone . McCarthy said the script was \" as fresh and distinctive \" as any of its American film contemporaries , and praised how it analyzed the characters while not compromising narrative pace . He called Ball 's dialogue \" tart \" and said the characters — Carolyn excepted — were \" deeply drawn \" . One other flaw , McCarthy said , was the revelation of Col. Fitts ' homosexuality , which he said evoked \" hoary Freudianism \" . Jackson said the film transcended its clichéd setup to become a \" wonderfully resourceful and sombre comedy \" . He said that even when the film played for sitcom laughs , it did so with \" unexpected nuance \" . Hentzi criticized how the film made a mystery of Lester 's murder , believing it manipulative and simply a way of generating suspense . McCarthy cited the production and costume design as pluses , and said the soundtrack was good at creating \" ironic counterpoint [ s ] \" to the story . Hentzi concluded that American Beauty was \" vital but uneven \" ; he felt the film 's examination of \" the ways which teenagers and adults imagine each other 's lives \" was its best point , and that although Lester and Angela 's dynamic was familiar , its romantic irony stood beside \" the most enduring literary treatments \" of the theme , such as Lolita . Nevertheless , Hentzi believed that the film 's themes of materialism and conformity in American suburbia were \" hackneyed \" . McCarthy conceded that the setting was familiar , but said it merely provided the film with a \" starting point \" from which to tell its \" subtle and acutely judged tale \" . Maslin agreed ; she said that while it \" takes aim at targets that are none too fresh \" , and that the theme of nonconformity did not surprise , the film had its own \" corrosive novelty \" . Ebert awarded American Beauty four stars out of four , and Turan said it was layered , subversive , complex , and surprising , concluding it was \" a hell of a picture \" .",
+      "text_sha256": "1dbfb6c7e1e6c10f0c8485d439f9f8693f4d95137d3f54382861edf0fd993de0"
+    },
+    {
+      "id": "wt2-test-line-3257",
+      "article": "Attalea ( palm )",
+      "article_index": 39,
+      "line_index": 3257,
+      "stratum": 5,
+      "text": "Disturbance has been implicated in the formation of vegetation dominated by large Attalea species . In seasonally dry Amazonian forests the density of large adult A. maripa palms was correlated with canopy openness ; the species also dominates savannas formed by repeated forest fires in Trinidad and Tobago . Attalea speciosa forms pure stands in many parts of Brazil where natural forest vegetation has been cleared . Similarly , stands of A. funifera in Bahia , Brazil ( which are cultivated for piassava fibre ) are managed using fire — the seedlings survive cutting and burning , and are able to dominate burned forest patches .",
+      "text_sha256": "140341c5ed436138fcb3fdb6da887185ed74932ee7fa765da6407d8a59dd0ee9"
+    },
+    {
+      "id": "wt2-test-line-3482",
+      "article": "Bintulu",
+      "article_index": 45,
+      "line_index": 3482,
+      "stratum": 6,
+      "text": "In 1960 there were only three primary schools in Bintulu . These schools provided classes until Primary 3 level . There were no secondary schools . Villagers could pursue their secondary school studies at either Miri or Kuching by using small boats as there were no roads connecting Bintulu to either Miri or Kuching . Bintulu Government Secondary School was opened in 1964 . In 1967 Bintulu celebrated the first 100 years of the Council Negri meeting ( Sarawak State Legislative Assembly ) . A stone monument was built in front of a government rice storeroom to commemorate the event . Bintulu was a sub @-@ district of Miri Division in the 1970s . The sub @-@ district was upgraded into a district in 1987 .",
+      "text_sha256": "dcf82c394cb8f0fff904198d2a67cde6aa893e85655a4ddb178250f49e9358e2"
+    },
+    {
+      "id": "wt2-test-line-4334",
+      "article": "The Hustler ( film )",
+      "article_index": 59,
+      "line_index": 4334,
+      "stratum": 7,
+      "text": "Film and theatre historian Ethan Mordden has identified The Hustler as one of a handful of films from the early 1960s that re @-@ defined the relationship of films to their audiences . This new relationship , he writes , is \" one of challenge rather than flattery , of doubt rather than certainty . \" No film of the 1950s , Mordden asserts , \" took such a brutal , clear look at the ego @-@ affirmation of the one @-@ on @-@ one contest , at the inhumanity of the winner or the castrated vulnerability of the loser . \" Although some have suggested the resemblance of this film to classic film noir , Mordden rejects the comparison based on Rossen 's ultra @-@ realistic style , also noting that the film lacks noir 's \" Treacherous Woman or its relish in discovering crime among the bourgeoisie , hungry bank clerks and lusty wives . \" Mordden does note that while Fast Eddie \" has a slight fifties ring \" , the character \" makes a decisive break with the extraordinarily feeling tough guys of the ' rebel ' era ... [ b ] ut he does end up seeking out his emotions \" and telling Bert that he is a loser because he 's dead inside .",
+      "text_sha256": "6b99788fe1025dd960a0053f71ee68b12062d103f529ae04c4b4e038a54cffaa"
+    }
+  ]
+}

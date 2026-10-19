@@ -76,6 +76,9 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["hqsb*", "ops*"]
 
+[tool.setuptools.package-data]
+"hqsb.core" = ["data/*.json", "data/*.md"]
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests"]
