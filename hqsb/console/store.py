@@ -34,6 +34,10 @@ LIST_DETAIL_PATHS = (
     "$.metrics.system_receipt.hardware",
     "$.metrics.system_receipt.plan.prompts",
     "$.config.system_plan.prompts",
+    "$.metrics.application_receipt.variants",
+    "$.metrics.application_receipt.events",
+    "$.metrics.application_receipt.plan.requests",
+    "$.config.application_plan.requests",
     "$.metrics.token_itl_ms",
     "$.metrics.quantization.weight_error.per_tensor_metrics",
     "$.metrics.quantization.weight_error.per_tensor_wall_time_s",
@@ -53,6 +57,9 @@ class Store:
             CREATE TABLE IF NOT EXISTS events (run_id TEXT, seq INTEGER, body TEXT,
                 PRIMARY KEY(run_id, seq));
             CREATE TABLE IF NOT EXISTS idempotency (key TEXT PRIMARY KEY, digest TEXT, run_id TEXT);
+            CREATE INDEX IF NOT EXISTS runs_created_idx ON runs(created DESC);
+            CREATE INDEX IF NOT EXISTS runs_kind_created_idx
+                ON runs(json_extract(body, '$.kind'), created DESC);
         """)
         self.db.commit()
 
@@ -127,6 +134,14 @@ class Store:
                 (run_id, run["seq"], json.dumps(event)),
             )
             return run
+
+    def status(self, run_id: str) -> dict:
+        """Small lifecycle poll; never deserialize inputs/tensors/token traces."""
+        with self.lock:
+            row = self.db.execute("SELECT json_extract(body,'$.state'),json_extract(body,'$.cleanup'),json_extract(body,'$.error') FROM runs WHERE id=?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError(run_id)
+            return {"id":run_id,"state":row[0],"cleanup":row[1],"error":row[2]}
 
     def events(self, run_id: str, after: int, limit: int = 100) -> list[dict]:
         with self.lock:

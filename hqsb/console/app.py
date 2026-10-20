@@ -114,6 +114,8 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     system_jobs = SystemJobs(settings, svc)
     from hqsb.console.parallel_peers import PeerJobs
     parallel_peers = PeerJobs(settings, svc, parallel_jobs, machines, connections)
+    from hqsb.console.application_jobs import ApplicationJobs
+    application_jobs = ApplicationJobs(settings, svc, machines, connections)
     login_attempts: dict[str, list[float]] = {}
 
     @asynccontextmanager
@@ -122,6 +124,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             telemetry.start()
         yield
         telemetry.close()
+        await asyncio.to_thread(application_jobs.close)
         await asyncio.to_thread(parallel_peers.close)
         await asyncio.to_thread(connections.close)
         await asyncio.to_thread(benchmarks.close)
@@ -149,6 +152,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     app.state.structure_jobs = structure_jobs
     app.state.parallel_jobs = parallel_jobs
     app.state.system_jobs = system_jobs
+    app.state.application_jobs = application_jobs
     app.include_router(machine_router(machines, connections), prefix=PREFIX)
     app.include_router(model_hub_router(model_hub), prefix=PREFIX)
     app.include_router(scheduling_router(scheduling), prefix=PREFIX)
@@ -160,6 +164,8 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     app.include_router(parallel_router(settings, svc, parallel_jobs, parallel_peers), prefix=PREFIX)
     from hqsb.console.system_routes import system_router
     app.include_router(system_router(svc, system_jobs), prefix=PREFIX)
+    from hqsb.console.application_routes import application_router
+    app.include_router(application_router(svc, application_jobs, InferenceRequest), prefix=PREFIX)
 
     def valid_session(cookie):
         try:

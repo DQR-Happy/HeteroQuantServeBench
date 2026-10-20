@@ -843,6 +843,177 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/application/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalog */
+        get: operations["catalog_api_console_v1_application_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listing */
+        get: operations["listing_api_console_v1_application_jobs_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_console_v1_application_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate */
+        post: operations["validate_api_console_v1_application_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/operations/{identity}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Operation Status */
+        get: operations["operation_status_api_console_v1_application_operations__identity__status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Targets */
+        get: operations["targets_api_console_v1_application_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/runs/{identity}/application": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Receipt */
+        get: operations["receipt_api_console_v1_runs__identity__application_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/leases/acquire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acquire */
+        post: operations["acquire_api_console_v1_application_leases_acquire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/leases/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release */
+        post: operations["release_api_console_v1_application_leases_release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/worker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Worker */
+        post: operations["worker_api_console_v1_application_worker_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/application/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Operation */
+        post: operations["operation_api_console_v1_application_operations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -2192,6 +2363,210 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ApplicationInput */
+        ApplicationInput: {
+            /** Id */
+            id: string;
+            /**
+             * Tenant
+             * @default default
+             */
+            tenant: string;
+            /** Prompt */
+            prompt?: string | null;
+            /** Messages */
+            messages?: components["schemas"]["ApplicationMessage"][];
+            /**
+             * Arrival Ms
+             * @default 0
+             */
+            arrival_ms: number;
+            /**
+             * Max Output Tokens
+             * @default 32
+             */
+            max_output_tokens: number;
+        };
+        /** ApplicationJobRequest */
+        ApplicationJobRequest: {
+            plan: components["schemas"]["ApplicationPlan"];
+        };
+        /** ApplicationLease */
+        ApplicationLease: {
+            /** Owner */
+            owner: string;
+            target: components["schemas"]["ApplicationTarget"];
+        };
+        /** ApplicationMessage */
+        ApplicationMessage: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "system" | "user" | "assistant";
+            /** Content */
+            content: string;
+        };
+        /** ApplicationOperation */
+        ApplicationOperation: {
+            /** Owner */
+            owner: string;
+            target: components["schemas"]["ApplicationTarget"];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "load" | "unload" | "generate";
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+        };
+        /** ApplicationPlan */
+        ApplicationPlan: {
+            /** Targets */
+            targets: components["schemas"]["ApplicationTarget"][];
+            /** Requests */
+            requests?: components["schemas"]["ApplicationInput"][];
+            baseline?: components["schemas"]["ApplicationPolicy"];
+            candidate?: components["schemas"]["ApplicationPolicy"];
+            /**
+             * Concurrency
+             * @default 2
+             */
+            concurrency: number;
+            /**
+             * Request Deadline S
+             * @default 90
+             */
+            request_deadline_s: number;
+            /**
+             * Timeout S
+             * @default 300
+             */
+            timeout_s: number;
+            /**
+             * Fixed Output Length
+             * @default false
+             */
+            fixed_output_length: boolean;
+        };
+        /** ApplicationPolicy */
+        ApplicationPolicy: {
+            /**
+             * Routing
+             * @default round_robin
+             * @enum {string}
+             */
+            routing: "round_robin" | "least_pending" | "cache_affinity" | "length_model";
+            /**
+             * Short Input Chars
+             * @default 128
+             */
+            short_input_chars: number;
+            /**
+             * Result Cache
+             * @default false
+             */
+            result_cache: boolean;
+            /**
+             * Cache Ttl S
+             * @default 60
+             */
+            cache_ttl_s: number;
+            /**
+             * Cache Max Entries
+             * @default 32
+             */
+            cache_max_entries: number;
+            /**
+             * Cache Max Bytes
+             * @default 4194304
+             */
+            cache_max_bytes: number;
+            /**
+             * Prefix Reuse
+             * @default false
+             */
+            prefix_reuse: boolean;
+            /**
+             * Input Transform
+             * @default none
+             * @enum {string}
+             */
+            input_transform: "none" | "head_tail_tokens" | "recent_messages";
+            /**
+             * Input Token Cap
+             * @default 256
+             */
+            input_token_cap: number;
+            /**
+             * Recent Messages
+             * @default 4
+             */
+            recent_messages: number;
+            /** Output Cap */
+            output_cap?: number | null;
+            /**
+             * Autoscale
+             * @default false
+             */
+            autoscale: boolean;
+            /**
+             * Min Replicas
+             * @default 0
+             */
+            min_replicas: number;
+            /**
+             * Max Replicas
+             * @default 1
+             */
+            max_replicas: number;
+            /**
+             * Idle Unload Ms
+             * @default 1000
+             */
+            idle_unload_ms: number;
+        };
+        /** ApplicationTarget */
+        ApplicationTarget: {
+            /** Id */
+            id: string;
+            /**
+             * Machine Id
+             * @default local
+             */
+            machine_id: string;
+            /** Deployment Id */
+            deployment_id: string;
+            /**
+             * Lifecycle
+             * @default existing
+             * @enum {string}
+             */
+            lifecycle: "existing" | "managed";
+            /**
+             * Role
+             * @default default
+             * @enum {string}
+             */
+            role: "default" | "small" | "large";
+        };
+        /** ApplicationWorkerRequest */
+        ApplicationWorkerRequest: {
+            /** Owner */
+            owner: string;
+            target: components["schemas"]["ApplicationTarget"];
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "snapshot" | "application_metadata" | "application_prepare" | "application_prefix_begin" | "application_prefix_end";
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+        };
         /** BaselineRegistration */
         BaselineRegistration: {
             /** Run Id */
@@ -2802,7 +3177,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "load" | "unload" | "generate" | "quantize" | "scheduling" | "compress" | "draft_unload" | "distributed" | "system";
+            kind: "load" | "unload" | "generate" | "quantize" | "scheduling" | "compress" | "draft_unload" | "distributed" | "system" | "application";
             /**
              * State
              * @enum {string}
@@ -4752,6 +5127,330 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_api_console_v1_application_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    listing_api_console_v1_application_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_api_console_v1_application_jobs_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_api_console_v1_application_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    operation_status_api_console_v1_application_operations__identity__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    targets_api_console_v1_application_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    receipt_api_console_v1_runs__identity__application_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acquire_api_console_v1_application_leases_acquire_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationLease"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_api_console_v1_application_leases_release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationLease"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    worker_api_console_v1_application_worker_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationWorkerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    operation_api_console_v1_application_operations_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationOperation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRecord"];
                 };
             };
             /** @description Validation Error */

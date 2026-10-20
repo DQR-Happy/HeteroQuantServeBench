@@ -22,7 +22,7 @@ IMPLEMENTED = {
     "kernel_profile": {"layers": [2], "scope": "deployment", "values": list(PROFILES)},
 }
 PENDING = {
-    "system_profile": [1], "power_frequency": [1], "placement": [1, 9], "custom_kernel": [2],
+    "application_policy": [10], "system_profile": [1], "power_frequency": [1], "placement": [1, 9], "custom_kernel": [2],
     "compile_graph": [3], "weight_quantization": [4], "activation_quantization": [4],
     "kv_quantization": [4, 6], "model_compression": [5], "paged_kv": [6],
     "prefix_cache": [6, 10], "offload_prefetch": [6], "speculative_decode": [7],
@@ -50,10 +50,12 @@ def catalogue(provider="pytorch"):
         decoding = name == "speculative_decode"
         parallel = name == "parallel_plan"
         system = name == "system_profile"
+        application = name == "application_policy"
         items.append({"id": name, "layers": layers,
-                      "implementation_status": "session_api_only" if parallel or system else "request_api_only" if compiler or decoding else "session_api_only" if session else "load_api_only" if precision else "not_integrated",
+                      "implementation_status": "session_api_only" if parallel or system or application else "request_api_only" if compiler or decoding else "session_api_only" if session else "load_api_only" if precision else "not_integrated",
                       "runtime_capability": "requires_system_hardware_and_permission_validation" if system and provider == "pytorch" else "requires_parallel_hardware_and_model_validation" if parallel and provider == "pytorch" else "requires_decoding_validation" if decoding and provider == "pytorch" else "native_float_runtime_validation_required" if compiler and provider == "pytorch" else "requires_scheduling_capabilities" if session and provider == "pytorch" else "requires_precision_capabilities" if precision and provider == "pytorch" else "unavailable",
                       **({"api":"/system/jobs","catalogue":"/system/catalog","entrypoint":"/system","scope":"exclusive_paired_system_session"} if system else {}),
+                      **({"api":"/application/jobs","catalogue":"/application/catalog","entrypoint":"/application","scope":"exclusive_service_workload_session","runtime_capability":"requires_ready_targets_or_managed_replica_admission" if provider == "pytorch" else "unsupported_provider"} if application else {}),
                       **({"api":"/parallel/jobs","catalogue":"/parallel/catalog","entrypoint":"/parallel","scope":"exclusive_parallel_session"} if parallel else {}),
                       **({"api":"/requests","catalogue":"/decoding/catalog","entrypoint":"/decoding","scope":"request_decoding_plan"} if decoding else {}),
                       **({"api": "/requests", "catalogue": "/runtime/catalog", "entrypoint": "/model-architecture", "scope": "request_runtime_plan"} if compiler else {}),

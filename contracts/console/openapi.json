@@ -2094,6 +2094,407 @@
         }
       }
     },
+    "/api/console/v1/application/catalog": {
+      "get": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_application_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/jobs": {
+      "post": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_console_v1_application_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationJobRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_application_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/validate": {
+      "post": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Validate",
+        "operationId": "validate_api_console_v1_application_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/operations/{identity}/status": {
+      "get": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Operation Status",
+        "operationId": "operation_status_api_console_v1_application_operations__identity__status_get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/targets": {
+      "get": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Targets",
+        "operationId": "targets_api_console_v1_application_targets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/runs/{identity}/application": {
+      "get": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Receipt",
+        "operationId": "receipt_api_console_v1_runs__identity__application_get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/leases/acquire": {
+      "post": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Acquire",
+        "operationId": "acquire_api_console_v1_application_leases_acquire_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationLease"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/leases/release": {
+      "post": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Release",
+        "operationId": "release_api_console_v1_application_leases_release_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationLease"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/worker": {
+      "post": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Worker",
+        "operationId": "worker_api_console_v1_application_worker_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationWorkerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/application/operations": {
+      "post": {
+        "tags": [
+          "service-application"
+        ],
+        "summary": "Operation",
+        "operationId": "operation_api_console_v1_application_operations_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationOperation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "summary": "Health",
@@ -5197,6 +5598,416 @@
   },
   "components": {
     "schemas": {
+      "ApplicationInput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.-]{1,64}$",
+            "title": "Id"
+          },
+          "tenant": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.-]{1,64}$",
+            "title": "Tenant",
+            "default": "default"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8192,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationMessage"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Messages"
+          },
+          "arrival_ms": {
+            "type": "integer",
+            "maximum": 30000.0,
+            "minimum": 0.0,
+            "title": "Arrival Ms",
+            "default": 0
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "maximum": 512.0,
+            "minimum": 1.0,
+            "title": "Max Output Tokens",
+            "default": 32
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "ApplicationInput"
+      },
+      "ApplicationJobRequest": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/ApplicationPlan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan"
+        ],
+        "title": "ApplicationJobRequest"
+      },
+      "ApplicationLease": {
+        "properties": {
+          "owner": {
+            "type": "string",
+            "pattern": "^l10:run_[a-f0-9]{32}$",
+            "title": "Owner"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ApplicationTarget"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "owner",
+          "target"
+        ],
+        "title": "ApplicationLease"
+      },
+      "ApplicationMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 8192,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ApplicationMessage"
+      },
+      "ApplicationOperation": {
+        "properties": {
+          "owner": {
+            "type": "string",
+            "pattern": "^l10:run_[a-f0-9]{32}$",
+            "title": "Owner"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ApplicationTarget"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "load",
+              "unload",
+              "generate"
+            ],
+            "title": "Kind"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "owner",
+          "target",
+          "kind"
+        ],
+        "title": "ApplicationOperation"
+      },
+      "ApplicationPlan": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationTarget"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Targets"
+          },
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationInput"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Requests"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/ApplicationPolicy"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/ApplicationPolicy"
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "default": 2
+          },
+          "request_deadline_s": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 5.0,
+            "title": "Request Deadline S",
+            "default": 90
+          },
+          "timeout_s": {
+            "type": "integer",
+            "maximum": 900.0,
+            "minimum": 30.0,
+            "title": "Timeout S",
+            "default": 300
+          },
+          "fixed_output_length": {
+            "type": "boolean",
+            "title": "Fixed Output Length",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "targets"
+        ],
+        "title": "ApplicationPlan"
+      },
+      "ApplicationPolicy": {
+        "properties": {
+          "routing": {
+            "type": "string",
+            "enum": [
+              "round_robin",
+              "least_pending",
+              "cache_affinity",
+              "length_model"
+            ],
+            "title": "Routing",
+            "default": "round_robin"
+          },
+          "short_input_chars": {
+            "type": "integer",
+            "maximum": 8192.0,
+            "minimum": 1.0,
+            "title": "Short Input Chars",
+            "default": 128
+          },
+          "result_cache": {
+            "type": "boolean",
+            "title": "Result Cache",
+            "default": false
+          },
+          "cache_ttl_s": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Cache Ttl S",
+            "default": 60
+          },
+          "cache_max_entries": {
+            "type": "integer",
+            "maximum": 256.0,
+            "minimum": 1.0,
+            "title": "Cache Max Entries",
+            "default": 32
+          },
+          "cache_max_bytes": {
+            "type": "integer",
+            "maximum": 16777216.0,
+            "minimum": 1024.0,
+            "title": "Cache Max Bytes",
+            "default": 4194304
+          },
+          "prefix_reuse": {
+            "type": "boolean",
+            "title": "Prefix Reuse",
+            "default": false
+          },
+          "input_transform": {
+            "type": "string",
+            "enum": [
+              "none",
+              "head_tail_tokens",
+              "recent_messages"
+            ],
+            "title": "Input Transform",
+            "default": "none"
+          },
+          "input_token_cap": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 16.0,
+            "title": "Input Token Cap",
+            "default": 256
+          },
+          "recent_messages": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Recent Messages",
+            "default": 4
+          },
+          "output_cap": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 512.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Cap"
+          },
+          "autoscale": {
+            "type": "boolean",
+            "title": "Autoscale",
+            "default": false
+          },
+          "min_replicas": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Min Replicas",
+            "default": 0
+          },
+          "max_replicas": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Max Replicas",
+            "default": 1
+          },
+          "idle_unload_ms": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 100.0,
+            "title": "Idle Unload Ms",
+            "default": 1000
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ApplicationPolicy"
+      },
+      "ApplicationTarget": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.-]{1,64}$",
+            "title": "Id"
+          },
+          "machine_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Machine Id",
+            "default": "local"
+          },
+          "deployment_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Deployment Id"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "existing",
+              "managed"
+            ],
+            "title": "Lifecycle",
+            "default": "existing"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "default",
+              "small",
+              "large"
+            ],
+            "title": "Role",
+            "default": "default"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "deployment_id"
+        ],
+        "title": "ApplicationTarget"
+      },
+      "ApplicationWorkerRequest": {
+        "properties": {
+          "owner": {
+            "type": "string",
+            "pattern": "^l10:run_[a-f0-9]{32}$",
+            "title": "Owner"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ApplicationTarget"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "snapshot",
+              "application_metadata",
+              "application_prepare",
+              "application_prefix_begin",
+              "application_prefix_end"
+            ],
+            "title": "Operation"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "owner",
+          "target",
+          "operation"
+        ],
+        "title": "ApplicationWorkerRequest"
+      },
       "BaselineRegistration": {
         "properties": {
           "run_id": {
@@ -6738,7 +7549,8 @@
               "compress",
               "draft_unload",
               "distributed",
-              "system"
+              "system",
+              "application"
             ],
             "title": "Kind"
           },
