@@ -50,6 +50,12 @@ def worker_main(connection, cancel, config, controls=None):
                     result = capabilities(provider) if command["kind"] == "memory_capabilities" else clear_prefix(provider)
                 elif command["kind"] == "token_budget":
                     result = provider.token_budget(command["payload"], cancel)
+                elif command["kind"] in {"application_metadata", "application_prepare", "application_prefix_begin", "application_prefix_end"}:
+                    from hqsb.backends.application_input import metadata, prepare, prefix_scope
+                    if command["kind"] in {"application_prefix_begin", "application_prefix_end"}:
+                        result = prefix_scope(provider, command["payload"]["owner"], command["kind"] == "application_prefix_begin")
+                    else:
+                        result = metadata(provider) if command["kind"] == "application_metadata" else prepare(provider, command["payload"])
                 elif command["kind"] == "scheduling_capabilities":
                     from hqsb.backends.step_executor import capabilities
 

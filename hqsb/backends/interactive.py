@@ -665,6 +665,9 @@ class InteractivePyTorch:
             handle.remove()
         self.structure_handles = []
         self.structure_load = {}
+        if getattr(self, "_l10_prefix_scope", None):
+            from hqsb.backends.application_input import prefix_scope
+            prefix_scope(self, self._l10_prefix_scope[0], False)
         if getattr(self, "prefix_store", None) is not None:
             if torch.cuda.is_initialized():
                 torch.cuda.synchronize()
