@@ -31,6 +31,7 @@ const runKinds: Record<string, string> = {
   draft_unload: '卸载独立草稿模型',
   distributed: '多卡与分布式执行',
   system: '硬件与系统配置对照',
+  application: '服务与应用对照',
   scheduling: '多请求调度实验',
 };
 export function runKindLabel(kind: string) {

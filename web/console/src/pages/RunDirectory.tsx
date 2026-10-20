@@ -94,6 +94,7 @@ export default function RunDirectory() {
               'quantize',
               'scheduling',
               'system',
+              'application',
               'distributed',
             ].map((value) => (
               <button

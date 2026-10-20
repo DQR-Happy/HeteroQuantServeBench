@@ -37,6 +37,8 @@ export function RunDetail() {
   const lifecycle = r?.kind === 'load' || r?.kind === 'unload';
   const quality = !!r && isQualityRun(r);
   const decoding = (r as DecodeRun | undefined)?.metrics.decoding_receipt;
+  if (r?.kind === 'application')
+    return <Navigate replace to={`/application/results?run=${r.id}`} />;
   if (r?.kind === 'system')
     return (
       <Navigate
