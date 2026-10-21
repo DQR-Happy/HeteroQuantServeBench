@@ -29,7 +29,7 @@ def bind(model, session):
     before = {name: (id(p), p.data_ptr(), tuple(p.shape)) for name,p in model.named_parameters(remove_duplicate=False)}
     state_keys = tuple(model.state_dict())
     choices = session.profile["operators"]
-    if choices.get("attention") == "torch-sdpa-flash-gqa-repeat-v1":
+    if choices.get("attention") == "torch-sdpa-flash-gqa-repeat-v1" or choices.get("attention", "").startswith("triton-"):
         original_forward = model.forward
         session.unpadded_causal = False
 
@@ -132,11 +132,18 @@ def bind(model, session):
                 if past_key_values is not None:
                     k,v = past_key_values.update(k,v,self.layer_idx)
                 if _attn is not None:
-                    from hqsb.backends.model_kernels.sdpa import run
-
-                    out = run(q,k,v,attention_mask,self.scaling,choices["attention"],
-                              unpadded_causal=getattr(session, "unpadded_causal", False))
-                    repeat_bytes = 2 * q.shape[0] * q.shape[1] * k.shape[2] * q.shape[3] * q.element_size() if q.shape[1] != k.shape[1] else 0
+                    if choices["attention"].startswith("triton-"):
+                        from hqsb.backends.model_kernels.triton_attention import run
+                        if not getattr(session, "unpadded_causal", False):
+                            raise ValueError("KERNEL_TRITON_UNPADDED_CAUSAL_REQUIRED")
+                        out = run(q,k,v,self.scaling,block_n=32 if "n32" in choices["attention"] else 64,
+                                  layer=f"model.layers.{self.layer_idx}.self_attn", phase=("warmup", "prefill", "decode")[session.phase])
+                        repeat_bytes = 0
+                    else:
+                        from hqsb.backends.model_kernels.sdpa import run
+                        out = run(q,k,v,attention_mask,self.scaling,choices["attention"],
+                                  unpadded_causal=getattr(session, "unpadded_causal", False))
+                        repeat_bytes = 2 * q.shape[0] * q.shape[1] * k.shape[2] * q.shape[3] * q.element_size() if q.shape[1] != k.shape[1] else 0
                     session.repeat_peak_bytes = max(session.repeat_peak_bytes, repeat_bytes)
                     session.repeat_total_bytes += repeat_bytes
                     weights = None

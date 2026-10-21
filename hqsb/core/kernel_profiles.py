@@ -15,6 +15,8 @@ PROFILES = {
     "qwen3-linear-gemv-v1": {"linear": "cuda-small-m-gemv-v1"},
     "qwen3-attention-math-v1": {"attention": "torch-sdpa-math-gqa-repeat-v1"},
     "qwen3-attention-flash-v1": {"attention": "torch-sdpa-flash-gqa-repeat-v1"},
+    "qwen3-attention-triton-n32-v1": {"attention": "triton-online-softmax-n32-v1"},
+    "qwen3-attention-triton-n64-v1": {"attention": "triton-online-softmax-n64-v1"},
     "qwen3-local-fusions-v1": {
         "rms_norm": "cuda-hf-half2-v2",
         "residual_rms_norm": "cuda-hf-residual-v1",
@@ -41,13 +43,15 @@ LABELS = {
     "qwen3-linear-gemv-v1": ("Linear", "CUDA small-M GEMV + cuBLASLt · v1"),
     "qwen3-attention-math-v1": ("Attention", "PyTorch SDPA math · v1"),
     "qwen3-attention-flash-v1": ("Attention", "PyTorch SDPA flash · v1"),
+    "qwen3-attention-triton-n32-v1": ("Attention", "Triton online softmax · K/V tile 32 · v1"),
+    "qwen3-attention-triton-n64-v1": ("Attention", "Triton online softmax · K/V tile 64 · v1"),
     "qwen3-local-fusions-v1": ("组合方案", "Norm + residual + SiLU + RoPE · v1"),
     "qwen3-l2-math-v1": ("组合方案", "局部融合 + cuBLASLt + SDPA math · v1"),
 }
 
 
 def requires_native(name):
-    return any(not variant.startswith("torch-") for variant in profile(name)["operators"].values())
+    return any(not variant.startswith(("torch-", "triton-")) for variant in profile(name)["operators"].values())
 
 
 def profile(name):

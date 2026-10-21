@@ -26,7 +26,12 @@ class KernelSession:
             self.plan_hash = fingerprint(self.plan)
             return
         try:
-            if any(not variant.startswith("torch-") for variant in self.profile["operators"].values()):
+            if any(v.startswith("triton-") for v in self.profile["operators"].values()):
+                from importlib.metadata import version
+                from hqsb.observation.storage import sha256
+                implementation = Path(__file__).parent / "model_kernels/triton_attention.py"
+                self.plan["triton_implementation"] = {"version": version("triton"), "source_sha256": sha256(implementation)}
+            if any(not variant.startswith(("torch-", "triton-")) for variant in self.profile["operators"].values()):
                 manifest = config.get("kernel_manifest")
                 if not manifest:
                     raise ValueError("KERNEL_NATIVE_MANIFEST_REQUIRED")
