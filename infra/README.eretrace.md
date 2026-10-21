@@ -98,10 +98,106 @@ the existing console protocol. Comparisons use the existing diagnostics route.
   follows the existing diagnostic artifact protocol; file close is the trace
   writer's endpoint.
 
-The current capture reports warp/SM behavior. Cache-hit rates come from ncu;
-CPU pages come from procfs. Variable-count memory-event tracing and tensor/KV
-address attribution are separate extensions. Whole-model optimization decisions
+The warp capture reports warp/SM behavior; the memory mode below provides DMAT.
+Cache-hit rates come from ncu; CPU pages come from procfs. Tensor/KV address
+attribution requires allocation-lifecycle evidence. Whole-model optimization decisions
 continue to use normal benchmark performance and quality alongside diagnostics.
+
+## Real memory access / DMAT
+
+The current dual-clock `HQDMAT2` implementation, tensor mapping, common-scale
+comparison APIs and Attention/model acceptance are documented in
+[README.dmat.md](README.dmat.md). New collection requires a runtime advertising
+`dmat-dual-clock`; old raw files remain readable.
+
+### Archived HQDMAT1 format
+
+The following describes the initial globaltimer-only implementation and its
+saved artifacts. Its frame limits, unsupported async copies and saved-grid zoom
+refer specifically to `HQDMAT1`; use the current document for new captures.
+
+In **执行诊断**, select **ERETrace → 真实访存 / DMAT**. Sources can be an
+existing single-request Eager native benchmark or a completed PyTorch greedy
+inference with saved input and a verified model manifest. Unload resident models
+before submitting. The replay reloads the saved model/profile/precision and opens
+the capture window after warmup. PyTorch sources with compiler, memory, decoding
+or structure transformations need their corresponding replay adapter; admission
+explains which source setting needs adaptation.
+
+The runtime must be rebuilt with the current installer. Its identity advertises
+`capabilities: [warp, memory]`; existing warp-only installations remain usable for
+warp jobs. `preload.so` retains the selective Triton bridge for native engines;
+`preload-pytorch.so` is built from the private artifact's original loader and is
+used only by the owned PyTorch DMAT child. Ordinary service workers keep their
+normal execution environment.
+
+DMAT uses a separate synchronous, single-execution collector and raw format:
+
+```
+magic HQDMAT1\n
+header <8I: grid[3], block[3], shared_bytes, per_thread_capacity
+counts: thread_count * u64 attempted events
+events: thread_count * capacity * <QQIIII
+        GPU globaltimer ns, virtual_address, site, thread, predicate_mask, width
+```
+
+Enabled threads record immediately before supported explicit `ld.global` and
+`st.global` instructions. Predicated accesses retain the enabled-lane mask;
+vector operations retain their instruction width. Generic addressing, atomics,
+async copies/TMA and called PTX functions require separate instrumentation
+adapters. Their selected launches retain compiler diagnostics and coverage
+failures. Closed library calls outside the selected loader path remain outside
+the capture denominator. This mode does not claim whole-model instruction
+coverage. It has no counting replay and never re-executes stateful kernels to
+size a buffer.
+
+Each launch reserves at most 16 MiB including count buffers, with capacity
+1–512 events per thread and 1–32 selected launches. Zeroing, launch and completion
+are ordered on the submitting stream, including non-default streams. Overflow
+keeps the original inference result and captured events, reports exact dropped
+counts, and marks the diagnostic partial/failed. Model output comparison and
+source workload/environment lineage are recorded separately. Selected PTX and
+instrumented PTX hashes, assembler identity, instruction sites, raw `.dmat`,
+`panel.json` and downloadable SVG enter the existing sealed artifact manifest.
+The assembler may be the matching Triton-bundled version when the system
+assembler cannot accept the retained PTX version; PTX versions are preserved.
+
+The heatmap uses GPU-wide `globaltimer` timestamps, relative to the first observed
+access in each launch. Nanoseconds describe the timer unit, not its resolution.
+Address labels are exact hexadecimal strings; absolute u64 values never pass
+through JavaScript floating point. Color counts enabled-thread instruction
+events grouped by their starting virtual address. Requested address bins are
+4/16/64 KiB, coarsened explicitly if needed to keep at most 256 observed rows.
+Address gaps are collapsed and the actual bin width is displayed. Time is
+aggregated into 16–512 intervals, coarsened explicitly when needed to bound each
+plot to 8,192 cells. Requested and actual bin counts are saved. Vector instruction bytes and read/write counts
+are separate values; instruction bytes are distinct from DRAM bus traffic.
+Time/address zoom and read/write selection operate on these saved aggregates.
+Raw events remain available for independent analysis at their original precision.
+
+DMAT shows actual software-visible memory access. Physical page placement,
+faults/migrations, cache hits and tensor/KV ownership need their respective
+driver, counter and allocation-lifecycle evidence. Separate runs can use different
+virtual addresses, so address-aligned diffs require object attribution. Profiling
+perturbation remains part of the diagnostic interpretation.
+
+Validate on the execution node:
+
+```bash
+./scripts/remote_run.sh .venv-console/bin/python -m pytest tests/unit/console/test_dmat.py -q
+./scripts/remote_run.sh .venv-console/bin/python scripts/console/validate_dmat.py \
+  --runtime /path/to/runtime --output reports/console/dmat/address-oracle
+./scripts/remote_run.sh .venv-console/bin/python scripts/console/validate_dmat.py \
+  --runtime /path/to/runtime --output reports/console/dmat/overflow-oracle --capacity 1
+./scripts/remote_run.sh .venv-console/bin/python scripts/console/validate_eretrace.py \
+  --mode memory --source run_<saved-source> --kernel <substring> --launch-count 1
+```
+
+The GPU oracle checks the complete address/read/write multiset against the
+actual input/output allocation addresses, numerical output equality, masked tail
+and non-default-stream execution. The low-capacity control requires partial
+coverage with retained real data. It cannot pass by replacing measured events
+with inferred tensor positions.
 
 ## Modules and interfaces
 

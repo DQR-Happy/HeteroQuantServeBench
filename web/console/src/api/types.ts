@@ -102,11 +102,13 @@ export type Run = {
   seq: number;
   config: {
     deployment: Deployment;
+    actual_runtime?: { kernel_plan?: KernelPlan };
     source_run_id?: string;
     diagnostic_plan?: { tool: string; source_run_id: string };
     runtime_plan?: { mode: string; shape_policy: string; fullgraph: boolean };
     epoch: string | null;
     input_sha256?: string;
+    save_input?: boolean;
     messages?: Message[];
     prompt?: string;
     input_mode?: 'chat' | 'completion';

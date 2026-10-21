@@ -16,6 +16,8 @@ TERMINAL = frozenset({"completed", "failed", "cancelled", "timed_out", "interrup
 LIST_DETAIL_PATHS = (
     "$.metrics.diagnostic.panel.timeline",
     "$.metrics.diagnostic.panel.kernels",
+    "$.metrics.diagnostic.panel.memory_launches",
+    "$.metrics.diagnostic.panel.launches",
     "$.metrics.diagnostic.source_engine",
     "$.metrics.diagnostic.attempts",
     "$.metrics.native_benchmark.requests",

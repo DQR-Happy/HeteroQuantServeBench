@@ -1,6 +1,6 @@
 import type { components } from '../../api/generated';
 import type { Run } from '../../api/types';
-export type Plan = components['schemas']['ApplicationPlan'];
+export type Plan = components['schemas']['ApplicationJobRequest']['plan'];
 export type Policy = components['schemas']['ApplicationPolicy'];
 export type Target = components['schemas']['ApplicationTarget'];
 export type Input = components['schemas']['ApplicationInput'];

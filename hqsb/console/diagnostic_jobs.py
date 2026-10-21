@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -18,6 +19,19 @@ from hqsb.observation.nsight_tools import discover
 
 
 COUNTER_PERMISSION = "GPU_COUNTER_PERMISSION_REQUIRED: 执行节点驱动限制了 GPU 硬件计数器访问。请由宿主机管理员开放 profiling 权限或授予容器相应 capability，再重试；原始错误见 profiler.log。"
+
+
+def directory_bytes(root):
+    """JIT compilers atomically rename/remove temporary files during capture."""
+    total = 0
+    for path in root.rglob("*"):
+        try:
+            info = path.stat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISREG(info.st_mode):
+            total += info.st_size
+    return total
 
 
 def log_tail(path):
@@ -54,6 +68,13 @@ class DiagnosticJobs:
                 "providers": ["vllm", "sglang"], "measurement_role": "diagnostic",
                 "prerequisite": "卸载驻留 GPU 模型后，从原生引擎公共压测记录发起独立诊断。"}
 
+    def sources(self):
+        items = self.service.store.list(100)["items"]
+        native = self.service.store.list(100, kind="native_benchmark")["items"]
+        candidates = {r["id"]: r for r in items + native if r["state"] == "completed" and
+                      (r["kind"] == "native_benchmark" or (r["kind"] == "generate" and r["config"]["deployment"]["provider"] == "pytorch"))}
+        return {"items": sorted(candidates.values(), key=lambda r: r["created_at"], reverse=True)}
+
     def start(self, raw, key):
         plan = DiagnosticPlan.model_validate(raw)
         svc = self.service
@@ -75,17 +96,25 @@ class DiagnosticJobs:
             try:
                 source = svc.store.get(plan.source_run_id)
                 cfg = svc.configs[source["config"]["deployment"]["id"]]
+                pytorch = cfg.provider == "pytorch" and plan.tool == "eretrace" and plan.ere_mode == "memory"
+                if pytorch:
+                    from hqsb.observation.dmat_source import pytorch_reference
+                    try:
+                        reference = pytorch_reference(source, cfg)
+                    except (ValueError, KeyError) as exc:
+                        raise ServiceError("DMAT_SOURCE_REQUIRED", str(exc), 422) from exc
+                    source = {**source, "metrics": {**source["metrics"], "native_benchmark": reference}}
                 receipt = source["metrics"]["native_benchmark"]
                 workload, engine = receipt["plan"], receipt["engine"]
             except KeyError as exc:
                 raise ServiceError("DIAGNOSTIC_SOURCE_REQUIRED", "请选择部署仍在当前节点登记的原生公共压测记录。", 422) from exc
-            if source["kind"] != "native_benchmark" or source["state"] != "completed" or cfg.provider not in {"vllm", "sglang"}:
+            if not pytorch and (source["kind"] != "native_benchmark" or source["state"] != "completed" or cfg.provider not in {"vllm", "sglang"}):
                 raise ServiceError("DIAGNOSTIC_SOURCE_REQUIRED", "请选择已完成的原生公共压测记录。", 422)
             if sha256(Path(cfg.manifest).expanduser()) != engine["model_manifest_sha256"]:
                 raise ServiceError("DIAGNOSTIC_ARTIFACT_CHANGED", "源运行制品清单与当前部署发生变化，请重新建立评测记录。", 422)
             if fingerprint({k: v for k, v in workload.items() if k != "expected_epoch"}) != receipt["workload_sha256"]:
                 raise ServiceError("DIAGNOSTIC_WORKLOAD_CHANGED", "源记录工作负载哈希校验失败，请重新评测。", 422)
-            if plan.tool == "eretrace":
+            if plan.tool == "eretrace" and not pytorch:
                 from hqsb.observation.eretrace_tools import validate_scope
                 try:
                     validate_scope(engine["requested"], workload)
@@ -94,12 +123,16 @@ class DiagnosticJobs:
             inventory = self.inventory(plan.tool)
             if not inventory["installed"]:
                 raise ServiceError("DIAGNOSTIC_TOOL_REQUIRED", inventory.get("reason", "工具版本检查失败"), 422)
+            if plan.tool == "eretrace" and plan.ere_mode == "memory" and "dmat-dual-clock" not in inventory.get("capabilities", []):
+                raise ServiceError("DMAT_RUNTIME_REQUIRED", "请用当前安装脚本构建含 dmat-dual-clock 能力的 ERETrace runtime，并更新服务配置。", 422)
             budget = plan.artifact_limit_mb * 1024**2
-            used = sum(p.stat().st_size for p in self.root.rglob("*") if p.is_file())
+            used = directory_bytes(self.root)
             if shutil.disk_usage(self.root).free < budget + 256 * 1024**2 or used + budget > self.settings.artifact_budget_bytes:
                 raise ServiceError("DIAGNOSTIC_DISK_BUDGET", "请在机器与存储页为诊断报告释放空间或调整观测配额。")
             config = {**cfg.model_dump(), "engine_log_root": str(self.root),
                       "engine_cache_root": str(self.settings.native_engine_cache_dir or self.settings.data_dir / "native-engines/cache")}
+            if pytorch:
+                config["_pytorch_dmat"] = True
             if plan.tool == "eretrace":
                 config["_eretrace"] = {"runtime": inventory["executable"], "plan": plan.model_dump()}
             run, _ = svc.store.create("diagnostic", {"deployment": cfg.public(), "diagnostic_plan": plan.model_dump(),
@@ -124,6 +157,10 @@ class DiagnosticJobs:
                           selection_endpoint="explicit_worker_stop_after_measured_requests",
                           cold_probe_compilation="included_in_diagnostic_interval",
                           clock_domain="clock64_per_SM", same_execution_validation=plan.ere_verify)
+            if plan.ere_mode == "memory":
+                report.update(schema_version="hqsb-dmat-2", clock_domain=plan.memory_clock,
+                              request_kernel_attribution="selected_kernel_launch_thread_instruction_site",
+                              same_execution_validation="raw_memory_event_format")
         final, error, cleanup = "failed", None, "pending"
         try:
             directory.mkdir(mode=0o700)
@@ -134,11 +171,21 @@ class DiagnosticJobs:
             if plan.tool == "eretrace":
                 for name in ("hqsb/observation/eretrace_tools.py", "hqsb/observation/eretrace_reports.py", "hqsb/observation/eretrace_ptx.py"):
                     report["diagnostic_source_sha256"][name] = sha256(source_root / name)
+                if plan.ere_mode == "memory":
+                    for name in ("hqsb/observation/dmat_probe.py", "hqsb/observation/dmat_reports.py", "hqsb/observation/dmat_source.py", "hqsb/observation/dmat_target.py", "hqsb/observation/dmat_instrument.py", "hqsb/observation/dmat_grid.py", "hqsb/observation/dmat_context.py", "hqsb/backends/model_kernels/triton_attention.py"):
+                        report["diagnostic_source_sha256"][name] = sha256(source_root / name)
             reference = source["metrics"]["native_benchmark"]
             spec = {"run_id": identity, "directory": str(directory), "config": config, "plan": plan.model_dump(),
                     "options": reference["engine"]["requested"], "workload": reference["plan"]}
             atomic_json(directory / "input.json", spec)
             command = [sys.executable, "-m", "hqsb.observation.diagnostic_target", str(directory / "input.json")]
+            child_environment = None
+            if config.get("_pytorch_dmat"):
+                from hqsb.observation.eretrace_tools import launch_environment
+                command[2] = "hqsb.observation.dmat_target"
+                cache = directory / "triton"
+                child_environment = {**os.environ, **launch_environment(inventory["executable"], directory, plan.model_dump(), cache)}
+                child_environment.update(LD_PRELOAD=str(Path(inventory["executable"]) / "neutrino/build/preload-pytorch.so"), TRITON_CACHE_DIR=str(cache))
             argv = profiler_arguments(plan, inventory["executable"], directory / "capture", command)
             report.update(argv=argv, source_workload_sha256=reference["workload_sha256"],
                           source_engine=reference["engine"])
@@ -148,11 +195,12 @@ class DiagnosticJobs:
             else:
                 with (directory / "profiler.log").open("wb") as log:
                     process = subprocess.Popen([sys.executable, "-m", "hqsb.backends.native_supervisor", *argv],
-                                               stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                                               stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+                                               **({"env": child_environment} if child_environment else {}))
                     started = time.monotonic()
                     progress = None
                     while process.poll() is None:
-                        usage = sum(p.stat().st_size for p in directory.rglob("*") if p.is_file())
+                        usage = directory_bytes(directory)
                         permission_error = "ERR_NVGPUCTRPERM" in log_tail(directory / "profiler.log")
                         if permission_error or self.cancelled(identity) or time.monotonic() - started > plan.timeout_s or usage > plan.artifact_limit_mb * 1024**2:
                             final = "cancelled" if self.cancelled(identity) else "timed_out" if usage <= plan.artifact_limit_mb * 1024**2 else "failed"
@@ -182,7 +230,11 @@ class DiagnosticJobs:
                     if panel["availability"] != "observed":
                         if plan.tool == "eretrace":
                             if panel["availability"] == "partial":
+                                if plan.ere_mode == "memory":
+                                    raise RuntimeError("DMAT_CAPTURE_PARTIAL: 已保存实际访存图；请查看丢失事件和探针失败数量，调整每线程容量或缩小启动范围后重新采集。")
                                 raise RuntimeError("ERE_CAPTURE_PARTIAL: 部分启动的 PTX 插桩失败或来自其他提交线程；已保存可用记录，请查看采集覆盖与探针日志。")
+                            if plan.ere_mode == "memory":
+                                raise RuntimeError("DMAT_NO_MEMORY_EVENTS: 请检查 Kernel 子串和探针日志，选择有受支持 PTX 全局读写指令的启动。覆盖记录已保存。")
                             raise RuntimeError("ERE_NO_WARP_RECORDS: 请检查 Kernel 子串、匹配启动数量和 PTX 插桩日志；本次覆盖记录已保留。")
                         raise RuntimeError("DIAGNOSTIC_NO_GPU_DATA: 请核对 Kernel 过滤、工具权限和 GPU worker 覆盖。")
                 if final == "failed" and error is None:
@@ -238,9 +290,11 @@ class DiagnosticJobs:
         outputs = [a.get("result", {}).get("metrics", {}).get("native_benchmark", {}).get("requests", []) for a in attempts]
         report["replay_outputs_complete"] = bool(outputs) and all(len(rows) == len(expected) and all(r.get("status") == "completed" for r in rows) for rows in outputs)
         report["replay_outputs_match_source"] = all([r.get("text") for r in rows] == expected for rows in outputs) if report["replay_outputs_complete"] else None
+        if "source_output_token_ids" in reference:
+            report["replay_token_ids_match_source"] = bool(attempts) and all(a.get("generated_token_ids") == reference["source_output_token_ids"] for a in attempts)
         report["replay_workload_hashes"] = [a.get("result", {}).get("metrics", {}).get("native_benchmark", {}).get("workload_sha256") for a in attempts]
         report["replay_workloads_match_source"] = bool(attempts) and all(h == reference["workload_sha256"] for h in report["replay_workload_hashes"])
-        fields = ("versions", "model_manifest_sha256", "requested", "hardware_inventory", "environment_freeze_sha256")
+        fields = ("versions", "model_manifest_sha256", "requested", "hardware_inventory", "environment_freeze_sha256", "kernel_plan_sha256")
         report["replay_environment_matches_source"] = bool(attempts) and all(
             a.get("engine") and all(a["engine"].get(k) == reference["engine"].get(k) for k in fields) for a in attempts)
         if directory.exists():
@@ -259,9 +313,14 @@ class DiagnosticJobs:
             from hqsb.observation.eretrace_reports import summarize
             if is_cancelled():
                 raise RuntimeError("DIAGNOSTIC_EXPORT_STOPPED")
-            panel = summarize(directory)
+            plan = json.loads((directory / "input.json").read_text()).get("plan", {}) if (directory / "input.json").exists() else {}
+            if plan.get("ere_mode") == "memory":
+                from hqsb.observation.dmat_reports import summarize_memory
+                panel = summarize_memory(directory, page_bytes=plan["memory_page_bytes"], time_bins=plan["memory_time_bins"], clock=plan.get("memory_clock"))
+            else:
+                panel = summarize(directory)
             atomic_json(directory / "panel.json", panel)
-            if limit_bytes and sum(p.stat().st_size for p in directory.rglob("*") if p.is_file()) > limit_bytes:
+            if limit_bytes and directory_bytes(directory) > limit_bytes:
                 raise RuntimeError("DIAGNOSTIC_ARTIFACT_LIMIT")
             return
 
@@ -272,7 +331,7 @@ class DiagnosticJobs:
                 while process.poll() is None:
                     if is_cancelled() or time.monotonic() >= deadline:
                         raise RuntimeError("DIAGNOSTIC_EXPORT_STOPPED")
-                    if limit_bytes and sum(p.stat().st_size for p in directory.rglob("*") if p.is_file()) > limit_bytes:
+                    if limit_bytes and directory_bytes(directory) > limit_bytes:
                         raise RuntimeError("DIAGNOSTIC_ARTIFACT_LIMIT")
                     time.sleep(.2)
                 if process.returncode:
@@ -317,6 +376,29 @@ class DiagnosticJobs:
             except (FileNotFoundError, StopIteration, ValueError, KeyError) as exc:
                 raise ServiceError("NOT_FOUND", "请等待诊断制品封存完成。", 404) from exc
         return path
+
+    def memory_view(self, identity, launch_index, *, clock, page_bytes, time_bins, start=None, end=None):
+        from hqsb.observation.dmat_reports import read_frame, aggregate
+        if page_bytes not in (4096, 16384, 65536):
+            raise ServiceError("DMAT_ADDRESS_GRAIN", "请选择 4、16 或 64 KiB 地址粒度。", 422)
+        panel = json.loads(self.artifact(identity, "panel.json").read_text())
+        launches = panel.get("memory_launches", [])
+        if launch_index < 0 or launch_index >= len(launches):
+            raise ServiceError("DMAT_LAUNCH_REQUIRED", "请选择当前诊断记录中的访存启动。", 422)
+        launch = launches[launch_index]
+        if (start is None) != (end is None):
+            raise ServiceError("DMAT_TIME_WINDOW", "时间窗口需要同时设置起点和终点。", 422)
+        try:
+            plot = aggregate(read_frame(self.artifact(identity, launch["trace"])), launch["probe"]["sites"],
+                             page_bytes=page_bytes, time_bins=time_bins, clock=clock,
+                             tensors=launch.get("context", {}).get("tensors", []),
+                             window=(start, end) if start is not None else None)
+        except ValueError as exc:
+            raise ServiceError("DMAT_VIEW", str(exc), 422) from exc
+        return {**launch, "plot": plot, "derived_view": {
+            "raw_artifact": launch["trace"], "raw_integrity": "verified_against_sealed_manifest",
+            "analysis_source_sha256": {name: sha256(Path(__file__).resolve().parents[1] / "observation" / name)
+                                       for name in ("dmat_grid.py", "dmat_reports.py")}}}
 
     def close(self):
         self.stop.set()

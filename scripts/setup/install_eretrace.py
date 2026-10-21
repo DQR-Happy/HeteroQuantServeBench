@@ -53,8 +53,16 @@ def main():
                 origins[str(relative)] = digest(f)
     native = dest / "neutrino/src"
     shutil.copyfile(ROOT / "native/eretrace/hqsb_capture.h", native / "hqsb_capture.h")
+    shutil.copyfile(ROOT / "native/eretrace/hqsb_memory.h", native / "hqsb_memory.h")
     replace(native / "cuda.c", 'CUresult cuLaunchKernel(CUfunction f,', 'static CUresult hqsb_capture_launch(CUfunction f,')
     replace(native / "cuda.c", '#include "ablation.h"', '#include "ablation.h"\n#include "hqsb_capture.h"')
+    replace(native / "cuda.c", '            funcmap_set(f, kernel_name, n_param, n_probe, probe_sizes, probe_types, true, probed, pruned, countd);',
+            '            if(getenv("HQSB_DMAT_CAPACITY"))hqsb_memory_register(f,dir);\n'
+            '            funcmap_set(f, kernel_name, n_param, n_probe, probe_sizes, probe_types, true, probed, pruned, countd);')
+    replace(native / "cuda.c", '    if (ab_mode && succeed && (DYNAMIC || n_probe != 1)) {',
+            '    if (getenv("HQSB_DMAT_CAPACITY") && succeed)\n'
+            '        return hqsb_memory_launch(probed,n_param,kernelParams,gridDimX,gridDimY,gridDimZ,blockDimX,blockDimY,blockDimZ,sharedMemBytes,hStream,extra);\n'
+            '    if (ab_mode && succeed && (DYNAMIC || n_probe != 1)) {')
     replace(native / "cuda.c", 'static void* get_hooked_driver_symbol(const char* symbol) {',
             'static void* get_hooked_driver_symbol(const char* symbol) {\n'
             '    if (strcmp(symbol, "cuProfilerStart") == 0) return (void*)cuProfilerStart;\n'
@@ -68,24 +76,33 @@ def main():
             '    if cached is not None:\n'
             '        shutil.copyfile(cached, os.path.join(workdir, name) + ".ptx")\n'
             '        return open(cached).read()')
+    replace(dest / "neutrino/probe/cuda.py", '        pruned_ptx = global_section + "\\n" + func_section + "\\n" + entry_section',
+            '        pruned_ptx = global_section + "\\n" + func_section + "\\n" + entry_section\n'
+            '        if os.environ.get("HQSB_DMAT_CAPACITY"):\n'
+            '            from hqsb.observation.dmat_probe import compile_memory\n'
+            '            compile_memory(workdir, kernel_name, pruned_ptx, func_section)\n'
+            '            raise SystemExit(0)')
     (dest / "neutrino/build").mkdir(exist_ok=True)
     python_deps = dest / "python"
     subprocess.run([sys.executable, "-m", "pip", "install", "--index-url", "https://pypi.org/simple", "--no-deps", "--target", str(python_deps), "toml==0.10.2"], check=True)
-    env = {**os.environ, "PYTHONPATH": str(dest) + os.pathsep + str(python_deps), "PATH": str(a.cuda_home / "bin") + os.pathsep + os.environ["PATH"]}
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(dest), str(python_deps), str(ROOT)]), "PATH": str(a.cuda_home / "bin") + os.pathsep + os.environ["PATH"]}
     subprocess.run([sys.executable, str(dest / "scripts/build.py"), "--cuda-home", str(a.cuda_home), "--arch", a.arch], env=env, cwd=dest, check=True)
     shutil.copyfile(ROOT / "native/eretrace/hqsb_preload.c", native / "hqsb_preload.c")
     subprocess.run(["cc", str(native / "hqsb_preload.c"), "-fPIC", "-shared", "-O3", "-o", str(dest / "neutrino/build/preload.so"), "-ldl", "-lpthread"], check=True)
+    subprocess.run(["cc", str(native / "preload.c"), "-fPIC", "-shared", "-O3", "-o", str(dest / "neutrino/build/preload-pytorch.so"), "-ldl"], check=True)
     subprocess.run([sys.executable, "-c", 'from pathlib import Path; import toml; from neutrino.language.compiler import compile; Path("build/block_sched.toml").write_text(toml.dumps(compile("CUDA", Path("neutrino/tools/block_sched.py").read_text())))'], env=env, cwd=dest, check=True)
     build = json.loads((dest / "build/build-manifest.json").read_text())
     build.update(schema_version="hqsb-eretrace-1", source_files=origins,
                  adapter_sha256=digest(ROOT / "native/eretrace/hqsb_capture.h"),
                  loader_sha256=digest(ROOT / "native/eretrace/hqsb_preload.c"),
                  installer_sha256=digest(Path(__file__)), cuda_home=str(a.cuda_home),
+                 capabilities=["warp", "memory", "dmat-dual-clock", "dmat-tensor-context", "dmat-cp-async"],
                  scope="selected_ordinary_launches_one_producer_one_context")
     # Discovery verifies the executable and probe implementation, including patches.
     build["runtime_files"] = {str(f.relative_to(dest)): digest(f) for f in dest.rglob("*")
                               if f.is_file() and f.suffix in {".py", ".h", ".c", ".cuh", ".cubin", ".toml"} and "python" not in f.relative_to(dest).parts}
     build["runtime_files"].update({"neutrino/build/libcuda.so.1": digest(dest / "neutrino/build/libcuda.so.1"),
+                                   "neutrino/build/preload-pytorch.so": digest(dest / "neutrino/build/preload-pytorch.so"),
                                    "neutrino/build/preload.so": digest(dest / "neutrino/build/preload.so")})
     (dest / "hqsb-runtime.json").write_text(json.dumps(build, indent=2) + "\n")
     print("ERETrace runtime:", dest, flush=True)

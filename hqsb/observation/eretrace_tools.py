@@ -1,5 +1,6 @@
 """ERETrace runtime identity, admission scope and child-only launch environment."""
 import json
+import importlib.util
 import os
 from pathlib import Path
 import sys
@@ -24,6 +25,7 @@ def discover(runtime):
         result.update(installed=True, executable=str(root), version="ERETrace / HQSB adapter 1",
                       build_manifest_sha256=sha256(root / "hqsb-runtime.json"), arch=manifest["arch"],
                       adapter_sha256=manifest["adapter_sha256"])
+        result["capabilities"] = manifest.get("capabilities", ["warp"])
     except (OSError, ValueError, KeyError) as exc:
         result["reason"] = str(exc)[:500]
     return result
@@ -50,6 +52,17 @@ def launch_environment(runtime, directory, plan, triton_cache):
     # The collector's historical controls are explicit here, independent of any
     # paper benchmark's environment, request generator or model-loading adapter.
     reference = True
+    memory = plan.get("ere_mode") == "memory"
+    if memory and "dmat-dual-clock" not in build.get("capabilities", []):
+        raise ValueError("DMAT_RUNTIME_ABI_REQUIRED: 使用当前安装脚本构建双时钟 runtime 后再采集。")
+    # Triton retains PTX for its bundled assembler. Use that same tool for
+    # warp and memory probes; changing the .version would change evidence.
+    assembler_path = []
+    triton = importlib.util.find_spec("triton")
+    if triton and triton.origin:
+        bundled = Path(triton.origin).parent / "backends/nvidia/bin/ptxas"
+        if bundled.is_file():
+            assembler_path.append(str(bundled.parent))
     return {"NEUTRINO_REAL_DRIVER": str(driver), "NEUTRINO_DRIVER_NAME": "libcuda.so.1",
             "NEUTRINO_HOOK_DRIVER": str(root / "neutrino/build/libcuda.so.1"),
             "NEUTRINO_PROBING_PY": str(root / "neutrino/probe/cuda.py"),
@@ -73,6 +86,7 @@ def launch_environment(runtime, directory, plan, triton_cache):
             **({"HQSB_ERE_CODEC_RAW": "1"} if plan["ere_codec"] == "raw" else {}),
             "HQSB_ERE_RUNTIME": str(root), "TRITON_LIBCUDA_PATH": str(root / "neutrino/build"),
             "PYTHONPATH": os.pathsep.join([str(Path(__file__).resolve().parents[2]), str(root), str(root / "python"), os.environ.get("PYTHONPATH", "")]),
-            "PATH": str(Path(build["cuda_home"]) / "bin") + os.pathsep + os.environ["PATH"],
+            "PATH": os.pathsep.join([*assembler_path, str(Path(build["cuda_home"]) / "bin"), os.environ["PATH"]]),
             "LD_PRELOAD": str(root / "neutrino/build/preload.so"),
-            "LD_LIBRARY_PATH": os.environ.get("LD_LIBRARY_PATH", "")}
+            "LD_LIBRARY_PATH": os.environ.get("LD_LIBRARY_PATH", ""),
+            **({"HQSB_DMAT_CAPACITY": str(plan["memory_capacity"]), "HQSB_ERE_ARCH": build["arch"]} if memory else {})}

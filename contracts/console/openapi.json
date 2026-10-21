@@ -24,6 +24,25 @@
         }
       }
     },
+    "/api/console/v1/diagnostics/sources": {
+      "get": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Sources",
+        "operationId": "sources_api_console_v1_diagnostics_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/diagnostics/jobs": {
       "post": {
         "tags": [
@@ -112,6 +131,134 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/diagnostics/jobs/{identity}/memory/{launch_index}": {
+      "get": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Memory",
+        "operationId": "memory_api_console_v1_diagnostics_jobs__identity__memory__launch_index__get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          },
+          {
+            "name": "launch_index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Launch Index"
+            }
+          },
+          {
+            "name": "clock",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "thread_entry_clock64",
+                "GPU_globaltimer"
+              ],
+              "type": "string",
+              "default": "thread_entry_clock64",
+              "title": "Clock"
+            }
+          },
+          {
+            "name": "page_bytes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 65536,
+              "minimum": 4096,
+              "enum": [
+                4096,
+                16384,
+                65536
+              ],
+              "default": 65536,
+              "title": "Page Bytes"
+            }
+          },
+          {
+            "name": "time_bins",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 512,
+              "minimum": 16,
+              "default": 160,
+              "title": "Time Bins"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740992,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740992,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2631,7 +2778,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApplicationPlan"
+                  "$ref": "#/components/schemas/ApplicationPlan-Output"
                 }
               }
             }
@@ -6103,7 +6250,7 @@
       "ApplicationJobRequest": {
         "properties": {
           "plan": {
-            "$ref": "#/components/schemas/ApplicationPlan"
+            "$ref": "#/components/schemas/ApplicationPlan-Input"
           }
         },
         "additionalProperties": false,
@@ -6192,7 +6339,67 @@
         ],
         "title": "ApplicationOperation"
       },
-      "ApplicationPlan": {
+      "ApplicationPlan-Input": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationTarget"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Targets"
+          },
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationInput"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Requests"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/ApplicationPolicy"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/ApplicationPolicy"
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "default": 2
+          },
+          "request_deadline_s": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 5.0,
+            "title": "Request Deadline S",
+            "default": 90
+          },
+          "timeout_s": {
+            "type": "integer",
+            "maximum": 900.0,
+            "minimum": 30.0,
+            "title": "Timeout S",
+            "default": 300
+          },
+          "fixed_output_length": {
+            "type": "boolean",
+            "title": "Fixed Output Length",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "targets"
+        ],
+        "title": "ApplicationPlan"
+      },
+      "ApplicationPlan-Output": {
         "properties": {
           "targets": {
             "items": {
@@ -6804,6 +7011,48 @@
             "type": "boolean",
             "title": "Ere Verify",
             "default": false
+          },
+          "ere_mode": {
+            "type": "string",
+            "enum": [
+              "warp",
+              "memory"
+            ],
+            "title": "Ere Mode",
+            "default": "warp"
+          },
+          "memory_capacity": {
+            "type": "integer",
+            "maximum": 2048.0,
+            "minimum": 1.0,
+            "title": "Memory Capacity",
+            "default": 256
+          },
+          "memory_page_bytes": {
+            "type": "integer",
+            "enum": [
+              4096,
+              16384,
+              65536
+            ],
+            "title": "Memory Page Bytes",
+            "default": 65536
+          },
+          "memory_time_bins": {
+            "type": "integer",
+            "maximum": 512.0,
+            "minimum": 16.0,
+            "title": "Memory Time Bins",
+            "default": 128
+          },
+          "memory_clock": {
+            "type": "string",
+            "enum": [
+              "thread_entry_clock64",
+              "GPU_globaltimer"
+            ],
+            "title": "Memory Clock",
+            "default": "thread_entry_clock64"
           }
         },
         "additionalProperties": false,

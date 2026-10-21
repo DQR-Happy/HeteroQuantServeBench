@@ -11,8 +11,16 @@ def compare(a, b):
             mismatches.append("selection:" + key)
     if a["tool"] == "eretrace":
         for key in ("ere_kernel", "launch_skip", "launch_count", "ere_verify"):
+            if key == "ere_kernel" and a["plan"].get("ere_mode") == b["plan"].get("ere_mode") == "memory":
+                continue
             if a["plan"].get(key) != b["plan"].get(key):
                 mismatches.append("selection:" + key)
+        if a["plan"].get("ere_mode", "warp") != b["plan"].get("ere_mode", "warp"):
+            mismatches.append("selection:ere_mode")
+        if a["plan"].get("ere_mode") == "memory":
+            for key in ("memory_capacity", "memory_page_bytes", "memory_time_bins", "memory_clock"):
+                if a["plan"].get(key) != b["plan"].get(key):
+                    mismatches.append("selection:" + key)
         if a.get("panel", {}).get("counts", {}).get("launches") != b.get("panel", {}).get("counts", {}).get("launches"):
             mismatches.append("captured_launch_count")
     for key in ("model_manifest_sha256", "hardware_inventory"):
@@ -29,7 +37,7 @@ def compare(a, b):
     for report in (a, b):
         if report["status"] != "completed" or report["cleanup"] != "succeeded" or not report.get("replay_workloads_match_source"):
             mismatches.append(report["run_id"] + ":incomplete_capture")
-        fields = ("versions", "model_manifest_sha256", "requested", "hardware_inventory", "environment_freeze_sha256")
+        fields = ("versions", "model_manifest_sha256", "requested", "hardware_inventory", "environment_freeze_sha256", "kernel_plan_sha256")
         attempts = report.get("attempts", [])
         environment_matches = report.get("replay_environment_matches_source", bool(attempts) and all(
             a.get("engine") and all(a["engine"].get(k) == report["source_engine"].get(k) for k in fields) for a in attempts))
@@ -47,6 +55,12 @@ def compare(a, b):
     if mismatches:
         return result
     if a["tool"] == "eretrace":
+        if a.get("panel", {}).get("mode") == "memory":
+            result.update(scope="selected_memory_instructions_with_GPU_globaltimer",
+                          memory_changes={key: {"baseline": a["panel"]["counts"].get(key), "candidate": b["panel"]["counts"].get(key)}
+                                          for key in ("events", "launches", "dropped_events")},
+                          address_comparison="per_capture_VA_requires_object_mapping_for_cross_run_alignment")
+            return result
         groups = []
         for report in (a, b):
             counters, occurrences = {}, {}

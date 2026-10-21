@@ -17,9 +17,16 @@ class DiagnosticPlan(BaseModel):
     ere_kernel: str = Field("_fwd_kernel", min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_.$]+$")
     ere_codec: Literal["reference", "raw"] = "reference"
     ere_verify: bool = False
+    ere_mode: Literal["warp", "memory"] = "warp"
+    memory_capacity: int = Field(256, ge=1, le=2048)
+    memory_page_bytes: Literal[4096, 16384, 65536] = 65536
+    memory_time_bins: int = Field(128, ge=16, le=512)
+    memory_clock: Literal["thread_entry_clock64", "GPU_globaltimer"] = "thread_entry_clock64"
 
     @model_validator(mode="after")
     def expression(self):
+        if self.tool == "eretrace" and self.ere_mode == "memory" and (self.ere_verify or self.ere_codec != "raw"):
+            raise ValueError("DMAT 使用原始访存事件格式，请选择 raw，关闭 warp 编码校验。")
         import re
         try:
             re.compile(self.kernel_filter)

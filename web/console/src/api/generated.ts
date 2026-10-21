@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/console/v1/diagnostics/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sources */
+        get: operations["sources_api_console_v1_diagnostics_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/console/v1/diagnostics/jobs": {
         parameters: {
             query?: never;
@@ -50,6 +67,23 @@ export interface paths {
         put?: never;
         /** Compare */
         post: operations["compare_api_console_v1_diagnostics_comparisons_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/console/v1/diagnostics/jobs/{identity}/memory/{launch_index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Memory */
+        get: operations["memory_api_console_v1_diagnostics_jobs__identity__memory__launch_index__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2561,7 +2595,7 @@ export interface components {
         };
         /** ApplicationJobRequest */
         ApplicationJobRequest: {
-            plan: components["schemas"]["ApplicationPlan"];
+            plan: components["schemas"]["ApplicationPlan-Input"];
         };
         /** ApplicationLease */
         ApplicationLease: {
@@ -2595,7 +2629,36 @@ export interface components {
             };
         };
         /** ApplicationPlan */
-        ApplicationPlan: {
+        "ApplicationPlan-Input": {
+            /** Targets */
+            targets: components["schemas"]["ApplicationTarget"][];
+            /** Requests */
+            requests?: components["schemas"]["ApplicationInput"][];
+            baseline?: components["schemas"]["ApplicationPolicy"];
+            candidate?: components["schemas"]["ApplicationPolicy"];
+            /**
+             * Concurrency
+             * @default 2
+             */
+            concurrency: number;
+            /**
+             * Request Deadline S
+             * @default 90
+             */
+            request_deadline_s: number;
+            /**
+             * Timeout S
+             * @default 300
+             */
+            timeout_s: number;
+            /**
+             * Fixed Output Length
+             * @default false
+             */
+            fixed_output_length: boolean;
+        };
+        /** ApplicationPlan */
+        "ApplicationPlan-Output": {
             /** Targets */
             targets: components["schemas"]["ApplicationTarget"][];
             /** Requests */
@@ -2919,6 +2982,34 @@ export interface components {
              * @default false
              */
             ere_verify: boolean;
+            /**
+             * Ere Mode
+             * @default warp
+             * @enum {string}
+             */
+            ere_mode: "warp" | "memory";
+            /**
+             * Memory Capacity
+             * @default 256
+             */
+            memory_capacity: number;
+            /**
+             * Memory Page Bytes
+             * @default 65536
+             * @enum {integer}
+             */
+            memory_page_bytes: 4096 | 16384 | 65536;
+            /**
+             * Memory Time Bins
+             * @default 128
+             */
+            memory_time_bins: number;
+            /**
+             * Memory Clock
+             * @default thread_entry_clock64
+             * @enum {string}
+             */
+            memory_clock: "thread_entry_clock64" | "GPU_globaltimer";
         };
         /** DownloadSelection */
         DownloadSelection: {
@@ -3893,6 +3984,26 @@ export interface operations {
             };
         };
     };
+    sources_api_console_v1_diagnostics_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     listing_api_console_v1_diagnostics_jobs_get: {
         parameters: {
             query?: never;
@@ -3960,6 +4071,44 @@ export interface operations {
                 "application/json": components["schemas"]["DiagnosticComparison"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    memory_api_console_v1_diagnostics_jobs__identity__memory__launch_index__get: {
+        parameters: {
+            query?: {
+                clock?: "thread_entry_clock64" | "GPU_globaltimer";
+                page_bytes?: 4096 | 16384 | 65536;
+                time_bins?: number;
+                start?: number | null;
+                end?: number | null;
+            };
+            header?: never;
+            path: {
+                identity: string;
+                launch_index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -5904,7 +6053,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationPlan"];
+                    "application/json": components["schemas"]["ApplicationPlan-Output"];
                 };
             };
             /** @description Validation Error */

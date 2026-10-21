@@ -11,6 +11,17 @@ static pthread_t hqsb_producer;
 static _Atomic unsigned long long hqsb_seen, hqsb_other_thread;
 static unsigned long long hqsb_matching, hqsb_attempts, hqsb_captured;
 static FILE *hqsb_launches;
+static CUcontext hqsb_capture_context;
+/* Producer-owned tensor descriptors are snapshotted into each launch record.
+ * JSON is created by our child-only Python adapter, never by a browser. */
+static _Thread_local char *hqsb_dmat_context;
+int hqsb_eretrace_context(const char *json) {
+    if(json && strlen(json)>65536)return -1;
+    char *next=json?strdup(json):NULL;
+    if(json && !next)return -1;
+    free(hqsb_dmat_context);hqsb_dmat_context=next;return 0;
+}
+#include "hqsb_memory.h"
 static CUresult hqsb_capture_launch(CUfunction, unsigned, unsigned, unsigned,
     unsigned, unsigned, unsigned, unsigned, CUstream, void**, void**);
 
@@ -23,6 +34,7 @@ int hqsb_eretrace_start(void) {
     hqsb_producer = pthread_self();
     hqsb_seen = hqsb_other_thread = 0;
     hqsb_matching = hqsb_attempts = hqsb_captured = 0;
+    hqsb_capture_context = NULL;
     if (getenv("HQSB_ERE_CODEC_RAW")) ar_codec_min=SIZE_MAX;
     char path[4096];
     snprintf(path, sizeof(path), "%s/hqsb-launches.jsonl", RESULT_DIR);
@@ -90,6 +102,8 @@ CUresult cuLaunchKernel(CUfunction f, unsigned gx, unsigned gy, unsigned gz,
     size_t records=(size_t)gx*gy*gz*(((size_t)bx*by*bz+31)/32);
     if(records>(16ULL<<20)/16)async_fatal("HQSB selected Map exceeds 16 MiB capture bound");
     CUcontext context; CUDA_CHECK(real_cuCtxGetCurrent(&context));
+    if(hqsb_capture_context && hqsb_capture_context!=context)async_fatal("HQSB capture window requires one CUDA context");
+    hqsb_capture_context=context;
     if(ar_engines && ar_engines->context!=context)async_fatal("HQSB capture window requires one CUDA context");
     hqsb_attempts++;
     CUresult rc=hqsb_capture_launch(f,gx,gy,gz,bx,by,bz,shared,stream,args,extra);
@@ -98,8 +112,16 @@ CUresult cuLaunchKernel(CUfunction f, unsigned gx, unsigned gy, unsigned gz,
     fprintf(hqsb_launches,"{\"attempt\":%llu,\"captured\":%s,\"frame\":%llu,\"kernel\":",
         hqsb_attempts-1,success&&rc==CUDA_SUCCESS?"true":"false",hqsb_captured);
     nt_json_string(hqsb_launches,name);
-    fprintf(hqsb_launches,",\"grid\":[%u,%u,%u],\"block\":[%u,%u,%u]}\n",gx,gy,gz,bx,by,bz);
+    fprintf(hqsb_launches,",\"grid\":[%u,%u,%u],\"block\":[%u,%u,%u]",gx,gy,gz,bx,by,bz);
+    if(getenv("HQSB_DMAT_CAPACITY")) {
+        fputs(",\"memory_metadata\":",hqsb_launches);
+        nt_json_string(hqsb_launches,hqsb_memory_directory(f));
+        fprintf(hqsb_launches,",\"tensor_context\":%s",hqsb_dmat_context?hqsb_dmat_context:"{}");
+    }
+    fputs("}\n",hqsb_launches);
     if(ferror(hqsb_launches))async_fatal("HQSB launch lineage write");
+    /* Memory compilation registers two thread Maps; the arena warp reader
+     * retains its existing single-Map protocol. */
     if(success&&rc==CUDA_SUCCESS)hqsb_captured++;
     /* A bounded selection closes on its producer, with the producer CUDA
      * context still current. This also works with upstream profiler routes
