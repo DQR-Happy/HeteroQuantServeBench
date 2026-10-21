@@ -37,6 +37,9 @@ def fingerprint(value):
 
 
 def catalogue(provider="pytorch"):
+    if provider in {"vllm", "sglang"}:
+        from hqsb.core.native_engine import catalogue as native_catalogue
+        return {"schema_version": VERSION, "layers": LAYERS, **native_catalogue(provider)}
     items = []
     for name, definition in IMPLEMENTED.items():
         items.append({"id": name, **definition,
@@ -75,7 +78,10 @@ def resolve_plan(raw, defaults, *, provider="pytorch", deployment_attention=None
     changes = raw.get("changes", {})
     if not isinstance(changes, dict) or len(changes) > len(IMPLEMENTED):
         raise ValueError("OPTIMIZATION_CHANGES_INVALID")
-    if changes and provider != "pytorch":
+    if changes and provider in {"vllm", "sglang"}:
+        if set(changes) - {"output_budget"}:
+            raise ValueError("NATIVE_ENGINE_OPTIONS_REQUIRE_DEPLOYMENT_RELOAD")
+    elif changes and provider != "pytorch":
         raise ValueError("OPTIMIZATION_PROVIDER_UNSUPPORTED")
     effective = dict(defaults)
     for name, value in changes.items():
