@@ -45,6 +45,8 @@ console = [
     "uvicorn==0.34.3",
     "httpx==0.28.1",
 ]
+# CPU decoding/aggregation for the separately built ERETrace CUDA collector.
+eretrace = ["numpy>=1.24,<3"]
 # Verified Qwen3 console adapter. Install the target's CUDA torch separately;
 # this extra must never replace Jetson's vendor-managed wheel.
 console-model = [
