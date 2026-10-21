@@ -46,6 +46,8 @@ class ConsoleService:
 
         def make_actor(config):
             actor_config = {**config.model_dump(), "l4_artifact_root": str(settings.data_dir / "l4-artifacts"),
+                            "engine_log_root": str(settings.data_dir / "native-engines"),
+                            "engine_cache_root": str(settings.native_engine_cache_dir or settings.data_dir / "native-engines/cache"),
                             "l5_artifact_root": str(settings.data_dir / "l5-artifacts"),
                             "l4_artifact_budget_bytes": settings.artifact_budget_bytes}
             if actor_factory is not None:
@@ -93,6 +95,9 @@ class ConsoleService:
                     for key, value in state["detail"].items()
                     if key not in {"parameter_inventory", "module_inventory"}
                 }
+                if row["detail"].get("native_engine_receipt"):
+                    row["detail"]["native_engine_receipt"] = {k: v for k, v in row["detail"]["native_engine_receipt"].items()
+                                                               if k not in {"verified_files", "load_prometheus_text"}}
                 rows.append(row)
             return json.loads(json.dumps(rows))
 
@@ -299,6 +304,11 @@ class ConsoleService:
                 raise ServiceError("BENCHMARK_BUSY", "性能对照正在独占执行设备，请在性能与质量对照页等待或取消。")
             self._reserve()
             state, cfg = self.states[deployment_id], self.configs[deployment_id]
+            native = cfg.provider in {"vllm", "sglang"}
+            if native and kind == "generate":
+                features = ("memory_plan", "runtime_plan", "decoding_plan", "graph_capture", "capture_architecture", "experiment_role", "observation_plan")
+                if any(payload.get(name) for name in features):
+                    raise ServiceError("NATIVE_ENGINE_PLAN", "请在原生引擎页设置分层参数并重载；详细诊断使用引擎观测接口。", 422)
             if kind == "generate":
                 if payload.get("memory_plan") is not None:
                     from hqsb.core.memory_plan import validate_memory
@@ -343,8 +353,8 @@ class ConsoleService:
                     raise ServiceError("ARCHITECTURE_CAPTURE", "运行架构采集需要本地模型，输出预算最多 4 tokens，且单独作为诊断任务执行。", 422)
                 completion = payload.get("prompt") is not None
                 if completion:
-                    if cfg.provider != "pytorch" or payload.get("messages") or not isinstance(payload["prompt"], str) or not payload["prompt"].strip() or len(payload["prompt"]) > 32768:
-                        raise ServiceError("INPUT_MODE", "原始文本续写需要非空 prompt，不能同时提交聊天消息，且仅支持本地 PyTorch Provider", 422)
+                    if cfg.provider not in {"pytorch", "vllm", "sglang"} or payload.get("messages") or not isinstance(payload["prompt"], str) or not payload["prompt"].strip() or len(payload["prompt"]) > 32768:
+                        raise ServiceError("INPUT_MODE", "原始文本续写需要非空 prompt，并选择本地 PyTorch 或原生引擎部署。", 422)
                 elif cfg.input_mode == "completion":
                     raise ServiceError("INPUT_MODE", "该部署没有官方聊天模板，请使用原始文本续写 prompt", 422)
                 payload = {**payload, "input_mode": "completion" if completion else "chat"}
@@ -420,6 +430,31 @@ class ConsoleService:
                 if kind == "quantize" and state.get("structure_artifact_id"):
                     raise ServiceError("L5_QUANTIZATION_COMPOSITION_NOT_VERIFIED", "请先在模型结构页恢复原始模型，再执行 L4 量化。", 422)
                 self._preflight(kind, cfg, payload)
+            elif kind == "load" and native:
+                from hqsb.core.native_engine import resolve_options
+                try:
+                    if set(payload) - {"engine_options"}:
+                        raise ValueError("NATIVE_ENGINE_USE_ENGINE_OPTIONS")
+                    payload = {"engine_options": resolve_options(cfg.provider, payload.get("engine_options", cfg.engine_options))}
+                except ValueError as exc:
+                    raise ServiceError("INVALID_ENGINE_OPTIONS", str(exc), 422) from exc
+                if state["state"] not in {"unloaded", "failed"}:
+                    raise ServiceError("DEPLOYMENT_BUSY", "请先卸载当前部署，再应用引擎配置。")
+                if any(x["provider"] in {"pytorch", "vllm", "sglang"} and x["state"] not in {"unloaded", "failed"}
+                       for k, x in self.states.items() if k != deployment_id):
+                    raise ServiceError("DEVICE_BUSY", "请在设备与部署页卸载当前 GPU 模型。")
+            elif kind == "native_benchmark":
+                from hqsb.serving.native_benchmark import validate
+                try:
+                    payload = validate(payload)
+                except ValueError as exc:
+                    raise ServiceError("INVALID_NATIVE_BENCHMARK", str(exc), 422) from exc
+                if not native or state["state"] != "ready" or payload["expected_epoch"] != state["epoch"]:
+                    raise ServiceError("NATIVE_ENGINE_NOT_READY", "请先加载原生引擎部署并刷新运行身份。")
+                if self.pending:
+                    raise ServiceError("DEVICE_BUSY", "请等待当前任务完成后运行原生压测。")
+                if payload["max_output_tokens"] > cfg.max_output_tokens or payload["deadline_ms"] > self.settings.request_deadline_ms:
+                    raise ServiceError("NATIVE_BENCHMARK_LIMIT", "输出预算或超时超过当前部署配置。", 422)
             elif kind == "load":
                 from hqsb.core.kernel_profiles import profile, requires_native
                 from hqsb.core.precision import PrecisionPlan
@@ -470,7 +505,7 @@ class ConsoleService:
                         "DEPLOYMENT_BUSY", "Unload this deployment before loading again"
                     )
                 if cfg.provider == "pytorch" and any(
-                    x["provider"] == "pytorch"
+                    x["provider"] in {"pytorch", "vllm", "sglang"}
                     and x["state"] not in {"unloaded", "failed"}
                     for k, x in self.states.items()
                     if k != deployment_id
@@ -556,6 +591,8 @@ class ConsoleService:
                 },
             }
             run, _ = self.store.create(kind, config, key, digest)
+            if kind == "native_benchmark":
+                self.benchmark_owner = run["id"]
             if kind == "load":
                 state.update(state="loading", last_error=None)
             if kind == "unload":
@@ -676,7 +713,7 @@ class ConsoleService:
                 on_output,
                 lambda: self.closed
                 or self.store.get(run_id)["state"] == "cancel_requested",
-                max(1, remaining / 1000) if kind in {"generate", "quantize"} else 300,
+                max(1, remaining / 1000) if kind in {"generate", "quantize", "native_benchmark"} else 300,
             )
             if kind == "generate" and directory is not None and (directory / "execution-receipt.json").exists():
                 from hqsb.experiments.artifacts import seal
@@ -704,7 +741,8 @@ class ConsoleService:
                         load_run_id=run_id,
                         loaded_at=time.time(),
                         kernel_profile=payload.get("kernel_profile", self.configs[deployment_id].kernel_profile),
-                        precision=payload.get("precision", self.configs[deployment_id].precision),
+                        precision=payload.get("engine_options", {}).get("dtype", payload.get("precision", self.configs[deployment_id].precision)),
+                        engine_options=result.get("engine_options"),
                         structure_artifact_id=payload.get("structure_artifact_id"),
                         quantization={k: v for k, v in result.get("precision_receipt", {"method": "none"}).items()
                                       if k in {"method", "compute_dtype", "artifact_id", "quantized_module_count", "execution", "kv", "plan_sha256"}},
@@ -759,6 +797,10 @@ class ConsoleService:
             if result.get("request_error"):
                 patch.update(state="failed", error=result["request_error"]["message"],
                              error_code=result["request_error"]["code"])
+            if kind == "native_benchmark":
+                score = result.get("metrics", {}).get("native_benchmark", {}).get("summary", {}).get("quality_exact_match_rate")
+                if score is not None:
+                    patch["quality"] = "fixture_passed" if score == 1 else "fixture_failed"
             self.store.update(
                 run_id, patch, "error" if result.get("request_error") else "completed" if not stopped else patch["state"]
             )
@@ -815,6 +857,8 @@ class ConsoleService:
         finally:
             with self.lock:
                 self.pending -= 1
+                if kind == "native_benchmark" and self.benchmark_owner == run_id:
+                    self.benchmark_owner = None
 
     def cancel(self, run_id):
         with self.lock:

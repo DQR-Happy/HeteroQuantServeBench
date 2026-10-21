@@ -53,8 +53,8 @@ def experiment_router(settings, service):
         return path
 
     @router.get("/optimization-catalog")
-    def optimization_catalog():
-        return catalogue()
+    def optimization_catalog(provider: str = "pytorch"):
+        return catalogue(provider)
 
     @router.post("/experiments/plans", status_code=201)
     def create_plan(body: PlanRequest):

@@ -15,7 +15,7 @@ class DeploymentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
     name: str
-    provider: Literal["pytorch", "openai"] = "pytorch"
+    provider: Literal["pytorch", "openai", "vllm", "sglang"] = "pytorch"
     platform: str = "CUDA / Jetson"
     model: str = "Qwen/Qwen3-1.7B"
     model_path: str = "~/models/hqsb/Qwen3-1.7B"
@@ -32,12 +32,19 @@ class DeploymentConfig(BaseModel):
     device_lock_path: str | None = None
     base_url: str | None = None
     api_key_env: str | None = None
+    engine_python: str | None = None
+    engine_options: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def valid_provider(self):
         from hqsb.core.kernel_profiles import profile
 
         profile(self.kernel_profile)
+        if self.provider in {"vllm", "sglang"}:
+            from hqsb.core.native_engine import resolve_options
+            self.engine_options = resolve_options(self.provider, self.engine_options)
+            if not self.engine_python or not self.manifest or not self.device_lock_path:
+                raise ValueError("Native engine requires engine_python, manifest and device_lock_path")
         if self.provider != "pytorch" and self.kernel_profile != "framework-native":
             raise ValueError("kernel profiles require a local PyTorch worker")
         if self.provider == "pytorch" and (
@@ -64,6 +71,7 @@ class DeploymentConfig(BaseModel):
                 "api_key_env",
                 "device_lock_path",
                 "kernel_manifest",
+                "engine_python",
             }
         )
 
@@ -90,6 +98,12 @@ class Settings(BaseModel):
     quantization_timeout_s: int = Field(900, ge=30, le=3600)
     model_download_dir: Path | None = None
     model_download_reserve_bytes: int = Field(4 * 1024**3, ge=1024**3)
+    native_engine_pythons: dict[str, str] = Field(default_factory=lambda: {
+        "vllm": ".venv-vllm/bin/python", "sglang": ".venv-sglang/bin/python"})
+    native_engine_cache_dir: Path | None = None
+    diagnostics_dir: Path | None = None
+    diagnostic_tools: dict[Literal["nsys", "ncu"], str] = Field(default_factory=dict)
+    eretrace_runtime: Path | None = None
 
     @model_validator(mode="after")
     def unique_ids(self):

@@ -271,13 +271,16 @@ class ModelHub:
         result["paths"] = [str(path) for path in paths if path.exists()]
         with self.service.lock:
             for identity, cfg in self.service.configs.items():
-                if cfg.provider != "pytorch":
+                if cfg.provider not in {"pytorch", "vllm", "sglang"}:
                     continue
                 model = Path(cfg.model_path).expanduser().resolve()
                 if not any(model == path or model.is_relative_to(path) or path.is_relative_to(model) for path in paths):
                     continue
                 result["deployment_ids"].append(identity)
                 link = {"to": f"/devices#deployment-{identity}", "label": "打开对应部署"}
+                if cfg.provider in {"vllm", "sglang"}:
+                    return {**result, "reason": "请先卸载并移除引用此制品的原生引擎部署，再删除权重。",
+                            "next": {"to": "/engines?deployment=" + identity, "label": "原生引擎调优"}}
                 if (identity not in self.registered and identity not in item.get("delete_deployment_ids", [])) or any(cfg.id == identity for cfg in self.settings.deployments):
                     return {**result, "reason": "该制品被节点配置中的部署引用，请先移除对应配置并重启服务", "next": link}
                 state = self.service.states[identity]

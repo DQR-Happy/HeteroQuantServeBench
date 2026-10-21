@@ -66,6 +66,13 @@ def native_inventory(config, *, source_root=None):
 
 
 def deployment_catalogue(config):
+    if config.provider in {"vllm", "sglang"}:
+        from hqsb.core.native_engine import catalogue as native_catalogue
+        native = native_catalogue(config.provider)
+        return {"deployment_id": config.id, "profiles": [], "native_engine": config.provider,
+                "native_controls": [row for row in native["items"] if 2 in row["layers"]],
+                "entrypoint": "/engines?deployment=" + config.id + "&layer=2",
+                "native_artifact": {"status": "upstream_environment", "reason": None}}
     result = catalogue()
     native = native_inventory(config)
     result.update(deployment_id=config.id, native_artifact=native)

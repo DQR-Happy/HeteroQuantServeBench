@@ -2,6 +2,12 @@
 machine_name: 3090-inf · RTX 3090 24GB
 model_download_dir: /root/autodl-tmp/hqsb/downloaded-models
 model_download_reserve_bytes: 4294967296
+native_engine_cache_dir: /root/autodl-tmp/hqsb/engines/cache
+diagnostics_dir: /root/autodl-tmp/hqsb/diagnostics
+eretrace_runtime: /root/autodl-tmp/hqsb/tools/eretrace-v4
+diagnostic_tools:
+  nsys: /root/autodl-tmp/hqsb/tools/nsys-2025.3.1/opt/nvidia/nsight-systems-cli/2025.3.1/target-linux-x64/nsys
+  ncu: /opt/nvidia/nsight-compute/2025.1.1/ncu
 deployments:
   - id: qwen-reference
     name: Qwen3 · 1.7B · HQSB 算子基线

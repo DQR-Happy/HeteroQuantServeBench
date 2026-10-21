@@ -27,7 +27,7 @@ class LocalModels:
     def roots(self):
         roots = {self.hub.models}
         for cfg in self.service.configs.values():
-            if cfg.provider == "pytorch":
+            if cfg.provider in {"pytorch", "vllm", "sglang"}:
                 model = Path(cfg.model_path).expanduser().resolve()
                 roots.add(model)
                 if len(model.parent.parts) >= 4:
@@ -66,7 +66,7 @@ class LocalModels:
             kind = "l4" if (path / "l4-manifest.json").exists() else "l5" if (path / "l5-manifest.json").exists() else "local"
             add(path, kind)
         for cfg in self.service.configs.values():
-            if cfg.provider == "pytorch":
+            if cfg.provider in {"pytorch", "vllm", "sglang"}:
                 add(Path(cfg.model_path).expanduser().resolve(), "configured", model_id=cfg.model)
         for row in sorted(self.hub.jobs.values(), key=lambda row: row["created_at"]):
             if row["state"] == "deleted":
@@ -142,7 +142,7 @@ class LocalModels:
         refs = []
         for identity, cfg in self.service.configs.items():
             state = self.service.states[identity]
-            model_ref = cfg.provider == "pytorch" and overlaps(path, Path(cfg.model_path).expanduser().resolve())
+            model_ref = cfg.provider in {"pytorch", "vllm", "sglang"} and overlaps(path, Path(cfg.model_path).expanduser().resolve())
             artifact_ref = (state["state"] not in {"unloaded", "failed"} or state.get("epoch")) and item.get("artifact_id") and item["artifact_id"] in {
                 state.get("structure_artifact_id"), (state.get("quantization") or {}).get("artifact_id")}
             if model_ref or artifact_ref:
