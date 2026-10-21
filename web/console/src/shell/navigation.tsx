@@ -55,6 +55,7 @@ export const navigation = [
       { path: '/observations', label: '机制观测', detail: '内存、KV、分配器与 CPU 页证据' },
       { path: '/memory-flow', label: '内存与数据流', detail: '空间结构、Tensor 与数据传输' },
       { path: '/research', label: '深度分析', detail: '阶段、算子、GPU kernel 与计数器' },
+      { path: '/diagnostics', label: '执行诊断', detail: '原生 nsys 时间线与 ncu 硬件计数器' },
     ],
   },
   {
@@ -64,6 +65,7 @@ export const navigation = [
     path: '/optimization',
     pages: [
       { path: '/optimization', label: '优化实验', detail: '冻结计划、执行凭据与质量门' },
+      { path: '/engines', label: '原生引擎调优', detail: 'vLLM / SGLang 分层参数、生命周期与公共压测' },
       { path: '/system', label: '硬件与系统配置', detail: 'L1 CPU/NUMA、线程、GPU 功耗与配置对照' },
       {
         path: '/application',

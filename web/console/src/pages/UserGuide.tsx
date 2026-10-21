@@ -727,6 +727,14 @@ export default function UserGuide() {
 
           <Section id="observations" title="08 / 内存、KV、系统页与算子">
             <p>
+              <Link to="/diagnostics">执行诊断</Link>提供 nsys 时间线、ncu 硬件指标和 ERETrace warp
+              / SM 观测。 使用 ERETrace 时，先在原生引擎中以 Eager、TP=1、PP=1、请求并发=1
+              完成公共评测并卸载模型， 再选择该源记录和 Kernel 名称子串（例如
+              _fwd_kernel），设置尝试启动数与编码方式。 结果包含选定 Triton Kernel 的 SM 分布、warp
+              周期分布、编码 / 恢复记录和原始文件。
+              “同次执行校验”会增加采集开销；正式性能和质量继续查看源评测记录。
+            </p>
+            <p>
               先到推理工作台选观测模式并提交，再到 <Link to="/observations">观测 → 机制观测</Link>{' '}
               选该 run ID。详细诊断有采集开销，应与无插桩性能样本分开。
             </p>

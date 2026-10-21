@@ -33,12 +33,16 @@ const runKinds: Record<string, string> = {
   system: '硬件与系统配置对照',
   application: '服务与应用对照',
   scheduling: '多请求调度实验',
+  native_benchmark: '原生引擎公共压测',
+  diagnostic: 'Nsight 执行诊断',
 };
 export function runKindLabel(kind: string) {
   return runKinds[kind] ?? kind;
 }
 
 const labels: Record<string, string> = {
+  fixture_passed: '固定样例通过',
+  fixture_failed: '固定样例未通过',
   ready: '已就绪',
   unloaded: '未加载',
   loading: '加载中',

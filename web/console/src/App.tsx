@@ -11,6 +11,8 @@ import WorkbenchShell from './shell/WorkbenchShell';
 const Overview = lazy(() => import('./pages/Overview'));
 const Benchmarks = lazy(() => import('./pages/Benchmarks'));
 const Scheduling = lazy(() => import('./pages/Scheduling'));
+const NativeEngines = lazy(() => import('./pages/NativeEngines'));
+const Diagnostics = lazy(() => import('./pages/Diagnostics'));
 const Precision = lazy(() => import('./pages/Precision'));
 const MemoryCache = lazy(() => import('./pages/MemoryCache'));
 const ModelStructure = lazy(() => import('./pages/ModelStructure'));
@@ -97,6 +99,8 @@ export default function App() {
           <Route path="/" element={<Overview />} />
           <Route path="/benchmarks" element={<Benchmarks />} />
           <Route path="/scheduling" element={<Scheduling />} />
+          <Route path="/engines/:section?" element={<NativeEngines />} />
+          <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="/precision" element={<Precision />} />
           <Route path="/memory-cache/:section?" element={<MemoryCache />} />
           <Route path="/model-structure/:section?" element={<ModelStructure />} />
