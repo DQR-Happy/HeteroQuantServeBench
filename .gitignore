@@ -106,6 +106,9 @@ AGENTS.md
 # Private console state and frontend generated files
 .console/
 .venv-console/
+.venv-vllm
+.venv-sglang
+.native-envs/
 node_modules/
 *.tsbuildinfo
 playwright-report/
@@ -117,9 +120,17 @@ test-results/
 # Local snapshots taken before an explicitly requested redesign.
 /.backups/
 
+# Private, separately maintained profiling source and generated binaries.
+/.external/
+
 # Internal Notion sync dumps: private workspace page IDs, full page text and
 # local absolute paths. Working notes only; never published.
 /work/notion-sync/
 
 # Intermediate upstream dataset transfers; the curated licensed subset is tracked.
 /work/quality-benchmark-source/
+
+# Unpublished manuscript: carries a personal corresponding-author address and has
+# no redistribution license. Keep local; add explicitly with `git add -f` if the
+# publication terms are settled.
+/papers/
