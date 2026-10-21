@@ -21,18 +21,20 @@ def worker_main(connection, cancel, config, controls=None):
             pass
     from hqsb.backends.interactive import InteractivePyTorch, OpenAIProvider
 
-    provider = (
-        InteractivePyTorch(config)
-        if config["provider"] == "pytorch"
-        else OpenAIProvider(config)
-    )
+    if config["provider"] in {"vllm", "sglang"}:
+        from hqsb.backends.native_engine import NativeEngineProvider
+        provider = NativeEngineProvider(config)
+    else:
+        provider = InteractivePyTorch(config) if config["provider"] == "pytorch" else OpenAIProvider(config)
     try:
         while True:
             command = connection.recv()
             try:
                 if command["kind"] == "load":
-                    selection = {k: v for k, v in command.get("payload", {}).items() if k in {"kernel_profile", "precision", "quantization", "structure_artifact_id"}}
+                    selection = {k: v for k, v in command.get("payload", {}).items() if k in {"kernel_profile", "precision", "quantization", "structure_artifact_id", "engine_options"}}
                     result = provider.load(**selection)
+                elif command["kind"] == "native_benchmark":
+                    result = provider.benchmark(command["payload"], cancel)
                 elif command["kind"] == "precision_capabilities":
                     from hqsb.backends.precision_runtime import probe, receipt
                     result = {**probe(), "effective": receipt(provider)}

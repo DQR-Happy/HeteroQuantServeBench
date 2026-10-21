@@ -1,0 +1,16 @@
+# Shared versions exercised by native-engine acceptance on CUDA 12.8 / SM86.
+# Engine-specific package graphs are captured separately by environment.freeze.txt.
+torch==2.8.0
+torchvision==0.23.0
+torchaudio==2.8.0
+transformers==4.57.1
+compressed-tensors==0.11.0
+fastapi==0.115.12
+pydantic==2.11.7
+starlette==0.46.2
+uvicorn==0.54.0
+openai==2.6.1
+openai-harmony==0.0.4
+scipy==1.18.1
+prometheus-fastapi-instrumentator==7.1.0
+cuda-python==12.8.0
