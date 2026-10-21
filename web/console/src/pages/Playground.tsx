@@ -239,7 +239,13 @@ export default function Playground() {
             <strong>{deployment?.platform ?? '—'}</strong>
             <span>推理引擎</span>
             <strong>
-              {deployment?.provider === 'pytorch' ? 'HQSB PyTorch Reference' : 'OpenAI-compatible'}
+              {deployment?.provider === 'pytorch'
+                ? 'HQSB PyTorch Reference'
+                : deployment?.provider === 'vllm'
+                  ? 'vLLM 原生执行'
+                  : deployment?.provider === 'sglang'
+                    ? 'SGLang 原生执行'
+                    : 'OpenAI-compatible'}
             </strong>
           </div>
           {localProvider && deployment && (
