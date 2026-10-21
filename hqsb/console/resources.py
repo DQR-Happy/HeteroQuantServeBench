@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import time
 from pathlib import Path
 from hqsb.console import __version__
@@ -93,15 +92,9 @@ def resource_snapshot(service) -> dict:
 
 
 def observation_capabilities(service) -> dict:
+    from hqsb.observation.nsight_tools import discover
+    native_tools = {tool: discover(tool, service.settings.diagnostic_tools.get(tool))["installed"] for tool in ("nsys", "ncu")}
     local = any(cfg.provider == "pytorch" for cfg in service.configs.values())
-    ncu = shutil.which("ncu") or next(
-        (
-            str(p)
-            for p in Path("/opt/nvidia/nsight-compute").glob("*/ncu")
-            if p.is_file()
-        ),
-        None,
-    )
     definitions = [
         (
             "allocator_history",
@@ -148,16 +141,15 @@ def observation_capabilities(service) -> dict:
         (
             "nsys_live",
             "Nsight Systems 实时采集",
-            False,
-            "工具可发现" if shutil.which("nsys") else "工具未发现",
+            native_tools["nsys"],
+            "在执行诊断页从原生公共压测记录创建独立稳态时间线。" if native_tools["nsys"] else "请在执行节点安装 nsys 并配置工具路径。",
         ),
         (
             "ncu_live",
             "Nsight Compute 实时计数器",
-            False,
-            "工具可发现；支持管理员 CLI 独立诊断采集，浏览器不启动计数器任务。"
-            if ncu
-            else "工具未发现。",
+            native_tools["ncu"],
+            "在执行诊断页选择 Kernel 和采集次数；硬件计数器权限在实际采集时检查。"
+            if native_tools["ncu"] else "请在执行节点安装 ncu 并配置工具路径。",
         ),
         (
             "byte_register_trace",

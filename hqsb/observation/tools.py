@@ -36,9 +36,9 @@ def capture(
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=False)
     executable = shutil.which(tool)
-    if tool == "ncu" and executable is None:
-        candidate = Path("/opt/nvidia/nsight-compute/2024.3.1/ncu")
-        executable = str(candidate) if candidate.is_file() else None
+    if executable is None:
+        from hqsb.observation.nsight_tools import resolve_executable
+        executable = resolve_executable(tool)
     report = {
         "schema_version": "1.0.0",
         "capture_id": "tool_" + uuid.uuid4().hex,

@@ -30,10 +30,9 @@ mkdir -p "${OUT_DIR}"
 echo "Nsight Systems capture: ISL=${ISL} OSL=${OSL}"
 echo "Output dir: ${OUT_DIR}"
 
-# nsys CLI: profile a single model-core run. We use a tiny dedicated driver
-# that loads once and runs one pass, so the timeline is not polluted by
-# model loading. `--capture-range` is not used; instead the driver does a
-# cudaProfilerStart/Stop around the timed region when available.
+# Legacy CLI capture covers the complete driver, including model loading.
+# The Console /diagnostics workflow uses an explicit cudaProfilerApi capture
+# range after loading and warmup for owned native-engine workloads.
 nsys profile \
   --trace=cuda,nvtx,osrt,cudnn,cublas \
   --output="${OUT_DIR}/model_core" \
