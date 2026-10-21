@@ -69,6 +69,8 @@ L9 入口为 `/parallel/run`、`/parallel/topology`、`/parallel/peers`、`/para
 
 L6 入口为 `/memory-cache/configure` 和 `/memory-cache/records`：动态/静态 KV、CPU 卸载与预取、关闭缓存重计算、有界前缀复用，以及严格身份对照。L8 调度页可选真实 GPU 块池并查看拼装/写回、尾部浪费和回收；当前 Attention 仍需稠密还原。详见 [L6 使用、模块与观测边界](infra/README.l6-memory.md)。
 
+原生 vLLM / SGLang 入口为 `/engines`：从现有本地模型建立原生部署，按 L2/L3/L4/L6/L8/L9 选择上游公开参数，加载或重载并查看凭据，再通过同一 HTTP 负载比较输出、token/s、延迟与原生计数器。版本、进程所有权、质量与测量范围见 [原生引擎接入说明](infra/README.native-engines.md)。
+
 `web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认开发服务运行在 `3090-inf`，可在界面通过 SSH / HTTP 选择其他 HQSB 节点；未验证的量化与自定义算子模型回接不会在页面中假装可用。
 
 Console v0.2 增加阶段与逐 token 观测、有限窗口 CPU/CUDA profiler、trace 查询/下载、内存归因与张量账本、历史 kernel 证据钻取，以及真实 RTN-W4/W8 制品任务。量化制品与在线低比特部署分开，优化导出保留为待验证假设。测试范围见内部 v0.2 验收报告（未随仓库发布）。
@@ -186,3 +188,8 @@ export HQSB_REMOTE_DIR=/home/jetson/work/HQSB-benchmark-ui-20261016
 “本次运行凭据与观测”显示 requested/resolved/effective、实际算子版本、Prefill/Decode 逻辑调用计数、未执行站点和 fallback，并提供封存的计划、绑定、汇总及执行凭据下载。阶段/token/allocator 摘要与内存、KV、OS 页、GPU profiler 的详细页面关联到同一个 run ID。逻辑调用证明与 GPU 活动、物理访存、质量和性能验收各有独立口径。
 
 `GET /api/console/v1/kernels/profiles?deployment_id=<id>` 提供部署级目录与制品文件身份检查；目录检查后可加载模型验证。管理员通过 `kernel_manifest` 配置原生库的固定 manifest，浏览器不能提交库路径。当前服务绑定内容寻址制品；缺失或哈希不符的方案会禁用，worker 加载时仍校验 ABI、torch/CUDA/SM 及模型适配。默认继续免登录，默认加载方案仍为 `framework-native`。
+### 原生 Nsight 执行诊断
+
+在原生引擎评测记录中点击“诊断此方案”，或进入 `/diagnostics`，可创建独立 nsys/ncu 任务，查看 GPU 时间线、热点 Kernel、原生计数器与机制对照，并下载原始报告。用法、模块接口、采集口径和权限说明见 [Nsight 执行诊断](infra/README.nsight-diagnostics.md)。
+
+同一诊断入口支持 ERETrace 的选定 Triton Kernel warp/SM 采集、参考编码与原始记录对照、完整性凭据和记录下载。安装、模块接口和观测口径见 [ERETrace 接入说明](infra/README.eretrace.md)。
