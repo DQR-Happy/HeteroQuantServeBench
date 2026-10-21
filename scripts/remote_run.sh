@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REMOTE_HOST="${HQSB_REMOTE_HOST:-3090-inf}"
-REMOTE_DIR="${HQSB_REMOTE_DIR:-/root/HeteroQuantServeBench}"
+REMOTE_HOST="${HQSB_REMOTE_HOST:-jetson}"
+if [[ -n "${HQSB_REMOTE_DIR:-}" ]]; then
+    REMOTE_DIR="${HQSB_REMOTE_DIR}"
+else
+    case "${REMOTE_HOST}" in
+        jetson) REMOTE_DIR="/home/jetson/work/HQSB-main" ;;
+        3090-inf) REMOTE_DIR="/root/HeteroQuantServeBench" ;;
+        4090D-hqsb) REMOTE_DIR="/root/HeteroQuantServeBench-4090D" ;;
+        *) echo 'Set HQSB_REMOTE_DIR for this execution host.' >&2; exit 2 ;;
+    esac
+fi
 
 # 检查是否有输入命令
 if [ $# -eq 0 ]; then
@@ -19,4 +28,4 @@ printf -v remote_dir_q '%q' "${REMOTE_DIR}"
 printf -v remote_argv_q ' %q' "$@"
 # Use the selected checkout's isolated runtime when present. No activation or
 # execution happens on the editing client; argv quoting remains unchanged.
-ssh -- "${REMOTE_HOST}" "cd ${remote_dir_q} && if [ -d .venv-console/bin ]; then export PATH=\"\$PWD/.venv-console/bin:\$PATH\"; fi && exec${remote_argv_q}"
+ssh -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -- "${REMOTE_HOST}" "cd ${remote_dir_q} && if [ -d .venv-console/bin ]; then export PATH=\"\$PWD/.venv-console/bin:\$PATH\"; fi && exec${remote_argv_q}"

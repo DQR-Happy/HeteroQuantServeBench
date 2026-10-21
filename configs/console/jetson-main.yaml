@@ -1,0 +1,24 @@
+# Jetson-owned runtime and model storage. Build native artifacts on this host.
+machine_name: Jetson Orin 8GB · 主服务
+model_download_dir: /home/jetson/models/hqsb/downloaded-models
+model_download_reserve_bytes: 4294967296
+native_engine_cache_dir: /home/jetson/.cache/hqsb/native-engines
+diagnostics_dir: /home/jetson/work/HQSB-main/.console/diagnostics
+eretrace_runtime: /home/jetson/hqsb-private/eretrace-dmat-v5
+deployments:
+  - id: qwen-reference
+    name: Qwen3 · 1.7B · Jetson FP16
+    provider: pytorch
+    platform: CUDA / Jetson Orin
+    model: Qwen/Qwen3-1.7B
+    model_path: /home/jetson/models/hqsb/Qwen3-1.7B
+    manifest: docs/benchmark/model_sha256_manifest.txt
+    kernel_manifest: build/l2/model-kernels.json
+    attention: eager
+    precision: float16
+    context_limit: 2048
+    max_output_tokens: 512
+max_pending: 8
+request_deadline_ms: 120000
+privileged_worker: false
+auth_required: false

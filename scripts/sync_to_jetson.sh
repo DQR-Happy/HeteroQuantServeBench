@@ -2,8 +2,8 @@
 # 从开发机把代码同步到边缘设备（rsync push）。
 #
 # 用法（在【开发机】的项目根目录执行）：
-#   ./scripts/sync_to_jetson.sh                      # 默认目标：3090-inf
-#   ./scripts/sync_to_jetson.sh --target jetson      # 原 Jetson 执行端
+#   ./scripts/sync_to_jetson.sh                      # 默认目标：Jetson 主服务
+#   ./scripts/sync_to_jetson.sh --target 3090-inf    # 保留的云端执行端
 #   ./scripts/sync_to_jetson.sh --target orangepi    # 目标：OrangePi AI Pro
 #   ./scripts/sync_to_jetson.sh --target 4090d       # 目标：4090D 新后端
 #   ./scripts/sync_to_jetson.sh --dry-run            # 仅预览，不写入
@@ -31,7 +31,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-TARGET="${HQSB_TARGET:-3090-inf}"
+TARGET="${HQSB_TARGET:-jetson}"
 MODE="sync"
 
 while [[ $# -gt 0 ]]; do
@@ -51,11 +51,13 @@ case "${TARGET}" in
     DEFAULT_DIR="/root/HeteroQuantServeBench"
     ;;
   jetson)
-    JETSON_USER="${JETSON_USER:-jetson}"
-    # 主机地址不入库，由调用方显式提供。
-    JETSON_HOST="${JETSON_HOST:?请先设置 JETSON_HOST（目标机地址不入库）}"
-    DEFAULT_HOST="${JETSON_USER}@${JETSON_HOST}"
-    DEFAULT_DIR="/home/jetson/work/HeteroQuantServeBench"
+    # 默认使用编辑端 SSH config；显式地址兼容既有调用。
+    if [[ -n "${JETSON_HOST:-}" ]]; then
+      DEFAULT_HOST="${JETSON_USER:-jetson}@${JETSON_HOST}"
+    else
+      DEFAULT_HOST="jetson"
+    fi
+    DEFAULT_DIR="/home/jetson/work/HQSB-main"
     ;;
   orangepi)
     DEFAULT_HOST="OrangePi-AI-Pro"

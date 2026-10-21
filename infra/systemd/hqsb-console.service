@@ -1,0 +1,21 @@
+# Install in ~/.config/systemd/user/ on the Jetson execution host.
+# Enable lingering for the service user so it survives SSH logout and reboot.
+[Unit]
+Description=HQSB Jetson main console
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/work/HQSB-main
+Environment=HQSB_CONSOLE_DATA=%h/work/HQSB-main/.console
+Environment=HQSB_EVIDENCE_ROOT=%h/work/HQSB-g01-g08-20261014
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash %h/work/HQSB-main/scripts/console/serve.sh --config configs/console/jetson-main.yaml --port 8768
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=120
+KillMode=control-group
+UMask=0077
+
+[Install]
+WantedBy=default.target

@@ -16,6 +16,7 @@ if [[ ! -e "${console_venv}" ]]; then
   "${bootstrap_python}" -m venv --system-site-packages "${console_venv}"
 fi
 console_python="$(cd "${console_venv}" && pwd)/bin/python"
+"${console_python}" -m pip install --upgrade pip 'setuptools>=64' wheel
 "${console_python}" -c 'import torch; assert torch.cuda.is_available(), "Install a target-compatible CUDA PyTorch first"; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))'
 "${console_python}" -m pip install -e '.[console,console-model,dev]'
 "${console_python}" -c 'import hashlib, inspect; from transformers.models.qwen3 import modeling_qwen3; from hqsb.backends.model_kernels.qwen3 import SOURCE_SHA256; assert hashlib.sha256(open(inspect.getfile(modeling_qwen3), "rb").read()).hexdigest() == SOURCE_SHA256, "Unsupported Qwen3 adapter source"'

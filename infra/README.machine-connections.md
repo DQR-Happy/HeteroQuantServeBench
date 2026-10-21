@@ -1,15 +1,17 @@
 # 开发执行端与后端机器连接
 
-默认开发执行端为 SSH config 的 `3090-inf`，目录 `/root/HeteroQuantServeBench`。Mac 继续只编辑、传输文件与管理版本：
+自 2026-10-21 起，默认开发执行端与主服务为 SSH config 的 `jetson`，目录 `/home/jetson/work/HQSB-main`。Mac 继续只编辑、传输文件与管理版本：
 
 ```bash
 ./scripts/sync_to_jetson.sh
 ./scripts/remote_run.sh .venv-console/bin/python -m pytest tests/unit/console -q
 ./scripts/remote_run.sh .venv-console/bin/python scripts/observation/build_model_kernels.py
-./scripts/remote_run.sh scripts/console/serve.sh --config configs/console/3090-inf.yaml --port 8768
+./scripts/remote_run.sh scripts/console/serve.sh --config configs/console/jetson-main.yaml --port 8768
 ```
 
-旧执行端继续通过 `HQSB_REMOTE_HOST` / `HQSB_REMOTE_DIR`，或同步脚本 `--target jetson|4090d` 选择。默认 SFTP 只更新本项目配置。不同执行端独立安装依赖与编译，不复制旧设备的虚拟环境和 CUDA 编译结果。
+其他执行端继续通过 `HQSB_REMOTE_HOST` / `HQSB_REMOTE_DIR`，或同步脚本 `--target 3090-inf|4090d` 选择。`HQSB_REMOTE_HOST=3090-inf ./scripts/remote_run.sh ...` 保留原项目目录。默认 SFTP 只更新本项目配置。不同执行端独立安装依赖与编译，不复制旧设备的虚拟环境和 CUDA 编译结果。
+
+Jetson 常驻服务使用 `infra/systemd/hqsb-console.service`，由远端用户级 systemd 管理。安装后可通过代理运行 `systemctl --user status hqsb-console`、`journalctl --user -u hqsb-console`。测试实例继续回环监听、免登录；Mac 的 8878 只是访问隧道。回迁步骤、记录保留及硬件能力见[迁移说明](README.jetson-main.md)。中心控制与节点弹性方案见[架构设计](README.control-plane.md)。
 
 ## 工作台操作
 
@@ -39,27 +41,18 @@
 
 3090 配置为 `configs/console/3090-inf.yaml`，4090D 的八模型配置与原始运行保持在原机器。3090 现有非 HQSB 数据不属于本次清理范围；新权重继续从 ModelScope 下载并验证。
 
-本次保留 Jetson 的本地入口 `http://127.0.0.1:8890`，并通过 Mac 到 3090 的反向转发提供控制端 `http://127.0.0.1:18878`，连接名称明确标记「经 Mac 隧道」。该地址通过上述两条隧道访问 Jetson；Mac 断线后会显示不可达。4090D 已由用户确认关机，保留 SSH 配置，待开机后再在目标机器授权专用公钥并验证。
+2026-10-17 曾使用 Mac 到 3090 的反向转发提供 Jetson 连接；该历史路径依赖 Mac 在线。2026-10-21 主服务已选择直接运行在 Jetson，主入口的隧道直接连接 Jetson。3090 与 4090D 的原配置保留，恢复实例后再验证网络与运行环境。
 
 ## 编辑端隧道重建
 
-主入口为 `http://127.0.0.1:8878/machines`。已有隧道时直接使用，无需重复建立。需要重建时，在 Mac 上执行以下纯 SSH 转发命令；不运行本地项目代码。3090 地址对应本次 SSH config，后续端口变更时同步更新参数。隔离 SSH 配置是为了不继承与工作台无关的 RemoteForward。
+主入口为 `http://127.0.0.1:8878/machines`。已有隧道时直接使用。需要重建时，在 Mac 上执行以下纯 SSH 转发命令；服务本身始终运行在 Jetson，关闭 Mac 后仍由 systemd 管理。
 
 ```bash
-# 3090 主入口；目标端服务须已在 8768 启动。
-# <ssh-host> / <ssh-port> / <ssh-user> / <identity-file> 由本机 SSH config 提供，不写入仓库。
-ssh -F /dev/null -i <identity-file> -p <ssh-port> -f -N \
+# Jetson 主入口；目标端服务须已在 8768 启动。
+ssh -f -N \
   -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
   -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-  -L 127.0.0.1:8878:127.0.0.1:8768 <ssh-user>@<ssh-host>
-
-# 可选：保留 Jetson 原服务，并让 3090 控制端通过 HTTP 访问它。
-ssh -f -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:8890:127.0.0.1:8768 <jetson-user>@<jetson-lan-ip>
-ssh -F /dev/null -i <identity-file> -p <ssh-port> -f -N \
-  -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes \
-  -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-  -R 127.0.0.1:18878:127.0.0.1:8890 <ssh-user>@<ssh-host>
+  -L 127.0.0.1:8878:127.0.0.1:8768 jetson
 ```
 
 真实端点只存在于本机 SSH config 与运行期 `.console/machines.json`；请勿把实际地址、端口或私钥路径写回仓库文档。
