@@ -5,6 +5,184 @@
     "version": "0.2.1"
   },
   "paths": {
+    "/api/console/v1/diagnostics/catalog": {
+      "get": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Catalog",
+        "operationId": "catalog_api_console_v1_diagnostics_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/diagnostics/jobs": {
+      "post": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_console_v1_diagnostics_jobs_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagnosticPlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_console_v1_diagnostics_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/diagnostics/comparisons": {
+      "post": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Compare",
+        "operationId": "compare_api_console_v1_diagnostics_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagnosticComparison"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/diagnostics/jobs/{identity}/artifacts/{relative}": {
+      "get": {
+        "tags": [
+          "diagnostics"
+        ],
+        "summary": "Download",
+        "operationId": "download_api_console_v1_diagnostics_jobs__identity__artifacts__relative__get",
+        "parameters": [
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identity"
+            }
+          },
+          {
+            "name": "relative",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Relative"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/console/v1/machines": {
       "get": {
         "tags": [
@@ -159,6 +337,252 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/native-engines/catalog": {
+      "get": {
+        "tags": [
+          "native-engines"
+        ],
+        "summary": "Engines",
+        "operationId": "engines_api_console_v1_native_engines_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/native-engines/deployments": {
+      "post": {
+        "tags": [
+          "native-engines"
+        ],
+        "summary": "Register",
+        "operationId": "register_api_console_v1_native_engines_deployments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Registration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/native-engines/deployments/{deployment_id}/receipt": {
+      "get": {
+        "tags": [
+          "native-engines"
+        ],
+        "summary": "Receipt",
+        "operationId": "receipt_api_console_v1_native_engines_deployments__deployment_id__receipt_get",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/native-engines/deployments/{deployment_id}/retire": {
+      "post": {
+        "tags": [
+          "native-engines"
+        ],
+        "summary": "Retire",
+        "operationId": "retire_api_console_v1_native_engines_deployments__deployment_id__retire_post",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Deployment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/native-engines/benchmarks": {
+      "post": {
+        "tags": [
+          "native-engines"
+        ],
+        "summary": "Benchmark",
+        "operationId": "benchmark_api_console_v1_native_engines_benchmarks_post",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/hqsb__console__native_engine_routes__BenchmarkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "native-engines"
+        ],
+        "summary": "Benchmarks",
+        "operationId": "benchmarks_api_console_v1_native_engines_benchmarks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/console/v1/native-engines/comparisons": {
+      "post": {
+        "tags": [
+          "native-engines"
+        ],
+        "summary": "Compare",
+        "operationId": "compare_api_console_v1_native_engines_comparisons_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Comparison"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4972,12 +5396,34 @@
         ],
         "summary": "Optimization Catalog",
         "operationId": "optimization_catalog_api_console_v1_optimization_catalog_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "pytorch",
+              "title": "Provider"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -5410,7 +5856,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BenchmarkRequest"
+                "$ref": "#/components/schemas/hqsb__console__benchmark_routes__BenchmarkRequest"
               }
             }
           }
@@ -6022,64 +6468,6 @@
         ],
         "title": "BaselineRegistration"
       },
-      "BenchmarkRequest": {
-        "properties": {
-          "deployment_id": {
-            "type": "string",
-            "title": "Deployment Id"
-          },
-          "baseline_id": {
-            "type": "string",
-            "title": "Baseline Id",
-            "default": "framework-native"
-          },
-          "candidate_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 3,
-            "minItems": 1,
-            "title": "Candidate Ids"
-          },
-          "case_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 4,
-            "minItems": 1,
-            "title": "Case Ids"
-          },
-          "repeats": {
-            "type": "integer",
-            "maximum": 5.0,
-            "minimum": 1.0,
-            "title": "Repeats",
-            "default": 1
-          },
-          "output_tokens": {
-            "type": "integer",
-            "maximum": 128.0,
-            "minimum": 8.0,
-            "title": "Output Tokens",
-            "default": 64
-          },
-          "diagnostics": {
-            "type": "boolean",
-            "title": "Diagnostics",
-            "default": false
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "deployment_id",
-          "candidate_ids",
-          "case_ids"
-        ],
-        "title": "BenchmarkRequest"
-      },
       "ClearPrefix": {
         "properties": {
           "deployment_id": {
@@ -6098,6 +6486,33 @@
           "expected_epoch"
         ],
         "title": "ClearPrefix"
+      },
+      "Comparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_id": {
+            "type": "string",
+            "title": "Candidate Run Id"
+          },
+          "declared_changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Declared Changes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_id"
+        ],
+        "title": "Comparison"
       },
       "ComparisonRequest": {
         "properties": {
@@ -6284,6 +6699,119 @@
         "additionalProperties": false,
         "type": "object",
         "title": "DecodingPlan"
+      },
+      "DiagnosticComparison": {
+        "properties": {
+          "baseline_run_id": {
+            "type": "string",
+            "pattern": "^run_[0-9a-f]{32}$",
+            "title": "Baseline Run Id"
+          },
+          "candidate_run_id": {
+            "type": "string",
+            "pattern": "^run_[0-9a-f]{32}$",
+            "title": "Candidate Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_run_id",
+          "candidate_run_id"
+        ],
+        "title": "DiagnosticComparison"
+      },
+      "DiagnosticPlan": {
+        "properties": {
+          "source_run_id": {
+            "type": "string",
+            "pattern": "^run_[0-9a-f]{32}$",
+            "title": "Source Run Id"
+          },
+          "tool": {
+            "type": "string",
+            "enum": [
+              "nsys",
+              "ncu",
+              "eretrace"
+            ],
+            "title": "Tool",
+            "default": "nsys"
+          },
+          "kernel_filter": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Kernel Filter",
+            "default": ".*"
+          },
+          "launch_skip": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Launch Skip",
+            "default": 0
+          },
+          "launch_count": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 1.0,
+            "title": "Launch Count",
+            "default": 3
+          },
+          "sections": {
+            "type": "string",
+            "enum": [
+              "memory",
+              "compute",
+              "balanced"
+            ],
+            "title": "Sections",
+            "default": "balanced"
+          },
+          "timeout_s": {
+            "type": "integer",
+            "maximum": 1800.0,
+            "minimum": 30.0,
+            "title": "Timeout S",
+            "default": 900
+          },
+          "artifact_limit_mb": {
+            "type": "integer",
+            "maximum": 1024.0,
+            "minimum": 32.0,
+            "title": "Artifact Limit Mb",
+            "default": 256
+          },
+          "ere_kernel": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_.$]+$",
+            "title": "Ere Kernel",
+            "default": "_fwd_kernel"
+          },
+          "ere_codec": {
+            "type": "string",
+            "enum": [
+              "reference",
+              "raw"
+            ],
+            "title": "Ere Codec",
+            "default": "reference"
+          },
+          "ere_verify": {
+            "type": "boolean",
+            "title": "Ere Verify",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_run_id"
+        ],
+        "title": "DiagnosticPlan"
       },
       "DownloadSelection": {
         "properties": {
@@ -6575,6 +7103,18 @@
               }
             ],
             "title": "Kernel Profile"
+          },
+          "engine_options": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Options"
           },
           "precision": {
             "anyOf": [
@@ -7499,6 +8039,29 @@
         ],
         "title": "QuantizationRequest"
       },
+      "Registration": {
+        "properties": {
+          "source_deployment_id": {
+            "type": "string",
+            "title": "Source Deployment Id"
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "vllm",
+              "sglang"
+            ],
+            "title": "Engine"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_deployment_id",
+          "engine"
+        ],
+        "title": "Registration"
+      },
       "RunPage": {
         "properties": {
           "items": {
@@ -7550,7 +8113,9 @@
               "draft_unload",
               "distributed",
               "system",
-              "application"
+              "application",
+              "native_benchmark",
+              "diagnostic"
             ],
             "title": "Kind"
           },
@@ -8271,6 +8836,180 @@
           "prompt"
         ],
         "title": "WorkItem"
+      },
+      "hqsb__console__benchmark_routes__BenchmarkRequest": {
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          },
+          "baseline_id": {
+            "type": "string",
+            "title": "Baseline Id",
+            "default": "framework-native"
+          },
+          "candidate_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Candidate Ids"
+          },
+          "case_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Case Ids"
+          },
+          "repeats": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Repeats",
+            "default": 1
+          },
+          "output_tokens": {
+            "type": "integer",
+            "maximum": 128.0,
+            "minimum": 8.0,
+            "title": "Output Tokens",
+            "default": 64
+          },
+          "diagnostics": {
+            "type": "boolean",
+            "title": "Diagnostics",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "deployment_id",
+          "candidate_ids",
+          "case_ids"
+        ],
+        "title": "BenchmarkRequest"
+      },
+      "hqsb__console__native_engine_routes__BenchmarkRequest": {
+        "properties": {
+          "expected_epoch": {
+            "type": "string",
+            "title": "Expected Epoch"
+          },
+          "prompts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Prompts"
+          },
+          "expected_outputs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Outputs"
+          },
+          "rounds": {
+            "type": "integer",
+            "maximum": 128.0,
+            "minimum": 1.0,
+            "title": "Rounds",
+            "default": 2
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "default": 4
+          },
+          "arrival_mode": {
+            "type": "string",
+            "enum": [
+              "closed_loop",
+              "open_loop"
+            ],
+            "title": "Arrival Mode",
+            "default": "closed_loop"
+          },
+          "request_rate": {
+            "type": "number",
+            "maximum": 1000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Request Rate",
+            "default": 2.0
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Max Output Tokens",
+            "default": 32
+          },
+          "fixed_output_length": {
+            "type": "boolean",
+            "title": "Fixed Output Length",
+            "default": false
+          },
+          "warmup_requests": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 0.0,
+            "title": "Warmup Requests",
+            "default": 1
+          },
+          "ttft_slo_ms": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Ttft Slo Ms",
+            "default": 2000
+          },
+          "e2e_slo_ms": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "E2E Slo Ms",
+            "default": 30000
+          },
+          "sender_lag_limit_ms": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Sender Lag Limit Ms",
+            "default": 50
+          },
+          "deadline_ms": {
+            "type": "integer",
+            "maximum": 600000.0,
+            "minimum": 1000.0,
+            "title": "Deadline Ms",
+            "default": 120000
+          },
+          "deployment_id": {
+            "type": "string",
+            "title": "Deployment Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_epoch",
+          "deployment_id"
+        ],
+        "title": "BenchmarkRequest"
       }
     }
   }

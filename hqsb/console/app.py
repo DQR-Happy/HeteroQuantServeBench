@@ -76,6 +76,7 @@ class Login(BaseModel):
 class KernelSelection(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kernel_profile: str | None = None
+    engine_options: dict | None = None
     precision: Literal["float32", "float16", "bfloat16"] | None = None
     quantization: PrecisionPlan | None = None
     structure_artifact_id: str | None = Field(None, pattern=r"^l5_[0-9a-f]{32}$")
@@ -116,6 +117,9 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     parallel_peers = PeerJobs(settings, svc, parallel_jobs, machines, connections)
     from hqsb.console.application_jobs import ApplicationJobs
     application_jobs = ApplicationJobs(settings, svc, machines, connections)
+    from hqsb.console.diagnostic_jobs import DiagnosticJobs
+    from hqsb.console.diagnostic_routes import diagnostic_router
+    diagnostic_jobs = DiagnosticJobs(settings, svc)
     login_attempts: dict[str, list[float]] = {}
 
     @asynccontextmanager
@@ -124,6 +128,7 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
             telemetry.start()
         yield
         telemetry.close()
+        await asyncio.to_thread(diagnostic_jobs.close)
         await asyncio.to_thread(application_jobs.close)
         await asyncio.to_thread(parallel_peers.close)
         await asyncio.to_thread(connections.close)
@@ -153,7 +158,11 @@ def create_app(settings: Settings, access_token: str | None = None, *, service=N
     app.state.parallel_jobs = parallel_jobs
     app.state.system_jobs = system_jobs
     app.state.application_jobs = application_jobs
+    app.state.diagnostic_jobs = diagnostic_jobs
+    app.include_router(diagnostic_router(diagnostic_jobs, svc), prefix=PREFIX)
     app.include_router(machine_router(machines, connections), prefix=PREFIX)
+    from hqsb.console.native_engine_routes import native_engine_router
+    app.include_router(native_engine_router(settings, svc), prefix=PREFIX)
     app.include_router(model_hub_router(model_hub), prefix=PREFIX)
     app.include_router(scheduling_router(scheduling), prefix=PREFIX)
     from hqsb.console.structure_routes import structure_router

@@ -14,6 +14,19 @@ TERMINAL = frozenset({"completed", "failed", "cancelled", "timed_out", "interrup
 # Project away detailed payloads in SQLite, before allocating Python objects.
 # Full inputs, tensors, operator rows and manifests remain available via get().
 LIST_DETAIL_PATHS = (
+    "$.metrics.diagnostic.panel.timeline",
+    "$.metrics.diagnostic.panel.kernels",
+    "$.metrics.diagnostic.source_engine",
+    "$.metrics.diagnostic.attempts",
+    "$.metrics.native_benchmark.requests",
+    "$.metrics.native_benchmark.native_counters",
+    "$.metrics.native_benchmark.engine.verified_files",
+    "$.metrics.native_benchmark.engine.load_prometheus_text",
+    "$.metrics.native_benchmark.engine.effective_engine_config",
+    "$.config.actual_runtime.native_engine_receipt.verified_files",
+    "$.config.actual_runtime.native_engine_receipt.load_prometheus_text",
+    "$.metrics.native_engine_receipt.verified_files",
+    "$.metrics.native_engine_receipt.load_prometheus_text",
     "$.metrics.experiment_bundle.artifacts",
     "$.result",
     "$.config.messages",

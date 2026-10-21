@@ -35,9 +35,12 @@ export type Deployment = {
     weight_verification?: string;
     metadata_hashes?: Record<string, string>;
     kernel_plan?: KernelPlan;
+    native_engine_receipt?: unknown;
   };
 };
 export type Metrics = {
+  native_benchmark?: unknown;
+  diagnostic?: unknown;
   input_mode?: 'chat' | 'completion';
   input_policy?: { mode: string; add_special_tokens: boolean; chat_template_sha256: string | null };
   experiment_bundle?: { status: string; publication: string };
@@ -99,6 +102,8 @@ export type Run = {
   seq: number;
   config: {
     deployment: Deployment;
+    source_run_id?: string;
+    diagnostic_plan?: { tool: string; source_run_id: string };
     runtime_plan?: { mode: string; shape_policy: string; fullgraph: boolean };
     epoch: string | null;
     input_sha256?: string;
