@@ -29,7 +29,7 @@ Mac 用于编辑和版本管理；运行、构建、测试与硬件探测全部�
 ./scripts/remote_run.sh python3 scripts/check_docs.py
 ```
 
-默认开发执行端为 `3090-inf:/root/HeteroQuantServeBench`。Mac 只编辑与管理版本，运行、构建和测试继续通过代理。`HQSB_REMOTE_HOST`、`HQSB_REMOTE_DIR` 可覆盖目标；Jetson 通过 `--target jetson` 显式同步。执行前请确认远端文件版本与本地一致。工作台 SSH / HTTP 机器管理及切换见[机器连接说明](infra/README.machine-connections.md)。
+默认开发执行端与主服务为 `jetson:/home/jetson/work/HQSB-main`。Mac 只编辑与管理版本，运行、构建和测试继续通过代理。`HQSB_REMOTE_HOST`、`HQSB_REMOTE_DIR` 可覆盖目标；3090 通过 `--target 3090-inf` 显式同步。执行前请确认远端文件版本与本地一致。工作台 SSH / HTTP 机器管理及切换见[机器连接说明](infra/README.machine-connections.md)。
 
 新增 4090D / Linux x86_64 CUDA 后端的初始化流程见 [CUDA Console 部署说明](infra/README.cuda-console.md)。通过 `HQSB_REMOTE_HOST=4090D-hqsb` 选择该端，或使用 `scripts/sync_to_jetson.sh --target 4090d` 同步；Jetson 执行端继续保留。`scripts/console/bootstrap_cuda.sh` 复用目标 CUDA PyTorch，在隔离环境安装已锁定的模型依赖、校验权重、按实际 SM 构建算子并构建前端。通用服务配置为 `configs/console/cuda.example.yaml`。
 
@@ -71,7 +71,7 @@ L6 入口为 `/memory-cache/configure` 和 `/memory-cache/records`：动态/静�
 
 原生 vLLM / SGLang 入口为 `/engines`：从现有本地模型建立原生部署，按 L2/L3/L4/L6/L8/L9 选择上游公开参数，加载或重载并查看凭据，再通过同一 HTTP 负载比较输出、token/s、延迟与原生计数器。版本、进程所有权、质量与测量范围见 [原生引擎接入说明](infra/README.native-engines.md)。
 
-`web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认开发服务运行在 `3090-inf`，可在界面通过 SSH / HTTP 选择其他 HQSB 节点；未验证的量化与自定义算子模型回接不会在页面中假装可用。
+`web/console/` 提供浏览器推理工作台，`hqsb/console/` 提供认证、真实流式推理、取消、任务持久化与历史证据 API。默认开发服务运行在 Jetson，可在界面通过 SSH / HTTP 选择其他 HQSB 节点。中心控制服务与弹性算力节点的后续方案见[中心化架构设计](infra/README.control-plane.md)。
 
 Console v0.2 增加阶段与逐 token 观测、有限窗口 CPU/CUDA profiler、trace 查询/下载、内存归因与张量账本、历史 kernel 证据钻取，以及真实 RTN-W4/W8 制品任务。量化制品与在线低比特部署分开，优化导出保留为待验证假设。测试范围见内部 v0.2 验收报告（未随仓库发布）。
 
